@@ -32,6 +32,7 @@ BLOCK_PATHS = [
     (r'\.jks$', '签名密钥库'),
     (r'\.keystore$', '签名密钥库'),
     (r'DEPLOY-OUT\.txt$', '部署输出（含 ADMIN_KEY）'),
+    (r'_ghtoken|^ghtoken\.txt$', 'GitHub Token 文件'),
     (r'^build_scan/', '学习通页面全量快照（含真实学号与课程）'),
     (r'^build_html', '学习通页面分片（含真实作业状态）'),
     (r'^data/session\.json$', '教务会话 cookie'),
