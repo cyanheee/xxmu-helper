@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.xxmu.helper"
+    android:versionCode="1117"
+    android:versionName="1.1.17">
+
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 相机只用于扫饮水机二维码；没有相机的设备照样能装（用相册选图） -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.FLASHLIGHT" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
+
+    <!-- 自更新：Android 8+ 装 APK 必须声明这个权限，用户还要在系统设置里
+         手动允许一次「安装未知应用」。不声明的话 startActivity 会直接抛
+         ActivityNotFoundException，现象是点了「下载」什么都没发生。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+
+    <!-- v1.1.15：明文流量从「全局放开」改成「默认拒绝 + 按域白名单」。
+         原来这里是 android:usesCleartextTraffic="true"，任何 http:// 都能走，
+         在校园网里被 ARP/DNS 劫持一次就能拿到登录表单与 Cookie 的明文。
+         现在由 res/xml/network_security_config.xml 决定：默认 cleartext 拒绝，
+         只给学校 / 胖乖生活 / 学习通这些可能有老 http 页面的域开。
+         注意 API 24+ 上 networkSecurityConfig 优先于 usesCleartextTraffic，
+         所以这里把那个属性整个去掉，只留一个入口，避免两套规则打架。 -->
+    <application
+        android:label="河医大助手"
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false"
+        android:networkSecurityConfig="@xml/network_security_config"
+        android:hardwareAccelerated="true"
+        android:supportsRtl="false">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".WebActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@android:style/Theme.Holo.Light.NoActionBar" />
+
+        <activity
+            android:name=".ScanActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:theme="@android:style/Theme.Holo.NoActionBar.Fullscreen" />
+
+        <!-- 只给系统安装器读下载好的 apk，不对外暴露 -->
+        <provider
+            android:name=".ApkProvider"
+            android:authorities="com.xxmu.helper.apkfile"
+            android:exported="false"
+            android:grantUriPermissions="true" />
+
+    </application>
+</manifest>

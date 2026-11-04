@@ -1,0 +1,18 @@
+# 河医大助手 · Pages 反向代理
+#
+# 为什么有这一份：Worker 的 *.workers.dev 域名在国内被 DNS 污染
+#   A    → 199.59.149.202（无关 IP）
+#   AAAA → 2a03:2880:f112:83:face:b00c:0:25de（face:b00c 是 Facebook 标志段）
+# 学生手机连不上。而 *.pages.dev 解析正常，国内可直连。
+#
+# 所以这里挂一个极薄的代理：Pages 边缘在 Cloudflare 内网去取 workers.dev。
+# 代理本身不需要 KV、不需要任何密钥，逻辑与数据全在 Worker 上。
+#
+# 部署（在 server/pages 目录下）：
+#   npx wrangler pages deploy dist --project-name xxmu-auth
+#
+# 部署完得到 https://xxmu-auth.pages.dev，填进 web/auth.js 的 BASE。
+
+name = "xxmu-auth"
+pages_build_output_dir = "dist"
+compatibility_date = "2024-11-01"

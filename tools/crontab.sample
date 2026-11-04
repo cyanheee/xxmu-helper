@@ -1,0 +1,33 @@
+# xxmu-app PC 端定时同步 crontab 片段
+#
+# 安装：crontab -e 然后粘贴下面内容（路径按你的实际位置改）
+# 先给脚本执行权限：chmod +x tools/sync_all.py
+#
+# 关键约定：
+#   - 作业（学习通 cookie 有效期长）可以高频跑：每 30 分钟
+#   - 课表（青果 session 时效短，且登录要验证码）低频跑：每天凌晨一次；
+#     如果 session 过期，sync_all 会打印 need_login 退出 2，不会乱写盘
+#   - 想无人值守跑课表，把学号密码放进环境变量（见 ~/.xxmu.env），
+#     但验证码仍然只能人工看 —— 青果没有免验证码通道
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin:/usr/local/sbin
+# node 必须在 PATH 里（kingo.py 用它跑 DES）
+
+# ---- 项目路径 ----
+XXMU_ROOT=/home/you/xxmu-app
+
+# ---- 凭据（建议放到单独的 env 文件，权限 600，别提交仓库）----
+# XXMU_USER=20261440105
+# XXMU_PWD=你的密码
+# XXMU_COOKIE_DB=/home/you/xxmu-app/data/cx_cookies.db
+# XXMU_PUSH=0
+
+# 作业：每 30 分钟
+*/30 * * * * cd $XXMU_ROOT && set -a && . ./.xxmu.env && set +a && /usr/bin/python3 tools/sync_all.py --hw-only >> logs/sync_hw.log 2>&1
+
+# 课表：每天 06:10（session 有效就直接拉，无效只记日志不打扰）
+10 6 * * * cd $XXMU_ROOT && set -a && . ./.xxmu.env && set +a && /usr/bin/python3 tools/sync_all.py --kb-only >> logs/sync_kb.log 2>&1
+
+# 日志按月清理
+0 4 1 * * find $XXMU_ROOT/logs -name '*.log' -mtime +60 -delete

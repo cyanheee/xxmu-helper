@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>河医大助手</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+
+<!-- ============ 激活门（未激活时遮挡整个 App） ============ -->
+<div id="gate">
+  <div class="gate-box">
+    <div class="gate-badge">河</div>
+    <div class="gate-logo">河医大助手</div>
+    <div class="gate-sub">河南医药大学 · 课表与作业</div>
+
+    <div class="gate-tip" id="gateTip">
+      填学号即可进入。<br>
+      进入后请登录一次教务，用来确认这个学号确实是你。
+    </div>
+
+    <label class="gate-label">学号</label>
+    <input id="gateId" class="gate-input" type="text" inputmode="numeric"
+           placeholder="请输入学号" autocomplete="off" maxlength="20">
+
+    <!-- 激活码已经不用了，但这一栏留着当**管理员口令**入口：
+         有些学校账号（管理员自己）需要口令才能进去，藏起来反而更难找。
+         默认折叠，学生看不到这一栏就不会去纠结「我没码怎么办」。 -->
+    <div class="gate-more" id="gateMore">
+      <span id="gateMoreBtn">我是管理员</span>
+    </div>
+    <div id="gateAdm" style="display:none">
+      <label class="gate-label">管理口令 <span class="gate-hint">（学生不用填）</span></label>
+      <input id="gateCode" class="gate-input" type="text"
+             placeholder="管理员口令" autocomplete="off"
+             maxlength="64" spellcheck="false">
+    </div>
+
+    <button id="gateBtn" class="btn">进入</button>
+    <div class="gate-err" id="gateErr"></div>
+
+    <!-- 更新出口：被强制升级挡在门外时，这里是唯一的活路。
+         平时 display:none，只有 UpdateUI 确认「你被版本卡住了」才亮。 -->
+    <button id="gateUpd" class="btn ghost gate-upd" style="display:none">更新到最新版</button>
+
+    <div class="gate-foot">
+      <div>开发者：孤汩</div>
+      <div>QQ：572833261　邮箱：572833261@qq.com</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 更新提示（可关闭的软提示 / 不可关闭的强升级） ============ -->
+<div id="upd">
+  <div class="upd-box">
+    <div class="upd-ico">↑</div>
+    <div class="upd-ttl" id="updTtl">发现新版本</div>
+    <div class="upd-ver" id="updVer">--</div>
+    <div class="upd-notes" id="updNotes"></div>
+    <div class="upd-group" id="updGroup" style="display:none"></div>
+    <label class="adm-check upd-check" id="updCheckWrap">
+      <input id="updMute" type="checkbox">
+      <span>这个版本先不提示了</span>
+    </label>
+    <button id="updGo" class="btn">去下载</button>
+    <button id="updLater" class="btn ghost">以后再说</button>
+  </div>
+</div>
+
+<!-- ============ 首次打开：使用声明（点「我已知晓」才进教程） ============
+     顺序是 声明 → 教程 → 登录引导。声明排在最前面，因为它是唯一一个
+     「用户必须看见才算数」的东西，放在教程后面容易被连点跳过。
+     内容与「我的 → 关于本软件」里的声明区一致，那边是完整版，这里是摘要。
+     ✕ 和「我已知晓」等价 —— 关掉也视为已阅，否则会把人卡在这一层。 -->
+<div id="disc">
+  <div class="disc-box">
+    <button id="discX" class="disc-x" aria-label="关闭">✕</button>
+    <div class="disc-ttl">欢迎使用 河医大助手</div>
+    <div class="disc-sub">河南医药大学 · 一份简短的使用说明</div>
+    <div class="disc-body">
+      <p>感谢使用！这是一款<b>非官方、免费、无广告</b>的校园学习工具，由个人开发维护，不代表河南医药大学或相关服务提供方。</p>
+      <p>课表、作业、接水记录默认只保存在本机；连接学校或打开第三方网页时，会访问相应服务。开发者不收集、不上传你的账号、密码和课表。</p>
+      <p>教务与学习通的信息可能因网络、学校系统调整或缓存而<b>延迟、缺失或出错</b>。考试时间、作业截止、成绩等重要事项，请以学校和老师的官方通知为准，并自行核对。</p>
+      <p>应用仍在完善，可能存在错误。涉及钱的操作（充值、绑卡、下单）一律不代办，请去官方渠道。</p>
+      <p class="disc-more">完整使用声明、数据隐私和开源致谢，见「我的 → 关于本软件」。</p>
+    </div>
+    <button id="discOk" class="btn">我已知晓，开始使用</button>
+    <p class="hint tight">点一次就记住了，以后不再弹。</p>
+  </div>
+</div>
+
+<!-- ============ 首次使用教程（第一次打开时出现，可在「我的」重看） ============ -->
+<div id="tut">
+  <div class="tut-box"></div>
+</div>
+
+<!-- ============ 首次使用引导（教程看完后出现一次） ============ -->
+<div id="onb">
+  <div class="onb-box">
+    <div class="gate-badge">河</div>
+    <div class="onb-ttl">还差两步就能用了</div>
+    <div class="onb-sub">这个 App 不自带任何人的课表。用你自己的账号登录一次，数据就归你了。</div>
+
+    <div class="onb-item" id="onbKb">
+      <div class="onb-n">1</div>
+      <div class="onb-txt">
+        <b>登录教务 · 拿课表</b>
+        <span id="onbKbState">未登录</span>
+      </div>
+      <button id="onbKbBtn" class="btn-sm">去登录</button>
+    </div>
+
+    <div class="onb-item" id="onbCx">
+      <div class="onb-n">2</div>
+      <div class="onb-txt">
+        <b>登录学习通 · 拿作业和考试</b>
+        <span id="onbCxState">未登录</span>
+      </div>
+      <button id="onbCxBtn" class="btn-sm">去登录</button>
+    </div>
+
+    <button id="onbDone" class="btn">开始使用</button>
+    <p class="hint tight">两个都可以以后再登，在「我的」和「学习」页随时能找到入口。</p>
+  </div>
+</div>
+
+<!-- ============ 公告（管理员发，每次内容变更各弹一次） ============ -->
+<div id="ntc">
+  <div class="ntc-box">
+    <div class="ntc-badge">!</div>
+    <div class="ntc-ttl" id="ntcTtl">公告</div>
+    <div class="ntc-at" id="ntcAt"></div>
+    <div class="ntc-body" id="ntcBody"></div>
+    <button id="ntcOk" class="btn">知道了</button>
+  </div>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="app" class="locked">
+
+<header id="top" data-page="kb" data-level="1">
+  <div class="top-row">
+    <!-- 二级页才出现：返回上一级（底栏不动，因为底栏永远停在一级） -->
+    <button id="hdBack" class="hd-back" aria-label="返回上一级">‹</button>
+    <div class="brand">
+      <div class="brand-mark">河</div>
+      <div class="brand-txt">
+        <div class="brand-name" id="hdTitle">课表</div>
+        <div class="brand-sub" id="hdSub">河南医药大学</div>
+      </div>
+    </div>
+    <div class="top-acts">
+      <button id="today" class="pill">今天</button>
+      <button id="btnFree" class="pill accent">空教室</button>
+    </div>
+  </div>
+
+  <div class="week-row">
+    <button id="prev" class="wkbtn" aria-label="上一周">‹</button>
+    <div id="wk">
+      <div class="wk-main">第 <span id="wkno">--</span> 周</div>
+      <div class="wk-sub" id="wkdate">--</div>
+    </div>
+    <button id="next" class="wkbtn" aria-label="下一周">›</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 课表 ================= -->
+  <section id="tab-kb" class="tab active">
+    <!-- v1.1.13：课表状态条。
+         原来所有说明（「还没有你的课表」「本周没有课」「课表读不出来」）
+         都排在 14 行网格的下面 —— 网格高度约 690px，手机屏根本滚不到，
+         用户看到的永远是「一片空白 + 一个字都没有」。
+         现在把状态提到网格上方，永远可见。 -->
+    <div class="kb-bar" id="kbBar" style="display:none">
+      <div class="kb-bar-t" id="kbBarT"></div>
+      <div class="kb-bar-s" id="kbBarS"></div>
+      <div class="kb-bar-acts">
+        <button id="kbBarSync" class="btn soft" style="display:none">从教务同步课表</button>
+        <button id="kbBarDiag" class="btn ghost" style="display:none">复制课表诊断</button>
+      </div>
+    </div>
+    <div id="grid" class="grid"></div>
+    <p class="hint" id="kbtip"></p>
+  </section>
+
+  <!-- ================= 学习 ================= -->
+  <section id="tab-learn" class="tab">
+    <div class="learn-head">
+      <span id="hwcount">0 条要交</span>
+      <button id="refresh" class="pill">刷新</button>
+    </div>
+
+    <!-- 学习通连接状态：没登录时这里就是入口；登录了就显示上次同步时间 -->
+    <div class="card cx-card" id="cxCard">
+      <div class="row"><span>学习通</span><span id="cxState" class="v warn">未登录</span></div>
+      <div class="row" id="cxAtRow" style="display:none"><span>上次同步</span><span id="cxAt" class="v">--</span></div>
+      <button id="btnCxLogin" class="btn">登录学习通（学校统一认证）</button>
+      <button id="btnCxSync" class="btn soft" style="display:none">重新抓作业与考试</button>
+      <button id="btnCxOut" class="btn ghost" style="display:none">断开学习通</button>
+      <p class="hint tight">只读，不会替你交作业、不会点开考试。登录态只存在这台手机上。</p>
+    </div>
+
+    <div class="seg" id="sortSeg">
+      <button data-sort="urgent" class="on">按紧急度</button>
+      <button data-sort="course">按课程</button>
+    </div>
+
+    <div class="chips" id="sortChips">
+      <button data-filter="all" class="on">全部</button>
+      <button data-filter="work">作业</button>
+      <button data-filter="exam">考试</button>
+    </div>
+
+    <div id="hwlist"></div>
+  </section>
+
+  <!-- ================= WIKI ================= -->
+  <section id="tab-wiki" class="tab">
+    <div class="wiki-head">
+      <input id="wikiSearch" class="wiki-search" type="search"
+             placeholder="搜一下：校历 / 招生办 / 附属医院 / 校训" autocomplete="off">
+      <div class="wiki-acts">
+        <button id="wikiAdd" class="pill">+ 补一条</button>
+        <button id="wikiExport" class="pill">导出</button>
+      </div>
+    </div>
+    <div id="wikiBody"></div>
+  </section>
+
+  <!-- ================= 校园事务 ================= -->
+  <section id="tab-campus" class="tab">
+
+    <!-- 饮水机 -->
+    <div class="card" id="waterCard">
+      <div class="card-title"><span class="dot"></span>饮水机 · 胖乖生活</div>
+
+      <div id="waterNotLogin">
+        <p class="hint left tight">
+          学校的直饮水机走「胖乖生活」平台。在这里登录一次，之后点一下就能出水，不用再扫码。
+        </p>
+        <label class="fr-label">手机号</label>
+        <input id="waterPhone" class="fr-input" type="tel" inputmode="numeric"
+               placeholder="胖乖生活绑定的手机号" maxlength="11" autocomplete="off">
+        <label class="fr-label">短信验证码</label>
+        <div class="fr-row">
+          <input id="waterCode" class="fr-input" type="text" inputmode="numeric"
+                 placeholder="6 位验证码" maxlength="8" autocomplete="off">
+          <button id="waterSendCode" class="pill">获取</button>
+        </div>
+        <button id="waterLogin" class="btn">登录</button>
+        <p class="hint left">
+          登录只在本机完成，账号密码不经过开发者服务器。充值、绑定一卡通请去官方的「慧生活798」。
+        </p>
+      </div>
+
+      <div id="waterLogged" style="display:none">
+        <div class="row"><span>账号</span><span id="waterWho" class="v">--</span></div>
+        <div class="row"><span>已绑定饮水机</span><span id="waterCnt" class="v">0 台</span></div>
+      </div>
+    </div>
+
+    <!-- 我的饮水机 -->
+    <div class="card" id="waterDevCard" style="display:none">
+      <div class="card-title"><span class="dot"></span>我的饮水机</div>
+
+      <!-- v1.1.16：原来这里是「结算方式（接水/结算 两个键 或 一键）」。
+           结算整块删掉了 —— 建单要先签约支付宝免密代扣，那一步做不了也不该替
+           学生签（用户原话）。换成「目标水量」：这是真正能实现的功能，
+           因为「停」可以远程下发，「开始」不行（见下面那句说明）。 -->
+      <p class="hint left tight" style="margin:0 0 6px">
+        手机这边只能「解锁」，出水还要在机器出水口按一下按钮 —— 这是胖乖的设计，没有远程开阀的接口。
+        选了目标水量后，到量会自动帮你发停止命令。
+      </p>
+      <div class="chips" id="waterTarget">
+        <button data-ml="0">不限量</button>
+        <button data-ml="200">200</button>
+        <button data-ml="350">350</button>
+        <button data-ml="500">500</button>
+      </div>
+
+      <div id="waterDevList"></div>
+
+      <button id="waterAdd" class="btn">扫码添加饮水机</button>
+
+      <div id="waterAddBox" style="display:none">
+        <p class="hint left tight">
+          扫机器上贴的二维码（写着「请扫码」的那块屏或标签）。二维码里的 SN 是固定机器码，
+          添加后会保存在本机，不用每次扫码；换宿舍后重新添加新机器即可。
+        </p>
+        <button id="waterScan" class="btn">用相机扫二维码</button>
+        <button id="waterPick" class="btn ghost">从相册选二维码图片</button>
+        <input id="waterFile" type="file" accept="image/*" style="display:none">
+        <label class="fr-label">或者直接输入固定 SN 机器码（推荐）</label>
+        <input id="waterPaste" class="fr-input" type="text"
+               placeholder="例如 865403065048324，也可粘贴完整二维码链接" autocomplete="off">
+        <button id="waterPasteOk" class="btn ghost">绑定这台机器</button>
+      </div>
+
+      <button id="waterLogout" class="btn ghost" style="margin-top:10px">退出胖乖生活账号</button>
+    </div>
+
+    <!-- 其他校园事务（只放入口，不做代办） -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>其他</div>
+      <div class="row click" id="rowFree"><span>找空教室</span><span class="v dim">看哪间教室没课 ›</span></div>
+      <div class="row click" id="rowChaoxing"><span>学习通</span><span class="v dim">打开课程首页 ›</span></div>
+      <div class="row click" id="rowEams"><span>空闲教室查询</span><span class="v dim">教务系统里查 ›</span></div>
+    </div>
+
+    <p class="hint">
+      本页只做「帮你少点几下」。涉及钱的操作（充值、绑卡、下单）一律不代办，请去官方渠道。
+    </p>
+  </section>
+
+  <!-- ================= 我的 ================= -->
+  <section id="tab-me" class="tab">
+    <div class="card" id="acctCard">
+      <div class="card-title"><span class="dot"></span>本机账号</div>
+      <div class="row"><span>激活学号</span><span id="acctId" class="v">--</span></div>
+      <div class="row"><span>身份</span><span id="acctRole" class="v">--</span></div>
+      <button id="btnExitMe" class="btn ghost">退出本机账号</button>
+      <p class="hint tight">
+        这一项是软件的卡密账号，不是教务网账号。手机要借人、要卖掉、
+        或者换个人用，点这里。退出后课表、作业、学习通记录一起清掉。
+      </p>
+    </div>
+
+    <div class="card" id="loginCard">
+      <div class="card-title"><span class="dot"></span>教务账号</div>
+      <div class="row"><span>登录状态</span><span id="loginState" class="v">未登录</span></div>
+      <div class="row"><span>学号</span><span id="whoami" class="v">--</span></div>
+      <button id="btnLogin" class="btn">登录教务（学校官方页面）</button>
+      <button id="btnSync" class="btn soft">从教务同步课表</button>
+      <button id="btnLogout" class="btn ghost">退出教务登录</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据状态</div>
+      <div class="row"><span>学期</span><span id="termPick" class="v">--</span></div>
+      <div class="row"><span>课表同步</span><span id="syncAt" class="v">未同步</span></div>
+      <div class="row"><span>作业同步</span><span id="hwSyncAt" class="v">未同步</span></div>
+      <div class="row"><span>数据来源</span><span id="srcTag" class="v">内置</span></div>
+      <div class="row"><span>课程数</span><span id="cnt" class="v">--</span></div>
+      <div class="row"><span>学习通作业</span><span id="hwStat" class="v">--</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>学期设置</div>
+      <div class="row"><span>开学日（第 1 周周一）</span><span id="startday" class="v">--</span></div>
+      <div class="row"><span>总周数</span><span id="totalweeks" class="v">--</span></div>
+      <div class="fr-row">
+        <input id="setStart" class="fr-input" type="date">
+        <input id="setWeeks" class="fr-input" type="number" min="10" max="30" step="1" placeholder="总周数">
+        <button id="setSave" class="btn-sm">保存</button>
+      </div>
+      <p class="hint tight">
+        周次算错了就调这里。日历一周一周对不上的话，把开学日往前或往后挪 7 天。
+        改完立刻生效，只影响这台手机。
+      </p>
+    </div>
+
+    <!-- 管理员专属，普通学生看不到这一块 -->
+    <div class="card" id="adminCard" style="display:none">
+      <div class="card-title"><span class="dot"></span>管理员</div>
+      <div class="row click" id="rowAdmin">
+        <!-- v1.1.8：1.1 版起就没有激活码了（填学号即可用，身份由学校登录页自证），
+             这一行却一直写着「生成激活码 / 按学号算码」，点进去是管理控制台，
+             文案和实际做的事完全对不上。 -->
+        <span>管理控制台</span>
+        <span class="v dim">名单、版本、审核 ›</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row click" id="rowTut"><span>使用教程</span><span class="v dim">六页看完 ›</span></div>
+      <div class="row click" id="rowGuide"><span>使用帮助</span><span class="v dim">这个 App 怎么用 ›</span></div>
+      <div class="row click" id="rowDisc"><span>使用声明</span><span class="v dim">以官方为准 ›</span></div>
+      <div class="row click" id="rowAbout"><span>关于本软件</span><span class="v dim" id="aboutJumpVer">›</span></div>
+      <div class="row click" id="rowUpd"><span>检查更新</span><span class="v dim" id="updJumpVer">›</span></div>
+    </div>
+
+    <button id="resync" class="btn ghost">重新读取本地数据</button>
+  </section>
+
+  <!-- ================= 使用帮助（二级页，从「我的」进） ================= -->
+  <section id="tab-guide" class="tab">
+    <div class="crumb">
+      <button id="guideBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">使用帮助</span>
+    </div>
+
+    <div class="wiki-head">
+      <input id="guideSearch" class="wiki-search" type="search"
+             placeholder="搜一下：激活 / 同步 / 饮水机 / 返回键" autocomplete="off">
+      <div class="wiki-acts">
+        <button id="guideAdd" class="pill">+ 补一条</button>
+        <button id="guideExport" class="pill">导出</button>
+      </div>
+    </div>
+    <div id="guideBody"></div>
+  </section>
+
+  <!-- ================= 管理员 · 控制台（二级页，仅管理员可见） ================= -->
+  <section id="tab-admin" class="tab">
+    <div class="crumb">
+      <button id="adminBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">管理控制台</span>
+    </div>
+
+    <!-- 口令 -->
+    <div class="card" id="admKeyCard">
+      <div class="card-title"><span class="dot"></span>管理员口令</div>
+      <p class="about-p">
+        开卡、停用、改版本都要口令。口令只存在这台手机上，用来向服务器证明身份；
+        它和激活码不是一回事，别发出去，也别写进任何要分发的东西里。
+      </p>
+      <input id="admKey" class="adm-in one" type="password" autocomplete="off"
+             autocapitalize="off" autocorrect="off" spellcheck="false"
+             placeholder="管理员口令（服务端 ADMIN_KEY）">
+      <button id="admKeySave" class="btn soft">保存口令并连接</button>
+      <div id="admKeyMsg" class="gate-err"></div>
+    </div>
+
+    <div id="admPanel" style="display:none">
+
+      <!-- 概览 -->
+      <div class="adm-stats">
+        <div class="adm-stat"><b id="admStatGranted">--</b><span>正常使用</span></div>
+        <div class="adm-stat"><b id="admStatRevoked">--</b><span>已停用</span></div>
+        <div class="adm-stat"><b id="admStatDev">--</b><span>设备上限</span></div>
+        <div class="adm-stat"><b id="admStatVer">--</b><span>线上版本</span></div>
+      </div>
+      <div id="admStatMsg" class="gate-err"></div>
+
+      <!-- 控制台内部分段 -->
+      <div class="seg adm-seg" id="admSeg">
+        <button data-adm="grant" class="on">管理</button>
+        <button data-adm="list">名单</button>
+        <button data-adm="dev">设备</button>
+        <button data-adm="ver">版本</button>
+        <button data-adm="rev">审核</button>
+        <button data-adm="notice">公告</button>
+        <button data-adm="log">日志</button>
+      </div>
+
+      <!-- ========== 管理（v1.1.1：开卡与发码已移除，只留停用/解封） ========== -->
+      <div class="adm-pane" id="admP-grant">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>停用 / 解封</div>
+          <p class="about-p">
+            <b>1.1 版起不再开卡、不再发码</b>：填上学号就能进，身份由学校登录页自证。
+            这里只剩「不让人用」的开关。可以一次填多个，用换行、空格或逗号隔开。
+          </p>
+          <textarea id="admIds" class="adm-in" rows="4" spellcheck="false"
+                    placeholder="20260100001&#10;20261440106 20261440107, 20261440108"></textarea>
+          <button id="admRevoke" class="btn">停用（立刻踢下线）</button>
+          <button id="admUnrevoke" class="btn ghost">解封（重新启用）</button>
+          <button id="admUngrant" class="btn ghost">清空设备记录</button>
+          <p class="hint" style="margin:6px 0 0">
+            <b>停用</b>=拉黑，对方下次联网就被拦下，设备记录也一起清掉；
+            <b>解封</b>只撤掉停用标记，别的都不动；
+            <b>清空设备记录</b>不动停用状态，只是把已绑设备清零，让他换手机能重新绑。
+          </p>
+          <div id="admErr" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 名单 ========== -->
+      <div class="adm-pane" id="admP-list" style="display:none">
+        <!-- 详情卡故意排在名单卡【上面】：名单卡自己就占满一屏
+             （#admList 有 max-height:46vh，上面还有搜索框和筛选条，下面还有刷新按钮），
+             排在下面时点「详情」卡片确实出现了，但落在视口外面，
+             用户看到的就是「点了没有任何反应」。 -->
+        <div class="card" id="admDetailCard" style="display:none">
+          <div class="card-title"><span class="dot"></span>详情 <span id="admDetailId" class="adm-cnt"></span></div>
+          <div id="admDetailBody"></div>
+          <button id="admDetailClose" class="btn ghost">收起</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>使用名单 <span id="admListCnt" class="adm-cnt"></span></div>
+          <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
+                 placeholder="搜学号（留空显示全部）">
+          <div class="chips" id="admFilter">
+            <button data-f="all" class="on">全部</button>
+            <button data-f="granted">正常</button>
+            <button data-f="revoked">已停用</button>
+          </div>
+          <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          <button id="admListBtn" class="btn ghost">刷新名单</button>
+        </div>
+      </div>
+
+      <!-- ========== 设备 ========== -->
+      <div class="adm-pane" id="admP-dev" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>设备绑定</div>
+          <p class="about-p">
+            每个学号默认最多绑 <b id="admMaxDev">3</b> 台设备。换手机、重装系统都会变成「新设备」，
+            名额满了就在下面把这人的旧设备清掉，他再激活一次就能绑上新的。
+          </p>
+          <label class="gate-label">学号</label>
+          <input id="admDevId" class="adm-in one" type="text" inputmode="numeric"
+                 placeholder="20260100001">
+          <button id="admDevQuery" class="btn soft">查这台学号绑了哪些设备</button>
+          <div id="admDevList" class="adm-out"></div>
+          <button id="admDevClear" class="btn ghost">清空这个学号的全部设备</button>
+          <div id="admDevMsg" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 版本 ========== -->
+      <div class="adm-pane" id="admP-ver" style="display:none">
+        <!-- 上传安装包：把「发版」这件事收到 App 里，不再需要网盘和手工填链接 -->
+        <div class="card" id="apkCard">
+          <div class="card-title"><span class="dot"></span>发布新版本</div>
+          <p class="about-p">
+            选一个手机上的 APK，点上传，服务器就替你托管它。
+            <b>上传并发布</b>会同时把「最新版本号 / 下载链接 / 文件大小 / 校验值」一起写进线上配置，
+            学生下次打开 App 点「去下载」就是直接下这个文件，中间没有任何第三方页面。
+          </p>
+
+          <div class="apk-pick" id="apkPick">
+            <div class="apk-pick-ico">＋</div>
+            <div class="apk-pick-txt">
+              <b id="apkPickName">点这里选择安装包</b>
+              <span id="apkPickMeta">从手机文件里选 .apk</span>
+            </div>
+          </div>
+
+          <label class="gate-label">版本号（留空则从文件名猜，如 河医大助手-v1.0.0.apk）</label>
+          <input id="apkVer" class="adm-in one" type="text" placeholder="1.0.0">
+          <label class="gate-label">版本代码 versionCode</label>
+          <input id="apkCode" class="adm-in one" type="text" inputmode="numeric" placeholder="100">
+          <p class="hint tight" id="apkCur">当前线上：--</p>
+
+          <button id="apkUpload" class="btn">上传并发布</button>
+          <button id="apkUploadOnly" class="btn ghost">只上传，不改线上配置</button>
+          <div id="apkMsg" class="gate-err"></div>
+
+          <div class="apk-hosted" id="apkHosted" style="display:none">
+            <div class="row"><span>服务器上的安装包</span><span id="apkHostedName" class="v">--</span></div>
+            <div class="row"><span>大小</span><span id="apkHostedSize" class="v">--</span></div>
+            <div class="row"><span>上传时间</span><span id="apkHostedAt" class="v">--</span></div>
+            <div class="row"><span>SHA-256</span><span id="apkHostedSha" class="v mono">--</span></div>
+            <button id="apkTest" class="btn ghost btn-sm">下载测一下（会拉起安装器）</button>
+            <button id="apkDel" class="btn ghost btn-sm">删掉服务器上的包</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>版本与更新提示</div>
+          <p class="about-p">
+            改完这里，所有联网的用户下次打开 App 就会看到更新提示。
+            最低版本填上去并且勾了强制淘汰以后，低于它的旧版才会被拦下。
+          </p>
+          <label class="gate-label">最新版本号</label>
+          <input id="cfgLatestVer" class="adm-in one" type="text" placeholder="1.0.0">
+          <label class="gate-label">最新版本代码（versionCode）</label>
+          <input id="cfgLatestCode" class="adm-in one" type="text" inputmode="numeric" placeholder="100">
+          <label class="gate-label">下载链接（留空则只显示 QQ 群）</label>
+          <input id="cfgUrl" class="adm-in one" type="text" placeholder="https://…/河医大助手-v1.0.0.apk">
+          <button id="cfgUrlSelf" class="btn ghost btn-sm">用服务器托管的包</button>
+          <label class="gate-label">更新说明（换行分段）</label>
+          <textarea id="cfgNotes" class="adm-in" rows="3" spellcheck="false"
+                    placeholder="修了底栏消失的问题&#10;新增联网授权"></textarea>
+          <label class="gate-label">更新 QQ 群号</label>
+          <input id="cfgQq" class="adm-in one" type="text" inputmode="numeric" placeholder="1097668324">
+          <label class="gate-label">每个学号最多绑几台设备</label>
+          <input id="cfgMaxDev" class="adm-in one" type="text" inputmode="numeric" placeholder="3">
+
+          <label class="gate-label">更新提示方式</label>
+          <div class="seg" id="cfgPolicy">
+            <button data-policy="nag" class="on">一直提示到更新</button>
+            <button data-policy="once">只提示一次</button>
+          </div>
+          <p class="hint tight" id="cfgPolicyHint">
+            一直提示：没更新之前，每次打开都弹一次。只提示一次：点了「以后再说」就不再打扰。
+            强制淘汰（勾了下面那个）两种情况都拦。
+          </p>
+
+          <label class="gate-label">最低可用版本（版本号或代码，0 = 不淘汰旧版）</label>
+          <input id="cfgMinCode" class="adm-in one" type="text" inputmode="text" placeholder="例如 1.0.0 或 100">
+          <button id="cfgPreview" class="btn ghost btn-sm">先看看会挡住谁</button>
+          <div id="cfgPreviewOut" class="adm-out" style="display:none"></div>
+          <label class="adm-check">
+            <input id="cfgEnforce" type="checkbox">
+            <span>真的打开强制淘汰（勾上之后，低于最低版本的旧版立刻不能用了）</span>
+          </label>
+          <p class="hint tight">
+            打开之前请先点「先看看会挡住谁」。被挡住的人如果自己下不到新版，
+            就再也进不来了——这个开关不可逆，除非你把手里的安装包直接发给他。
+          </p>
+          <button id="cfgSave" class="btn">保存版本配置</button>
+          <div id="cfgMsg" class="gate-err"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>管理员名单</div>
+          <p class="about-p">
+            名单存在服务器上，不写在 App 里。名单里的学号登录时必须填管理口令，
+            口令由服务器验证后才签发管理员身份。从名单里删掉某人，他下次联网复核就会掉回普通学生。
+          </p>
+          <div id="admAdmins" class="adm-out"><p class="hint">点下面的按钮拉一次。</p></div>
+          <label class="gate-label">增加管理员（填学号，多个用空格或逗号分隔）</label>
+          <input id="admAddId" class="adm-in one" type="text" inputmode="numeric" placeholder="20260100001">
+          <button id="admAddBtn" class="btn">加进管理员名单</button>
+          <div id="admAdminMsg" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 审核：校园图片 + 留言（v1.1.6） ========== -->
+      <div class="adm-pane" id="admP-rev" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <span class="dot"></span>待审校园图片 <span id="revPhotoCnt" class="adm-cnt"></span>
+          </div>
+          <p class="about-p">
+            学生传上来的照片先在这里排着。<b>通过</b>之后才会出现在「WIKI → 校园实景」里。
+            这一页是给全校看的，不合适的一张都不要放。
+          </p>
+          <div id="revPhotoList" class="rev-list">
+            <p class="hint">点下面的按钮拉一次。</p>
+          </div>
+          <button id="revPhotoRefresh" class="btn ghost">刷新待审图片</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span class="dot"></span>留言板 <span id="revFbCnt" class="adm-cnt"></span>
+          </div>
+          <p class="about-p">
+            学生发来的意见建议都在这。写了回复就会公开显示在 WIKI 的留言板上（学号只露后四位）；
+            没回复的只有你看得到。
+          </p>
+          <div id="revFbList" class="rev-list">
+            <p class="hint">点下面的按钮拉一次。</p>
+          </div>
+          <button id="revFbRefresh" class="btn ghost">刷新留言</button>
+        </div>
+      </div>
+
+      <!-- ========== 公告 ========== -->
+      <div class="adm-pane" id="admP-notice" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>发一条公告</div>
+          <p class="about-p">
+            这是<b>你自己想对大家说的话</b>，和「更新说明」完全无关。
+            更新说明跟着版本走，只有出新版才会变；公告随时可发，发完所有人下次打开 App 就能看到。
+          </p>
+          <label class="gate-label">标题（可留空，默认显示「公告」）</label>
+          <input id="cfgNoticeTitle" class="adm-in one" type="text" placeholder="例如：今晚饮水机维护">
+          <label class="gate-label">正文</label>
+          <textarea id="cfgNotice" class="adm-in" rows="5" spellcheck="false"
+                    placeholder="在这里写你自己的通知，例如：今晚 10 点宿舍饮水机维护，请大家提前接水。"></textarea>
+          <div class="row"><span>当前公告</span><span id="cfgNoticeState" class="v dim">无公告</span></div>
+          <button id="cfgNoticePublish" class="btn">发布给所有用户</button>
+          <button id="cfgNoticeClear" class="btn ghost btn-sm">撤掉当前公告</button>
+          <p class="hint tight">每台设备看过后不再重复弹出；再次点发布会重新通知所有人。</p>
+          <div id="noticeMsg" class="gate-err"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>公告会出现在哪</div>
+          <p class="about-p">
+            联网用户打开 App 时，先检查公告、再检查更新。两个都有的情况下公告先弹，
+            因为公告通常是「今天就要做的事」，更新可以等一等。<br>
+            公告弹窗只有一个「知道了」按钮，点掉就记在这台设备上，不会再来打扰。
+          </p>
+        </div>
+      </div>
+
+      <!-- ========== 日志 ========== -->
+      <div class="adm-pane" id="admP-log" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>操作日志</div>
+          <p class="about-p">
+            记录最近 200 次管理动作。像「强制淘汰」这种一点就全校生效的操作，
+            出问题时能靠这里回溯到底是谁在什么时候点的。
+          </p>
+          <div id="admAudit" class="adm-out"><p class="hint">点下面的按钮拉一次。</p></div>
+          <button id="admAuditBtn" class="btn ghost">刷新日志</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>说清楚一件事</div>
+        <p class="about-p">
+          加了服务器以后，<b>码不再是通行证</b>：码只证明「这个学号该有资格」，
+          真正放行的是服务器上的开卡记录和票据。
+          所以现在可以做到真正的踢人——停用之后，对方下次联网就进不去了。<br>
+          服务器代码在 <code>server/worker.js</code>，部署见 <code>docs/SERVER.md</code>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 关于（不在底部导航，从「我的」进入） ================= -->
+  <section id="tab-about" class="tab">
+    <!-- 二级页：底栏停在「我的」不跳，这里用面包屑说明自己在第几层 -->
+    <div class="crumb">
+      <button id="aboutBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur" id="crumbName">关于</span>
+    </div>
+
+    <div class="about-hero">
+      <div class="gate-badge sm">河</div>
+      <div class="about-logo">河医大助手</div>
+      <div class="about-ver" id="aboutVer">v1.1.17</div>
+      <div class="about-desc">河南医药大学 · 课表与作业助手</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>开发者</div>
+      <div class="row"><span>昵称</span><span class="v strong">孤汩</span></div>
+      <div class="row"><span>QQ</span><span class="v"><a class="lnk" id="lnkQQ">572833261</a></span></div>
+      <div class="row"><span>邮箱</span><span class="v"><a class="lnk" id="lnkMail">572833261@qq.com</a></span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>问题反馈</div>
+      <p class="about-p">
+        遇到课表不对、作业不同步、登录失败等问题，请把下面这些信息一并发给我，
+        可以大幅加快排查：
+      </p>
+      <div class="row"><span>学号</span><span class="v" id="fbId">--</span></div>
+      <div class="row"><span>版本</span><span class="v" id="fbVer">--</span></div>
+      <div class="row"><span>登录状态</span><span class="v" id="fbLogin">--</span></div>
+      <div class="row"><span>数据来源</span><span class="v" id="fbSrc">--</span></div>
+      <div class="row"><span>课程数</span><span class="v" id="fbCnt">--</span></div>
+      <div class="row"><span>作业状态</span><span class="v" id="fbHw">--</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>诊断</div>
+      <div class="row"><span>设备</span><span class="v" id="fbDevice">--</span></div>
+      <div class="row"><span>上次崩溃</span><span class="v" id="fbCrash">无</span></div>
+      <button id="btnShowCrash" class="btn ghost">查看崩溃详情</button>
+      <button id="btnShowHwRaw" class="btn ghost">查看作业状态原文</button>
+      <button id="btnShowKbRaw" class="btn ghost">查看课表抓取原文</button>
+      <button id="btnCopyDiag" class="btn ghost">复制诊断信息</button>
+      <button id="btnMail" class="btn">用邮件反馈</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>授权</div>
+      <div class="row"><span>当前状态</span><span class="v" id="aboutLic">--</span></div>
+      <div class="row"><span>登记学号</span><span class="v" id="aboutLicId">--</span></div>
+      <div class="row"><span>学号核对</span><span class="v" id="aboutVerified">--</span></div>
+      <div class="row"><span>联网校验</span><span class="v" id="aboutNet">--</span></div>
+      <button id="btnRecheck" class="btn ghost">立即联网复核</button>
+      <button id="btnClearCheck" class="btn ghost">清除学号核对记录</button>
+      <button id="btnReauth" class="btn ghost">重新填学号</button>
+      <button id="btnExit" class="btn ghost">退出本机账号（换人用这台手机）</button>
+      <p class="hint" style="margin:6px 0 0">
+        只有「学号核对」显示不一致、但课表其实是对的（比如教务登录名不是学号）时，
+        才需要点「清除学号核对记录」—— 它只清那一条判定，不动课表、不动登录状态。
+      </p>
+      <p class="hint" style="margin:6px 0 0">
+        退出后本机不再属于任何人：学号、课表缓存、作业缓存、
+        学习通记录全部清除，回到开始页。设备指纹保留，
+        所以换回原账号不会被算成新设备。
+      </p>
+    </div>
+
+    <!-- ============ 使用声明（v1.1.11）============
+         首次打开会弹一次摘要版（#disc），这里是完整版。
+         写这一块的动机：这个 App 会替用户读教务、读学习通、开关水阀，
+         一旦学校改版导致数据错、或者水阀没关，用户得先知道「以官方为准」。
+         措辞刻意不用「免责」二字——那读起来像甩锅，改成「使用声明」，
+         说的是「哪些事请你自己核对」，是提醒而不是推责。 -->
+    <div class="card" id="discCard">
+      <div class="card-title"><span class="dot"></span>使用声明</div>
+      <p class="about-p">
+        本软件为<b>个人开发的免费工具，非学校官方出品</b>，与河南医药大学及其
+        教务系统、学习通、胖乖生活均无隶属关系。<br>
+        课表、作业、考试、成绩、空闲教室等信息，均来自上述系统的公开页面，
+        可能因网络、学校改版或缓存而<b>延迟、缺失、出错</b>。
+        <b>考试时间、作业截止、成绩、缴费</b>这类重要事项，
+        请以学校和老师的官方通知为准，并自行核对。
+      </p>
+      <p class="about-p">
+        涉及钱的操作（充值、绑卡、下单、支付）一律不代办，请走官方渠道。<br>
+        软件仍在持续完善，可能存在缺陷；因使用本软件造成的
+        漏考、漏交、多扣费等后果，开发者无法承担，请务必自行确认。
+      </p>
+      <p class="about-p dim">
+        1.1 版起取消了激活码：填学号即可使用，身份由学校登录页自证。
+        软件目前仅限河南医药大学在校学生使用。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据隐私</div>
+      <p class="about-p">
+        <b>保存在手机上的：</b>学号、课表缓存、作业缓存、接水记录、
+        你自己改的学期设置，都存在这台手机的私有目录里。
+        开发者没有为这些数据提供云端备份，也不会把它们用于广告或出售。
+      </p>
+      <p class="about-p">
+        <b>联网时会发生什么：</b>登录教务、同步课表、查作业时，App 会像浏览器一样
+        访问学校对应的网站，那些网站能看到请求本身（IP、时间、你提交的表单）。
+        App 只是把这些页面显示出来，不额外转发给任何第三方。
+      </p>
+      <p class="about-p">
+        <b>密码：</b>教务和学习通的密码由你在学校的官方页面上输入，
+        App 不读取、不保存、不上传。App 保存的是登录成功后学校发给浏览器的
+        Cookie（相当于「已登录」的凭证），它只存在本机，退出登录即清除。
+      </p>
+      <p class="about-p">
+        <b>设备指纹：</b>为了防止一个学号被无限多台手机共用，首次进入时会生成一串
+        随机字符存在本机，用来区分设备。它不含任何硬件序列号，卸载即消失。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>权限与删除</div>
+      <p class="about-p">
+        <b>相机：</b>只在你主动点「扫二维码」时打开，用来读饮水机上的码。<br>
+        <b>相册：</b>只在你主动点「从相册选图」时读取你选中的那一张。<br>
+        <b>安装应用：</b>只用于 App 内更新自己，不会安装别的东西。<br>
+        拒绝任何一项，只影响对应功能，其余照常可用。
+      </p>
+      <p class="about-p">
+        <b>怎么删：</b>「我的 → 退出本机账号」会清掉学号、课表、作业、学习通记录；
+        「我的 → 退出教务登录」只清教务 Cookie。想连设备指纹一起清干净，
+        到 Android 设置里「清除应用数据」或直接卸载。
+        <b>这些操作不可撤销</b>，删之前先想清楚要保留什么。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>安全与反馈</div>
+      <p class="about-p">
+        全站走 HTTPS；服务器只保存「学号 + 是否可用 + 绑了几台设备」，
+        不保存密码、课表、作业内容。服务器代码开源在
+        <code>server/worker.js</code>。<br>
+        但本软件<b>没有经过任何独立的安全审计</b>，无法承诺绝对安全、
+        没有缺陷、或数据永不丢失。
+      </p>
+      <p class="about-p">
+        发现 bug、资料写错、或者想加功能，用下面的「用邮件反馈」或
+        「校园 → 留言板」告诉我。<b>反馈前请把姓名、学号、密码、
+        验证码、Cookie 抹掉</b>，只留报错文字和操作步骤就够定位了。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>开源致谢</div>
+      <p class="about-p">
+        本项目使用 <b>ZXing</b>（Apache-2.0）做二维码解码，
+        <b>jsQR</b>（Apache-2.0）做图片兜底解码，
+        构建链使用 <b>Android SDK build-tools</b>。
+        第三方组件各自遵循其原始许可证。
+      </p>
+      <p class="about-p dim">
+        交互与文案参考了若干校园工具类项目的做法，参考不等于把它们的
+        代码或素材并入本应用。
+      </p>
+    </div>
+
+    <div class="about-foot">感谢使用 · 孤汩</div>
+  </section>
+</main>
+
+<div id="sheet">
+  <div class="sh-box">
+    <div class="sh-grip"></div>
+    <div class="sh-head">
+      <b id="sh-name"></b>
+      <button id="sh-close" class="pill">关闭</button>
+    </div>
+    <div id="sh-body"></div>
+  </div>
+</div>
+
+<nav id="tabs">
+  <button data-tab="kb" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="3.2"/>
+      <path d="M8 3v3M16 3v3M3 10h18"/>
+    </svg>
+    <span>课表</span>
+  </button>
+  <button data-tab="learn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/>
+      <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/>
+      <path d="M9 7.5h6"/>
+    </svg>
+    <span>学习</span>
+  </button>
+  <button data-tab="wiki">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H17a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6.5A1.5 1.5 0 0 1 5 19.5z"/>
+      <path d="M9 8h6M9 12h6M9 16h3"/>
+    </svg>
+    <span>WIKI</span>
+  </button>
+  <button data-tab="campus">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 21V8.5L12 3l8 5.5V21"/>
+      <path d="M9.5 21v-6h5v6"/>
+      <path d="M8.5 11h1.5M14 11h1.5"/>
+    </svg>
+    <span>校园事务</span>
+  </button>
+  <button data-tab="me">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8.5" r="3.8"/>
+      <path d="M4.5 21c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/>
+    </svg>
+    <span>我的</span>
+  </button>
+</nav>
+</div>
+
+<script src="jsQR.js"></script>
+<script src="homework.js"></script>
+<script src="data.js"></script>
+<script src="license.js"></script>
+<script src="auth.js"></script>
+<script src="sync.js"></script>
+<script src="chaoxing.js"></script>
+<script src="about.js"></script>
+<script src="wiki.js"></script>
+<script src="guide.js"></script>
+<script src="onboard.js"></script>
+<script src="disc.js"></script>
+<script src="tut.js"></script>
+<script src="water.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

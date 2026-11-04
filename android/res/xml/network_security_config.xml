@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  明文（http）流量的白名单配置  —— v1.1.15
+
+  背景：AndroidManifest 里原来是 `android:usesCleartextTraffic="true"`，
+  这是**全局**放开：任何 http:// 都能走，包括被注入进来的地址。
+  校园网里做一次 ARP/DNS 劫持就能拿到登录表单与 Cookie 的明文。
+  审计报告（audit-backend 的「usesCleartextTraffic 全局放开明文」）指的就是这个。
+
+  为什么不直接改成 false：
+    本机没有真机也没有模拟器（adb devices 永远为空），而 cleartext=false 的
+    失败方式是「整页白屏 + ERR_CLEARTEXT_NOT_PERMITTED」—— 学校这些老系统的
+    页面里只要有一个 http 子资源或一次 http 跳转，学生看到的就是一片白，
+    而且提示指向的是浏览器层面的错误，不是我们能解释的东西。
+    在无法真机验证的前提下，把「全局 true」换成「全局 false」等于赌一整条链路。
+
+  所以这里改成「默认拒绝 + 按域白名单」，也就是真正的收益：
+    · 默认 base-config cleartextTrafficPermitted="false"
+      → 任何**不在名单里**的 http 请求一律拒绝（含被劫持/伪造的地址）
+    · 只给学校与教学平台这些确实可能有老 http 页面的域开明文
+      → 这些域今天的行为与改之前完全一致，不会因为这次改动白屏
+
+  以后如果真的确认某个域全量上了 https，从名单里删掉那一条即可，不用改代码。
+-->
+<network-security-config>
+
+    <!-- 默认：不允许明文。我们自己的接口（xxmu-auth.pages.dev）全在 https 上，
+         不在下面的名单里，所以任何人想把它降级成 http 都会被系统拦掉。 -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 白名单：只给这些域开明文，行为与改之前一致 -->
+    <domain-config cleartextTrafficPermitted="true">
+        <!-- 河南医药大学主站 / 教务 / 招生（青果可能引用 http 的静态资源） -->
+        <domain includeSubdomains="true">xxmu.edu.cn</domain>
+        <!-- 校报电子版：wiki.js 里那条 http://xxmu.ihwrm.com/ 会 302 到 https，
+             但跳转前的那一跳是明文，先留着 -->
+        <domain includeSubdomains="true">ihwrm.com</domain>
+        <!-- 胖乖生活（饮水机）h5 与接口 -->
+        <domain includeSubdomains="true">qiekj.com</domain>
+        <!-- 学习通 / 超星 -->
+        <domain includeSubdomains="true">chaoxing.com</domain>
+        <domain includeSubdomains="true">chaoxing.cn</domain>
+        <domain includeSubdomains="true">edu.cn</domain>
+    </domain-config>
+
+</network-security-config>

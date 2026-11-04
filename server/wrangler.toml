@@ -1,0 +1,25 @@
+# 河医大助手 · 授权与版本服务（Cloudflare Worker）
+#
+# 用法：
+#   1) 把下面 id 换成 `npx wrangler kv namespace create AUTH` 输出的 id
+#   2) 在 server 目录执行： npx wrangler deploy
+#
+# 注意：这个文件里不要写任何密钥。密钥用 `npx wrangler secret put XXX` 存，
+#      存进去之后 Cloudflare 那边加密保管，本地和服务端代码都读不到明文。
+
+name = "xxmu-auth"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+# Workers 免费版即可，不需要付费套餐
+workers_dev = true
+
+# 自定义域名（可选）。绑定后把 auth.js 的 BASE 换成这个域名。
+# 需要先在 Cloudflare 里把域名接进来（NS 指向 Cloudflare），国内访问还需要域名备案。
+# routes = [
+#   { pattern = "auth.你的域名.com", custom_domain = true }
+# ]
+
+[[kv_namespaces]]
+binding = "AUTH"
+id = "02669ca1cef04c5e930d4e3bb2d0d780"

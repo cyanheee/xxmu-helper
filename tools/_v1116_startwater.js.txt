@@ -1,0 +1,210 @@
+  /**
+   * 停止出水。
+   *
+   * 这是「停」—— 真能远程做的那一半。用户点了「停止」，或者定量放水到量，
+   * 都走这里。官方入参只有 goodsId（不是 skuId、不是 SN），见 water.js 文件头。
+   *
+   * 为什么不在这里判「停没停」：endWater 只是把命令下发到串口/2G 通道，
+   * 机器真正停阀要几秒。所以发完继续用 WATER.waitDone 轮询到 status 3/5，
+   * 中途绝不能先显示「已停止」—— 那会让人走开，而水还在流。
+   *
+   * 为什么没有「结算 / 去付款」：v1.1.16 按用户要求整块删掉了。
+   * 原话「最后的结账功能不需要，因为胖乖app里需要绑定支付宝免密支付」——
+   * 建单那一步要账号先签约免密代扣，那是我们做不了也不该替学生做的事。
+   * 费用仍在胖乖生活的账单里，学生自己去官方 App 付。**别把这段接回来。**
+   */
+  function stopWater(dev, fn) {
+    if (busy) { XXMU.toast('上一次操作还没跑完，等一下'); return; }
+    if (!dev || !fn) return;
+    busy = fn.id;
+
+    const tips = document.getElementById('sh-name');
+    document.getElementById('sh-body').innerHTML = '';
+    if (tips) tips.textContent = '停止放水 · ' + (dev.name || dev.id);
+    document.getElementById('sheet').classList.add('on');
+
+    const line = el('p', 'hint', '已发出停止命令，等机器停阀…');
+    document.getElementById('sh-body').appendChild(line);
+
+    const rows = el('div', 'settle-box');
+    document.getElementById('sh-body').appendChild(rows);
+    const put = (k, v) => {
+      const r = el('div', 'settle-row');
+      r.appendChild(el('span', 'k', k));
+      r.appendChild(el('span', 'v', v));
+      rows.appendChild(r);
+    };
+
+    WATER.endWater(dev.id).then(() => {
+      put('停止命令', '已发送');
+      return WATER.waitDone(fn.id, (n, s) => {
+        line.textContent = '等机器停阀… 第 ' + n + ' 次' +
+          (s.status ? '（状态 ' + s.status + (s.amount > 0 ? '，已用 ' + s.amount : '') + '）' : '');
+      });
+    }).then(r => {
+      delete RUNNING[dev.id + ':' + fn.id];
+      renderDevs();
+
+      if (r && r.pending) {
+        line.className = 'hint warn';
+        line.textContent = '机器还在出水（等了 2 分钟没变化）。可以再点一次「停止」，'
+          + '或者按机器面板上的停止键。';
+        if (r.sync && r.sync.amount > 0) put('本次用量', String(r.sync.amount));
+        return;
+      }
+      if (r && r.failed) {
+        line.className = 'hint warn';
+        line.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
+        return;
+      }
+      const s = (r && r.sync) || {};
+      put('出水状态', '已停止');
+      line.className = 'hint ok';
+      line.textContent = '已停止。本次用量 ' + (s.amount || 0) +
+        '，费用会记在胖乖生活的账单里，去官方 App 付款就行。';
+    }).catch(e => {
+      line.className = 'hint warn';
+      line.textContent = '停止失败：' + WATER.human(e)
+        + '\n\n可以按机器面板上的停止键；机器到量也会自己停。';
+    }).then(() => {
+      busy = '';
+    });
+  }
+
+  /**
+   * 放水（v1.1.16）。
+   *
+   * ⚠️ 这里最容易做错的地方：`goods/water/unlock` **不是开阀**。
+   * 官方 h5 解锁成功页原文是「请在出水口处点按开始接水」——也就是说，
+   * 手机做完这一步之后，人还要在机器出水口按一下物理按键才会出水。
+   * 官方全部接口里没有任何远程开阀的能力（接口已穷举，见 water.js 文件头）。
+   * 所以：
+   *   · 界面文案写「已解锁，去出水口按一下」，绝不写「已开阀 / 正在出水」；
+   *   · 按钮从「放水」变成「停止」，因为停是真能远程做的，开始不是。
+   *
+   * 自动重绑：见 WATER.unlockWithRebind —— code=-1 多半是本机存的 skuId
+   * 过期（平台侧重绑过机器），自动重拉一次再试，不让人手动点两次。
+   */
+  function startWater(dev, fn) {
+    if (busy) { XXMU.toast('上一个操作还没跑完，等一下'); return; }
+    busy = fn.id;
+
+    const tips = document.getElementById('sh-name');
+    document.getElementById('sh-body').innerHTML = '';
+    if (tips) tips.textContent = '放水 · ' + (dev.name || dev.id);
+    document.getElementById('sheet').classList.add('on');
+
+    const line = el('p', 'hint', '正在把解锁命令发给饮水机…');
+    document.getElementById('sh-body').appendChild(line);
+
+    const target = WATER.targetMl();
+    let usedFn = fn;
+
+    WATER.unlockWithRebind(dev, fn, (n, state) => {
+      line.textContent = '等待机器响应… 第 ' + n + ' 次' + (state ? '（' + state + '）' : '');
+    }, () => {
+      /* 平台拒绝了第一次，正在自动重绑。这句必须说，否则用户看到
+       * 界面卡在这里会以为死了 —— 重绑要重新拉机器详情 + sku 列表，2~3 秒。 */
+      line.textContent = '机器的出水口编号可能过期了，正在自动重新读取…';
+    }).then(res => {
+      if (res && res.usedFn) usedFn = res.usedFn;
+
+      RUNNING[dev.id + ':' + usedFn.id] = { at: Date.now(), name: usedFn.name };
+      renderDevs();
+
+      line.className = 'hint ok';
+      /* 只说已经发生的事实：解锁好了，接下来要人去按。这里不能写
+       * 「正在出水」—— 用户不按，一滴水都不会出来。 */
+      line.textContent = '已解锁。现在去机器出水口按一下「' + usedFn.name + '」就会出水。'
+        + (res && res.rebound ? '\n（出水口编号已自动更新）' : '');
+
+      const box = document.getElementById('sh-body');
+
+      if (target > 0) {
+        /* 定量放水：盯 amount，到量自动发停止。 */
+        const tgtLine = el('p', 'hint', '目标水量 ' + target + '，正在等出水…');
+        box.appendChild(tgtLine);
+
+        const stopBtn = el('button', 'btn', '停止');
+        stopBtn.onclick = () => { closeSheet(); stopWater(dev, usedFn); };
+        box.appendChild(stopBtn);
+
+        box.appendChild(el('p', 'hint',
+          '到 ' + target + ' 会自动发停止命令。注意：到量到真正停阀有几秒延迟，'
+          + '实际会多流一点；中途断网就盯不住了，机器会流到自己的上限才停。'));
+
+        WATER.watchVolume(usedFn.id, target, {
+          machineId: dev.id,
+          onTick: (n, s, t) => {
+            tgtLine.textContent = s.amount > 0
+              ? ('已出 ' + s.amount + ' / ' + t)
+              : ('已出 0 / ' + t + '，正在等出水…');
+          },
+          onZero: () => {
+            tgtLine.className = 'hint warn';
+            tgtLine.textContent = '还没检测到出水。记得去机器出水口按一下按钮 —— 手机这边只能解锁。';
+          },
+          onReached: (s) => {
+            tgtLine.className = 'hint ok';
+            tgtLine.textContent = '已到 ' + s.amount + '，正在发停止命令…';
+          },
+          onStopError: (e) => {
+            tgtLine.className = 'hint warn';
+            tgtLine.textContent = '自动停止失败：' + WATER.human(e) + '。请到机器面板按停止。';
+          },
+        }).then(r => {
+          delete RUNNING[dev.id + ':' + usedFn.id];
+          renderDevs();
+          const done = el('p', 'hint ok');
+          if (r && r.done && !r.failed) {
+            done.textContent = '放水结束，本次 ' + (r.amount || 0)
+              + '。费用记在胖乖生活的账单里，去官方 App 付款。';
+          } else if (r && r.failed) {
+            done.className = 'hint warn';
+            done.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
+          } else if (r && r.pending) {
+            done.className = 'hint warn';
+            done.textContent = '还在出水（到量后 10 分钟仍未见停止）。请按机器面板上的停止键。';
+          } else if (r && r.netError) {
+            done.className = 'hint warn';
+            done.textContent = '网络断了，没法再盯着用量。机器会流到自己的上限才停，'
+              + '费用照样记在胖乖账单里。';
+          } else if (r && r.stopError) {
+            done.className = 'hint warn';
+            done.textContent = '停止命令没能发出去，请到机器面板按停止键。';
+          } else {
+            done.textContent = '放水结束。费用记在胖乖生活账单里。';
+          }
+          box.appendChild(done);
+        });
+      } else {
+        /* 不限量：只给「停止」。不写「机器到量会自己停」这种安慰话术，
+         * 因为那要看机型设置，我们并不知道。 */
+        const stopBtn = el('button', 'btn', '停止');
+        stopBtn.onclick = () => { closeSheet(); stopWater(dev, usedFn); };
+        box.appendChild(stopBtn);
+
+        const ok2 = el('button', 'btn ghost', '先接着，等会儿再说');
+        ok2.onclick = closeSheet;
+        box.appendChild(ok2);
+
+        box.appendChild(el('p', 'hint',
+          '接完回来在列表里点「停止」就行。费用记在胖乖生活的账单里，'
+          + '这个 App 不建订单、也不收钱。'));
+      }
+
+      XXMU.toast('已解锁，去机器上按一下出水');
+    }).catch(e => {
+      line.textContent = WATER.human(e);
+      line.className = 'hint warn';
+      const again = el('button', 'btn ghost', '再试一次');
+      again.onclick = () => {
+        closeSheet();
+        setTimeout(() => startWater(dev, fn), 200);
+      };
+      document.getElementById('sh-body').appendChild(again);
+    }).then(() => {
+      busy = '';
+    });
+  }
+

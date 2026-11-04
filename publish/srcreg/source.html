@@ -1,0 +1,3196 @@
+<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>河医大助手校园教务辅助软件 V1.1.17 源程序</title>
+<style>
+@page{size:A4;margin:1.5cm 1.4cm 1.2cm 1.4cm;}
+*{box-sizing:border-box;-webkit-print-color-adjust:exact}
+body{margin:0;font-family:"Consolas","Courier New",monospace;font-size:8pt;line-height:1.28;color:#000}
+.pg{page-break-after:always;position:relative;min-height:26.2cm}
+.pg:last-child{page-break-after:auto}
+.hd{display:flex;justify-content:space-between;font-size:8.5pt;border-bottom:1px solid #000;padding-bottom:3px;margin-bottom:6px;font-family:"Microsoft YaHei","PingFang SC",sans-serif}
+.hd .l{font-weight:600}
+.ln{white-space:pre-wrap;word-break:break-all;margin:0}
+.ln i{display:inline-block;width:22px;color:#666;font-style:normal;text-align:right;padding-right:6px;user-select:none}
+.brk{page-break-after:always;text-align:center;padding-top:45%;font-family:"Microsoft YaHei",sans-serif;font-size:11pt;color:#333;line-height:2}
+</style></head><body>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 1 页 / 共 61 页</span></div>
+<p class="ln">// ======== 文件：web/about.js ========</p>
+<p class="ln">/* 河医大助手 - 激活门与关于页</p>
+<p class="ln"> *</p>
+<p class="ln"> * 三层门禁：</p>
+<p class="ln"> *   1. 未激活 → #gate 遮挡，主界面 #app 隐藏</p>
+<p class="ln"> *   2. 已激活但未登录教务 → 可以看关于页，课表为空</p>
+<p class="ln"> *   3. 已激活 + 已登录 → 完整功能</p>
+<p class="ln"> *</p>
+<p class="ln"> * 授权从 v0.8.0 起是两层（见 auth.js）：</p>
+<p class="ln"> *   - 本地码：证明「这个学号该有资格」，离线可算，负责即时反馈</p>
+<p class="ln"> *   - 联网票据：服务器上的开卡记录才是真正的开关，能远程停用</p>
+<p class="ln"> * 两者都通过才放行；服务器不可达时按本地码放行，联网后自动补验。</p>
+<p class="ln"> */</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const APP_VERSION = '1.1.17';</p>
+<p class="ln">const DEV_NAME = '孤汩';</p>
+<p class="ln">const DEV_QQ = '572833261';</p>
+<p class="ln">const DEV_MAIL = '572833261@qq.com';</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const Gate = (() =&gt; {</p>
+<p class="ln">  const $ = (id) =&gt; document.getElementById(id);</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function show() {</p>
+<p class="ln">    $('app').classList.add('locked');</p>
+<p class="ln">    $('gate').classList.remove('off');</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function hide() {</p>
+<p class="ln">    $('gate').classList.add('off');</p>
+<p class="ln">    $('app').classList.remove('locked');</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function err(msg) {</p>
+<p class="ln">    $('gateErr').textContent = msg || '';</p>
+<p class="ln">    // 任何把「要更新」写在脸上的拦截，都顺手把更新弹窗叫起来。</p>
+<p class="ln">    // 否则用户只看到一句话，却不知道去哪儿拿新版本。</p>
+<p class="ln">    if (msg &amp;&amp; /更新|新版/.test(msg) &amp;&amp; typeof UpdateUI !== 'undefined') {</p>
+<p class="ln">      UpdateUI.check(true);</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  /** 已激活过就直接放行，然后后台静默联网复核 */</p>
+<p class="ln">  function boot() {</p>
+<p class="ln">    const pre = LICENSE.whoami();</p>
+<p class="ln">    if (pre) $('gateId').value = pre;</p>
+<p class="ln">    if (AUTH.usable()) {</p>
+<p class="ln">      hide();</p>
+<p class="ln">      if (window.__onUnlocked) window.__onUnlocked();</p>
+<p class="ln">      /* 已激活但可能是「激活完就关了 App」的情况：声明/教程/引导还没做过就补上。</p>
+<p class="ln">       * 顺序是 声明 → 教程 → 登录引导（三者各自往下转，见 disc.js 顶部说明）。 */</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 2 页 / 共 61 页</span></div>
+<p class="ln">      if (typeof Disc !== 'undefined') Disc.afterUnlock();</p>
+<p class="ln">      else if (typeof Tut !== 'undefined') Tut.afterUnlock();</p>
+<p class="ln">      else if (typeof Onboard !== 'undefined') Onboard.afterUnlock();</p>
+<p class="ln">      // 后台复核，不阻塞界面。被拉黑/版本过旧/管理员票据过期时才回来弹门。</p>
+<p class="ln">      AUTH.check(false).then(r =&gt; {</p>
+<p class="ln">        if (!r.ok) {</p>
+<p class="ln">          // 版本过期：别只把人挡在门外，直接把升级提示顶到脸上</p>
+<p class="ln">          if (r.tooOld &amp;&amp; typeof UpdateUI !== 'undefined') {</p>
+<p class="ln">            err(r.msg || '当前版本已停止使用，请更新');</p>
+<p class="ln">            show();</p>
+<p class="ln">            UpdateUI.check(true);</p>
+<p class="ln">            return;</p>
+<p class="ln">          }</p>
+<p class="ln">          err(r.msg || '授权已失效，请重新激活');</p>
+<p class="ln">          show();</p>
+<p class="ln">        }</p>
+<p class="ln">      });</p>
+<p class="ln">      return true;</p>
+<p class="ln">    }</p>
+<p class="ln">    show();</p>
+<p class="ln">    return false;</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  /* 进入 App。</p>
+<p class="ln">   *</p>
+<p class="ln">   * v1.1.0 起没有激活码了，这里只做两件事：</p>
+<p class="ln">   *   1. 学生：填学号 → 领票（服务端仍查黑名单与设备名额）→ 放行</p>
+<p class="ln">   *   2. 管理员：展开折叠区，多填一个管理口令 → 服务端验过后签 role=admin</p>
+<p class="ln">   *</p>
+<p class="ln">   * 学号是不是他本人的，不再靠激活码回答，而是靠**登录教务**：</p>
+<p class="ln">   * 青果用学号当登录名，WebView 会把用户在登录页填的 input#username 读回来</p>
+<p class="ln">   * 与这里登记的学号比对（见 sync.js 的 __onLoginDone 与 LICENSE.noteKbAccount）。</p>
+<p class="ln">   * 所以这一步不拦人，拦在同步课表那一步——进了门却拿不到数据，指向很明确。</p>
+<p class="ln">   */</p>
+<p class="ln">  function submit() {</p>
+<p class="ln">    const id = ($('gateId').value || '').trim();</p>
+<p class="ln">    const code = ($('gateCode').value || '').trim();</p>
+<p class="ln">    err('');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if (!id) { err('请填写学号'); return; }</p>
+<p class="ln">    if (!/^\d{6,20}$/.test(id)) { err('学号格式不对（应为 6-20 位数字）'); return; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const btn = $('gateBtn');</p>
+<p class="ln">    const old = btn.textContent;</p>
+<p class="ln">    btn.disabled = true;</p>
+<p class="ln">    btn.textContent = '正在验证…';</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 同一栏内容两个字段一起上报：</p>
+<p class="ln">     *   code = 当激活码验（服务端已不需要，留着兼容旧服务端）</p>
+<p class="ln">     *   akey = 当管理口令验</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 3 页 / 共 61 页</span></div>
+<p class="ln">     * 服务端先查 adm: 名单，命中就只认 akey，否则不看 akey。</p>
+<p class="ln">     * 客户端不判断谁是管理员，否则等于把入口写死在 JS 里。 */</p>
+<p class="ln">    AUTH.activate(id, code, code).then(r =&gt; {</p>
+<p class="ln">      btn.disabled = false;</p>
+<p class="ln">      btn.textContent = old;</p>
+<p class="ln">      if (!r.ok) {</p>
+<p class="ln">        /* v1.1.8：断网要和「被服务器拒绝」分开说。</p>
+<p class="ln">         * 原来一律走 err(r.msg)，断网的学生看到的是同款红字，</p>
+<p class="ln">         * 很容易以为自己被封号了，然后开始反复重试或去找人问。 */</p>
+<p class="ln">        if (r.reason === 'offline') {</p>
+<p class="ln">          err((r.msg || '连不上服务器') + '\n\n这不是学号的问题，是网络没通。'</p>
+<p class="ln">            + '换个网（比如关掉 Wi-Fi 用流量）再点一次就行。');</p>
+<p class="ln">          return;</p>
+<p class="ln">        }</p>
+<p class="ln">        err(r.msg || '进不去');</p>
+<p class="ln">        // 设备名额满：把已绑的机型列出来，学生自己就知道该找管理员解绑</p>
+<p class="ln">        if (r.reason === 'device_limit' &amp;&amp; r.devices &amp;&amp; r.devices.length) {</p>
+<p class="ln">          const lines = r.devices.map((d, i) =&gt;</p>
+<p class="ln">            '  ' + (i + 1) + '. ' + (d.tag || '未知机型')</p>
+<p class="ln">            + (d.last ? '（' + new Date(d.last * 1000).toLocaleDateString() + ' 最后使用）' : ''));</p>
+<p class="ln">          err((r.msg || '') + '\n已绑定：\n' + lines.join('\n') + '\n换手机请让管理员在后台「解绑设备」。');</p>
+<p class="ln">        }</p>
+<p class="ln">        // 版本太旧：服务器连进都不给，直接把更新弹出来</p>
+<p class="ln">        if (r.reason === 'too_old' &amp;&amp; typeof UpdateUI !== 'undefined') {</p>
+<p class="ln">          UpdateUI.check(true);</p>
+<p class="ln">        }</p>
+<p class="ln">        /* 被停用：这种情况只能等管理员解封，写清楚否则他只会反复重试。 */</p>
+<p class="ln">        if (r.reason === 'revoked') {</p>
+<p class="ln">          err((r.msg || '该学号已被停用') + '\n\n这一步只能等管理员解封，重填没有用。');</p>
+<p class="ln">        } else if (r.reason === 'not_granted') {</p>
+<p class="ln">          err((r.msg || '该学号还没有开通') + '\n\n需要管理员先在后台加入名单。');</p>
+<p class="ln">        }</p>
+<p class="ln">        return;</p>
+<p class="ln">      }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      try {</p>
+<p class="ln">        if (typeof Host !== 'undefined' &amp;&amp; Host.setPref) Host.setPref('xxmu_user', id);</p>
+<p class="ln">        else localStorage.setItem('xxmu_user', id);</p>
+<p class="ln">      } catch (e) {}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      hide();</p>
+<p class="ln">      if (window.__onUnlocked) window.__onUnlocked();</p>
+<p class="ln">      if (r.offline) {</p>
+<p class="ln">        // 网络问题：进去能用，但要明确告诉用户现在是什么状态</p>
+<p class="ln">        XXMU.toast('已保存，但没连上服务器，联网后会自动复核');</p>
+<p class="ln">      }</p>
+<p class="ln">      /* 首次进入：先看声明（用之前得知道哪些事以官方为准），</p>
+<p class="ln">       * 再看教程（这东西能干什么），最后是登录引导。 */</p>
+<p class="ln">      if (typeof Disc !== 'undefined') Disc.afterUnlock();</p>
+<p class="ln">      else if (typeof Tut !== 'undefined') Tut.afterUnlock();</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 4 页 / 共 61 页</span></div>
+<p class="ln">      else if (typeof Onboard !== 'undefined') Onboard.afterUnlock();</p>
+<p class="ln">    }, e =&gt; {</p>
+<p class="ln">      btn.disabled = false;</p>
+<p class="ln">      btn.textContent = old;</p>
+<p class="ln">      err('出错了：' + ((e &amp;&amp; e.message) || e));</p>
+<p class="ln">    });</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  /** 展开/收起「管理员口令」那一栏 */</p>
+<p class="ln">  function toggleAdm() {</p>
+<p class="ln">    const box = $('gateAdm');</p>
+<p class="ln">    if (!box) return;</p>
+<p class="ln">    const on = box.style.display !== 'none';</p>
+<p class="ln">    box.style.display = on ? 'none' : 'block';</p>
+<p class="ln">    const t = $('gateMoreBtn');</p>
+<p class="ln">    if (t) t.textContent = on ? '我是管理员' : '收起管理员口令';</p>
+<p class="ln">    if (!on) {</p>
+<p class="ln">      const c = $('gateCode');</p>
+<p class="ln">      if (c) setTimeout(() =&gt; c.focus(), 60);</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function init() {</p>
+<p class="ln">    $('gateBtn').onclick = submit;</p>
+<p class="ln">    if ($('gateMoreBtn')) $('gateMoreBtn').onclick = toggleAdm;</p>
+<p class="ln">    if ($('gateCode')) {</p>
+<p class="ln">      $('gateCode').addEventListener('keydown', (e) =&gt; {</p>
+<p class="ln">        if (e.key === 'Enter') submit();</p>
+<p class="ln">      });</p>
+<p class="ln">    }</p>
+<p class="ln">    $('gateId').addEventListener('keydown', (e) =&gt; {</p>
+<p class="ln">      if (e.key === 'Enter') {</p>
+<p class="ln">        // 学生直接回车就是提交；管理员展开后回车跳到口令栏</p>
+<p class="ln">        const box = $('gateAdm');</p>
+<p class="ln">        if (box &amp;&amp; box.style.display !== 'none') $('gateCode').focus();</p>
+<p class="ln">        else submit();</p>
+<p class="ln">      }</p>
+<p class="ln">    });</p>
+<p class="ln">    boot();</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  return { init, show, hide, boot };</p>
+<p class="ln">})();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 关于页 ---------------- */</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const About = (() =&gt; {</p>
+<p class="ln">  const $ = (id) =&gt; document.getElementById(id);</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function openExternal(url) {</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 5 页 / 共 61 页</span></div>
+<p class="ln">    try {</p>
+<p class="ln">      if (typeof Host !== 'undefined' &amp;&amp; Host.openUrl) { Host.openUrl(url); return; }</p>
+<p class="ln">      window.open(url, '_blank');</p>
+<p class="ln">    } catch (e) {}</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function deviceInfo() {</p>
+<p class="ln">    try {</p>
+<p class="ln">      if (typeof Host !== 'undefined' &amp;&amp; Host.deviceInfo) return Host.deviceInfo();</p>
+<p class="ln">    } catch (e) {}</p>
+<p class="ln">    return (navigator.userAgent || '--');</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function crashText() {</p>
+<p class="ln">    try {</p>
+<p class="ln">      if (typeof Host !== 'undefined' &amp;&amp; Host.crashLog) return Host.crashLog() || '';</p>
+<p class="ln">    } catch (e) {}</p>
+<p class="ln">    return '';</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function diagText() {</p>
+<p class="ln">    const id = LICENSE.whoami() || (typeof currentUser === 'function' ? currentUser() : '') || '未填写';</p>
+<p class="ln">    const lic = AUTH.usable() ? (AUTH.isAdmin() ? '管理员' : '正常') : '未登记学号';</p>
+<p class="ln">    const acc = (typeof LICENSE.accounts === 'function') ? LICENSE.accounts() : { kb: '', cx: '', verified: false };</p>
+<p class="ln">    const acctLine = '学号核对：' + (acc.verified ? '已一致'</p>
+<p class="ln">      : (acc.kb ? ('不一致（教务读到 ' + acc.kb + '）') : '尚未登录教务'));</p>
+<p class="ln">    const login = (typeof Host !== 'undefined' &amp;&amp; Host.cookies &amp;&amp; Host.cookies().length &gt; 20)</p>
+<p class="ln">      ? '已登录' : '未登录';</p>
+<p class="ln">    const src = ($('srcTag') &amp;&amp; $('srcTag').textContent) || '--';</p>
+<p class="ln">    const cnt = ($('cnt') &amp;&amp; $('cnt').textContent) || '--';</p>
+<p class="ln">    /* 作业状态健康度：用户报「交给他的状态读不准」时，这一行能直接看出</p>
+<p class="ln">     * 是解析失败（unknown 多）还是学习通真的这么写（有值但古怪）。 */</p>
+<p class="ln">    let hwLine = '作业：未同步';</p>
+<p class="ln">    try {</p>
+<p class="ln">      const hw = (typeof CX !== 'undefined') ? CX.cached() : null;</p>
+<p class="ln">      if (hw &amp;&amp; Array.isArray(hw.works)) {</p>
+<p class="ln">        const n = hw.works.length;</p>
+<p class="ln">        const unk = hw.works.filter(w =&gt; !String(w.status || '').trim()).length</p>
+<p class="ln">          + (hw.exams || []).filter(e =&gt; !String(e.status || '').trim()).length;</p>
+<p class="ln">        hwLine = '作业：' + n + ' 条 / 考试 ' + (hw.exams || []).length + ' 场'</p>
+<p class="ln">          + (unk ? '（其中 ' + unk + ' 条状态未读到）' : '（状态全部读到）');</p>
+<p class="ln">      }</p>
+<p class="ln">    } catch (e) {}</p>
+<p class="ln">    return [</p>
+<p class="ln">      '【河医大助手 问题反馈】',</p>
+<p class="ln">      '学号：' + id,</p>
+<p class="ln">      '版本：v' + APP_VERSION,</p>
+<p class="ln">      '状态：' + lic,</p>
+<p class="ln">      acctLine,</p>
+<p class="ln">      '教务登录：' + login,</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 6 页 / 共 61 页</span></div>
+<p class="ln">      '数据来源：' + src,</p>
+<p class="ln">      '课程数：' + cnt,</p>
+<p class="ln">      hwLine,</p>
+<p class="ln">      '设备：' + deviceInfo(),</p>
+<p class="ln">      'UA：' + (navigator.userAgent || '--'),</p>
+<p class="ln">    ].join('\n');</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function refresh() {</p>
+<p class="ln">    const id = LICENSE.whoami() || '--';</p>
+<p class="ln">    const act = AUTH.usable();</p>
+<p class="ln">    const adm = AUTH.isAdmin();</p>
+<p class="ln">    $('aboutLic').textContent = act ? (adm ? '管理员（口令登录）' : '正常') : '未登记学号';</p>
+<p class="ln">    $('aboutLic').className = 'v ' + (act ? 'ok' : 'warn');</p>
+<p class="ln">    $('aboutLicId').textContent = id;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 学号核对：这是取消激活码之后唯一能证明「这个号是他本人」的东西。</p>
+<p class="ln">     * 三种状态必须分清楚，否则用户看到「未核对」会以为软件坏了：</p>
+<p class="ln">     *   已一致   = 登录教务时读到的账号就是登记的学号</p>
+<p class="ln">     *   不一致   = 读到了但不一样（可能是登错号，也可能填错了）</p>
+<p class="ln">     *   尚未登录 = 还没登录过教务，属于正常的新手状态 */</p>
+<p class="ln">    const vf = $('aboutVerified');</p>
+<p class="ln">    if (vf) {</p>
+<p class="ln">      const acc = (typeof LICENSE.accounts === 'function')</p>
+<p class="ln">        ? LICENSE.accounts() : { kb: '', verified: false };</p>
+<p class="ln">      if (!act) {</p>
+<p class="ln">        vf.textContent = '--';</p>
+<p class="ln">        vf.className = 'v';</p>
+<p class="ln">      } else if (acc.verified) {</p>
+<p class="ln">        vf.textContent = '已一致';</p>
+<p class="ln">        vf.className = 'v ok';</p>
+<p class="ln">      } else if (acc.kb) {</p>
+<p class="ln">        vf.textContent = '不一致（' + acc.kb + '）';</p>
+<p class="ln">        vf.className = 'v warn';</p>
+<p class="ln">      } else {</p>
+<p class="ln">        vf.textContent = '尚未登录教务';</p>
+<p class="ln">        vf.className = 'v warn';</p>
+<p class="ln">      }</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    // 联网校验状态：如实显示现在是「已联网确认」还是「仅本地码」</p>
+<p class="ln">    const net = $('aboutNet');</p>
+<p class="ln">    if (net) {</p>
+<p class="ln">      const t = AUTH.ticket();</p>
+<p class="ln">      if (!act) {</p>
+<p class="ln">        net.textContent = '未激活';</p>
+<p class="ln">        net.className = 'v warn';</p>
+<p class="ln">      } else if (adm) {</p>
+<p class="ln">        net.textContent = '管理员（服务端签发）';</p>
+<p class="ln">        net.className = 'v ok';</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 7 页 / 共 61 页</span></div>
+<p class="ln">      } else if (!t) {</p>
+<p class="ln">        net.textContent = '尚未联网校验';</p>
+<p class="ln">        net.className = 'v warn';</p>
+<p class="ln">      } else {</p>
+<p class="ln">        const exp = AUTH.expAt();</p>
+<p class="ln">        /* v1.1.8：过期要说「已过期」。</p>
+<p class="ln">         * 原来一律 Math.max(0, ...) 再拼「有效 · 剩 N 天」，票据过期之后</p>
+<p class="ln">         * 显示的是「有效 · 剩 0 天」—— 既说有效又说剩 0 天，用户不知道</p>
+<p class="ln">         * 该不该重新登录。exp 是秒，和 Date.now() 的毫秒要先统一。 */</p>
+<p class="ln">        const ms = exp ? (exp * 1000 - Date.now()) : 0;</p>
+<p class="ln">        if (exp &amp;&amp; ms &lt;= 0) {</p>
+<p class="ln">          net.textContent = '已过期，重新登录一次';</p>
+<p class="ln">          net.className = 'v warn';</p>
+<p class="ln">        } else {</p>
+<p class="ln">          const d = exp ? Math.max(0, Math.ceil(ms / 86400000)) : 0;</p>
+<p class="ln">          net.textContent = exp ? ('有效 · 剩 ' + d + ' 天') : '有效';</p>
+<p class="ln">          net.className = 'v ok';</p>
+<p class="ln">        }</p>
+<p class="ln">      }</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    $('fbId').textContent = id;</p>
+<p class="ln">    $('fbVer').textContent = 'v' + APP_VERSION;</p>
+<p class="ln">    $('fbLogin').textContent =</p>
+<p class="ln">      (typeof Host !== 'undefined' &amp;&amp; Host.cookies &amp;&amp; Host.cookies().length &gt; 20)</p>
+<p class="ln">        ? '已登录' : '未登录';</p>
+<p class="ln">    $('fbSrc').textContent = ($('srcTag') &amp;&amp; $('srcTag').textContent) || '--';</p>
+<p class="ln">    $('fbCnt').textContent = ($('cnt') &amp;&amp; $('cnt').textContent) || '--';</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 作业状态健康度：一句话说清「是解析失败还是学习通真这么写」。</p>
+<p class="ln">     * 用户报「状态读不准」时，这一行就是分诊台。 */</p>
+<p class="ln">    const fbHw = $('fbHw');</p>
+<p class="ln">    if (fbHw) {</p>
+<p class="ln">      let line = '未同步';</p>
+<p class="ln">      let cls = 'v';</p>
+<p class="ln">      try {</p>
+<p class="ln">        const hw = (typeof CX !== 'undefined') ? CX.cached() : null;</p>
+<p class="ln">        if (hw &amp;&amp; Array.isArray(hw.works)) {</p>
+<p class="ln">          const nw = hw.works.length, ne = (hw.exams || []).length;</p>
+<p class="ln">          const miss = hw.works.filter(w =&gt; !String(w.status || '').trim()).length</p>
+<p class="ln">            + (hw.exams || []).filter(e =&gt; !String(e.status || '').trim()).length;</p>
+<p class="ln">          line = nw + ' 条作业 / ' + ne + ' 场考试';</p>
+<p class="ln">          if (miss) { line += '，' + miss + ' 条未读到状态'; cls = 'v warn'; }</p>
+<p class="ln">          else { line += '，状态全部读到'; cls = 'v ok'; }</p>
+<p class="ln">        }</p>
+<p class="ln">      } catch (e) {}</p>
+<p class="ln">      fbHw.textContent = line;</p>
+<p class="ln">      fbHw.className = cls;</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 8 页 / 共 61 页</span></div>
+<p class="ln">    const dev = $('fbDevice');</p>
+<p class="ln">    if (dev) dev.textContent = deviceInfo();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const crash = crashText();</p>
+<p class="ln">    const row = $('fbCrash');</p>
+<p class="ln">    if (row) {</p>
+<p class="ln">      if (crash) {</p>
+<p class="ln">        const m = /=====[^\n]*=====|(\w+(?:Exception|Error))/.exec(crash);</p>
+<p class="ln">        row.textContent = m ? (m[1] || m[0]).slice(0, 40) : '有';</p>
+<p class="ln">        row.className = 'v warn';</p>
+<p class="ln">      } else {</p>
+<p class="ln">        row.textContent = '无';</p>
+<p class="ln">        row.className = 'v ok';</p>
+<p class="ln">      }</p>
+<p class="ln">    }</p>
+<p class="ln">    const btnC = $('btnShowCrash');</p>
+<p class="ln">    if (btnC) btnC.style.display = crash ? 'block' : 'none';</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function copy(text, okMsg) {</p>
+<p class="ln">    const done = () =&gt; {</p>
+<p class="ln">      if (typeof Host !== 'undefined' &amp;&amp; Host.toast) Host.toast(okMsg || '已复制');</p>
+<p class="ln">      else alert(okMsg || '已复制');</p>
+<p class="ln">    };</p>
+<p class="ln">    try {</p>
+<p class="ln">      if (navigator.clipboard &amp;&amp; navigator.clipboard.writeText) {</p>
+<p class="ln">        navigator.clipboard.writeText(text).then(done, () =&gt; fallback(text, done));</p>
+<p class="ln">        return;</p>
+<p class="ln">      }</p>
+<p class="ln">    } catch (e) {}</p>
+<p class="ln">    fallback(text, done);</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function fallback(text, done) {</p>
+<p class="ln">    try {</p>
+<p class="ln">      const ta = document.createElement('textarea');</p>
+<p class="ln">      ta.value = text;</p>
+<p class="ln">      ta.style.position = 'fixed';</p>
+<p class="ln">      ta.style.opacity = '0';</p>
+<p class="ln">      document.body.appendChild(ta);</p>
+<p class="ln">      ta.select();</p>
+<p class="ln">      document.execCommand('copy');</p>
+<p class="ln">      document.body.removeChild(ta);</p>
+<p class="ln">      done();</p>
+<p class="ln">    } catch (e) {</p>
+<p class="ln">      alert(text);</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  function init() {</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 9 页 / 共 61 页</span></div>
+<p class="ln">    $('aboutVer').textContent = 'v' + APP_VERSION;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const qq = $('lnkQQ');</p>
+<p class="ln">    qq.onclick = () =&gt; copy(DEV_QQ, 'QQ 号已复制：' + DEV_QQ);</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const mail = $('lnkMail');</p>
+<p class="ln">    mail.onclick = () =&gt; copy(DEV_MAIL, '邮箱已复制：' + DEV_MAIL);</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    $('btnCopyDiag').onclick = () =&gt; copy(diagText(), '诊断信息已复制');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const btnC = $('btnShowCrash');</p>
+<p class="ln">    if (btnC) {</p>
+<p class="ln">      btnC.onclick = () =&gt; {</p>
+<p class="ln">        const t = crashText();</p>
+<p class="ln">        if (!t) { showTip('没有崩溃记录。'); return; }</p>
+<p class="ln">        showTip(t);</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    $('btnMail').onclick = () =&gt; {</p>
+<p class="ln">      const subject = encodeURIComponent('河医大助手 问题反馈');</p>
+<p class="ln">      const body = encodeURIComponent(diagText() + '\n\n问题描述：\n');</p>
+<p class="ln">      openExternal('mailto:' + DEV_MAIL + '?subject=' + subject + '&amp;body=' + body);</p>
+<p class="ln">    };</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    $('btnReauth').onclick = () =&gt; {</p>
+<p class="ln">      if (confirm('重新填学号？当前的登记会被清除，填完要重新登录一次教务。')) {</p>
+<p class="ln">        LICENSE.deactivate();</p>
+<p class="ln">        AUTH.clearTicket();</p>
+<p class="ln">        refresh();</p>
+<p class="ln">        Gate.show();</p>
+<p class="ln">      }</p>
+<p class="ln">    };</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 只清「学号核对」这一条判定。</p>
+<p class="ln">     *</p>
+<p class="ln">     * 场景：教务登录名不是学号（或者学校换了登录方式），软件每次都判「不一致」，</p>
+<p class="ln">     * 用户每轮都要多点一次同步。旧版本只能靠「重新填学号」或「退出本机账号」</p>
+<p class="ln">     * 绕过去，而那两条路会把课表缓存和教务 cookie 一起冲掉 —— 为了清一个布尔</p>
+<p class="ln">     * 判据把整个账号状态推平，代价完全不成比例。</p>
+<p class="ln">     *</p>
+<p class="ln">     * 清完不重载页面：下一次登录教务时 noteKbAccount 会重新写一份真值，</p>
+<p class="ln">     * 而在那之前「未核对」本来就是正常状态，不该因为清了一下就白屏等同步。 */</p>
+<p class="ln">    const cc = $('btnClearCheck');</p>
+<p class="ln">    if (cc) {</p>
+<p class="ln">      cc.onclick = () =&gt; {</p>
+<p class="ln">        if (!confirm('清除学号核对记录？\n\n'</p>
+<p class="ln">          + '只清「教务读到的账号」这条判定，课表、作业、登录状态都不动。\n'</p>
+<p class="ln">          + '下次登录教务会重新核对一次。')) return;</p>
+<p class="ln">        LICENSE.clearCheck();</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 10 页 / 共 61 页</span></div>
+<p class="ln">        refresh();</p>
+<p class="ln">        XXMU.toast('已清除，下次登录教务会重新核对');</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 查看作业状态原文（v1.1.5 新增）。</p>
+<p class="ln">     *</p>
+<p class="ln">     * 为什么需要这个按钮：这次「内脏学没交却显示已完成」全靠用户截图上</p>
+<p class="ln">     * 一个「—」角标反推出来，而项目历史上从没把学习通页面落过盘，</p>
+<p class="ln">     * 只能靠猜标签结构。下次学习通再改版，又是同样的静默失败。</p>
+<p class="ln">     * 现在解析时发现状态读不出来，就把那段原始 HTML 留在内存里，</p>
+<p class="ln">     * 这里能一键复制出来 —— 拿到原文就不用猜了。</p>
+<p class="ln">     */</p>
+<p class="ln">    const hr = $('btnShowHwRaw');</p>
+<p class="ln">    if (hr) {</p>
+<p class="ln">      hr.onclick = () =&gt; {</p>
+<p class="ln">        let txt = '';</p>
+<p class="ln">        try {</p>
+<p class="ln">          const dg = (typeof CX !== 'undefined' &amp;&amp; CX.diag) ? CX.diag() : null;</p>
+<p class="ln">          if (!dg || !dg.miss.length) {</p>
+<p class="ln">            txt = '这次同步没有解析失败的状态位。\n\n'</p>
+<p class="ln">              + '如果作业仍显示不对，先点上面的「重新抓作业与考试」再回来看——'</p>
+<p class="ln">              + '诊断样本只在抓取过程中收集。';</p>
+<p class="ln">          } else {</p>
+<p class="ln">            const parts = ['【作业状态解析失败样本】共 ' + dg.miss.length + ' 条', ''];</p>
+<p class="ln">            dg.miss.forEach((m, i) =&gt; {</p>
+<p class="ln">              parts.push('--- 样本 ' + (i + 1) + '（' + (m.kind === 'exam' ? '考试' : '作业')</p>
+<p class="ln">                + ' / ' + (m.course || '未知课程') + '）---');</p>
+<p class="ln">              parts.push(m.html || '(空)');</p>
+<p class="ln">              parts.push('');</p>
+<p class="ln">            });</p>
+<p class="ln">            txt = parts.join('\n');</p>
+<p class="ln">          }</p>
+<p class="ln">        } catch (e) { txt = '读取诊断样本失败：' + ((e &amp;&amp; e.message) || e); }</p>
+<p class="ln">        copy(txt, '已复制，粘给我就能定位');</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* v1.1.13：课表抓取原文。</p>
+<p class="ln">     *</p>
+<p class="ln">     * 用户报「某学号永远没有课表」，而项目里从来没保存过真实青果课表 HTML，</p>
+<p class="ln">     * 离线无法复现。这个出口把「上次抓到的页面长什么样」直接给出来：</p>
+<p class="ln">     *   · 页面字节数很小 → 抓取就没成功（cookie/学期参数问题）</p>
+<p class="ln">     *   · 页面很大但格子 0 个 → 页面结构变了，正则失配</p>
+<p class="ln">     *   · 格子有、课程有、周次空 → parseWeeks 认不出周次写法</p>
+<p class="ln">     * 三种情况修法完全不同，没有这段原文就只能猜。 */</p>
+<p class="ln">    const kr = $('btnShowKbRaw');</p>
+<p class="ln">    if (kr) {</p>
+<p class="ln">      kr.onclick = () =&gt; {</p>
+<p class="ln">        let txt = '';</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 11 页 / 共 61 页</span></div>
+<p class="ln">        try {</p>
+<p class="ln">          const d = (typeof XXMU !== 'undefined' &amp;&amp; XXMU.diag) ? XXMU.diag() : null;</p>
+<p class="ln">          if (!d || !d.at) {</p>
+<p class="ln">            txt = '这次打开还没有抓取记录。\n\n'</p>
+<p class="ln">              + '先点课表页的「从教务同步课表」，抓一次再回来看。';</p>
+<p class="ln">          } else {</p>
+<p class="ln">            const parts = ['【课表抓取原文】'];</p>
+<p class="ln">            parts.push('抓取时间：' + new Date(d.at * 1000).toLocaleString());</p>
+<p class="ln">            parts.push('页面字节：' + d.bytes);</p>
+<p class="ln">            parts.push('解析出格子：' + d.cells);</p>
+<p class="ln">            parts.push('课程条数：' + d.courses);</p>
+<p class="ln">            if (d.err) parts.push('抓取层错误：' + d.err);</p>
+<p class="ln">            parts.push('');</p>
+<p class="ln">            parts.push('--- 页面原文样例 ---');</p>
+<p class="ln">            (d.samples || []).forEach((x, i) =&gt; {</p>
+<p class="ln">              parts.push('[样例 ' + (i + 1) + ']');</p>
+<p class="ln">              parts.push(x || '(空)');</p>
+<p class="ln">              parts.push('');</p>
+<p class="ln">            });</p>
+<p class="ln">            if (!d.samples || !d.samples.length) {</p>
+<p class="ln">              parts.push('(没有留存原文：可能是抓取在解码之前就失败了)');</p>
+<p class="ln">            }</p>
+<p class="ln">            txt = parts.join('\n');</p>
+<p class="ln">          }</p>
+<p class="ln">        } catch (e) { txt = '读取课表诊断失败：' + ((e &amp;&amp; e.message) || e); }</p>
+<p class="ln">        copy(txt, '已复制，粘给我就能定位');</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 退出本机账号：换人用这台手机时用。</p>
+<p class="ln">     *</p>
+<p class="ln">     * 和上面「重新填学号」的区别（两个按钮都在，因为场景不同）：</p>
+<p class="ln">     *   重新填学号   = 还是我，只是填错了/换了个号 → 只清登记</p>
+<p class="ln">     *   退出本机账号 = 这台手机要还给我/交给别人 → 连课表、作业、</p>
+<p class="ln">     *                  学习通记录一起清，不给下一个人看我的东西</p>
+<p class="ln">     *</p>
+<p class="ln">     * 真正的实现只有一个（app.js 的 exitAccount），这里只转发。</p>
+<p class="ln">     * 两处各写一遍的话，将来有人只改了其中一处，另一个入口就漏清文件。</p>
+<p class="ln">     */</p>
+<p class="ln">    const ex = $('btnExit');</p>
+<p class="ln">    if (ex) {</p>
+<p class="ln">      ex.onclick = () =&gt; {</p>
+<p class="ln">        if (typeof window.__XXMU_EXIT_ACCOUNT === 'function') {</p>
+<p class="ln">          window.__XXMU_EXIT_ACCOUNT();</p>
+<p class="ln">          return;</p>
+<p class="ln">        }</p>
+<p class="ln">        // 兜底：app.js 没加载（几乎不会发生，但不留白屏）</p>
+<p class="ln">        if (!confirm('退出这台手机上的账号？退出后需要重新激活。')) return;</p>
+<p class="ln">        try { if (typeof Host !== 'undefined' &amp;&amp; Host.clearCookies) Host.clearCookies(); } catch (e) {}</p>
+<p class="ln">        try { if (typeof Host !== 'undefined' &amp;&amp; Host.clearAccount) Host.clearAccount(); } catch (e) {}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 12 页 / 共 61 页</span></div>
+<p class="ln">        LICENSE.deactivate();</p>
+<p class="ln">        AUTH.clearTicket();</p>
+<p class="ln">        try { location.reload(); } catch (e2) { refresh(); Gate.show(); }</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    /* 手动复核：用户点了就强制联网验一次，跳过「6 小时内不再问」的缓存。</p>
+<p class="ln">     * 主要给「账号被别人踢了但还没到 6 小时」这种场景用。 */</p>
+<p class="ln">    const rc = $('btnRecheck');</p>
+<p class="ln">    if (rc) {</p>
+<p class="ln">      rc.onclick = () =&gt; {</p>
+<p class="ln">        rc.disabled = true;</p>
+<p class="ln">        rc.textContent = '联网校验中…';</p>
+<p class="ln">        AUTH.check(true).then(r =&gt; {</p>
+<p class="ln">          rc.disabled = false;</p>
+<p class="ln">          rc.textContent = '立即联网复核';</p>
+<p class="ln">          if (r.ok) {</p>
+<p class="ln">            XXMU.toast(r.admin ? '管理员身份已由服务端确认' : (r.offline ? '没连上服务器，先用本地码' : '校验通过'));</p>
+<p class="ln">            refresh();</p>
+<p class="ln">          } else {</p>
+<p class="ln">            refresh();</p>
+<p class="ln">            alert('授权已失效：' + (r.msg || r.reason) + '\n请重新激活。');</p>
+<p class="ln">            Gate.show();</p>
+<p class="ln">          }</p>
+<p class="ln">        }, e =&gt; {</p>
+<p class="ln">          rc.disabled = false;</p>
+<p class="ln">          rc.textContent = '立即联网复核';</p>
+<p class="ln">          XXMU.toast('联网校验失败：' + ((e &amp;&amp; e.message) || e));</p>
+<p class="ln">        });</p>
+<p class="ln">      };</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  /* v1.1.13：把 version 暴露出去 —— 课表诊断（app.js 的 kbDiagText）</p>
+<p class="ln">   * 需要版本号，原先只有模块内部的 APP_VERSION 常量，外部拿不到。 */</p>
+<p class="ln">  return { init, refresh, diagText, version: () =&gt; APP_VERSION };</p>
+<p class="ln">})();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 关于页的刷新入口。</p>
+<p class="ln"> *</p>
+<p class="ln"> * v1.1.8 之前这里写的是</p>
+<p class="ln"> *     document.querySelector('#tabs button[data-tab="about"]')</p>
+<p class="ln"> * 而底部导航只有 kb / learn / wiki / campus / me 五个（关于页是从「我的」</p>
+<p class="ln"> * 二级进去的），所以那个 querySelector 恒为 null，整个 IIFE 从来没生效过 ——</p>
+<p class="ln"> * 一段看起来在做事的死代码，比没有更容易骗过后来的人。</p>
+<p class="ln"> *</p>
+<p class="ln"> * 真正的跳转在 app.js 的 rowAbout 点击里：</p>
+<p class="ln"> *     switchTab('about'); About.refresh();</p>
+<p class="ln"> * 所以这里不再重复挂监听（挂上就是刷两遍），只留这条说明。</p>
+<p class="ln"> */</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 13 页 / 共 61 页</span></div>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：web/app.css ========</p>
+<p class="ln">/* ============================================================</p>
+<p class="ln">   河医大助手 · 样式表</p>
+<p class="ln">   设计基调：浅灰蓝底 + 纯白卡片 + 单一强调色（蓝），</p>
+<p class="ln">   圆角偏大、阴影极轻，信息分层靠字重与留白而不是边框线。</p>
+<p class="ln">   ============================================================ */</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">:root{</p>
+<p class="ln">  --bg:#f4f6fb;</p>
+<p class="ln">  --surface:#fff;</p>
+<p class="ln">  --surface2:#f7f9fc;</p>
+<p class="ln">  --fg:#0f172a;</p>
+<p class="ln">  --fg2:#3d4759;</p>
+<p class="ln">  --mute:#8b94a6;</p>
+<p class="ln">  --line:#e9edf5;</p>
+<p class="ln">  --accent:#2563eb;</p>
+<p class="ln">  --accent-soft:#eaf1ff;</p>
+<p class="ln">  --danger:#dc2626;</p>
+<p class="ln">  --warn:#ea580c;</p>
+<p class="ln">  --ok:#16a34a;</p>
+<p class="ln">  --radius:16px;</p>
+<p class="ln">  --radius-sm:11px;</p>
+<p class="ln">  --shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px -10px rgba(15,23,42,.16);</p>
+<p class="ln">  --shadow-lift:0 2px 6px rgba(15,23,42,.06), 0 16px 32px -14px rgba(15,23,42,.24);</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}</p>
+<p class="ln">html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);</p>
+<p class="ln">  font:15px/1.5 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;</p>
+<p class="ln">  -webkit-font-smoothing:antialiased;letter-spacing:.1px}</p>
+<p class="ln">body{display:flex;flex-direction:column;overflow:hidden}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* #app 必须是 flex 纵向容器：header / main / nav 三段的布局全靠它。</p>
+<p class="ln"> * 少这一条，main{flex:1} 就形同虚设 —— main 高度随课表内容涨，</p>
+<p class="ln"> * 课表超过一屏时把底部 Tab 顶出视口，再被 body{overflow:hidden} 裁掉，</p>
+<p class="ln"> * 表现就是「底栏没了」。min-height:0 让 main 能真正收缩并自己滚动。 */</p>
+<p class="ln">#app{display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 顶部 ---------------- */</p>
+<p class="ln">header{</p>
+<p class="ln">  flex:0 0 auto;background:var(--surface);z-index:9;</p>
+<p class="ln">  padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;</p>
+<p class="ln">  border-bottom:1px solid var(--line);</p>
+<p class="ln">}</p>
+<p class="ln">.top-row{display:flex;align-items:center;gap:10px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 二级页的返回箭头：一级页根本不渲染（display:none），</p>
+<p class="ln"> * 这样顶栏不会凭空多一个按不动的按钮。 */</p>
+<p class="ln">.hd-back{display:none;flex:0 0 auto;width:32px;height:32px;border:0;border-radius:50%;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 14 页 / 共 61 页</span></div>
+<p class="ln">  background:var(--surface2);color:var(--fg2);font-size:20px;line-height:1;</p>
+<p class="ln">  align-items:center;justify-content:center;padding:0 0 2px}</p>
+<p class="ln">header[data-level="2"] .hd-back{display:flex}</p>
+<p class="ln">.hd-back:active{background:#e8ecf5}</p>
+<p class="ln">.brand{display:flex;align-items:center;gap:9px;flex:1;min-width:0}</p>
+<p class="ln">.brand-mark{</p>
+<p class="ln">  flex:0 0 auto;width:32px;height:32px;border-radius:11px;</p>
+<p class="ln">  background:linear-gradient(140deg,#3b82f6,#2563eb 55%,#4f46e5);</p>
+<p class="ln">  color:#fff;font-size:15px;font-weight:700;display:flex;</p>
+<p class="ln">  align-items:center;justify-content:center;</p>
+<p class="ln">  box-shadow:0 4px 12px -4px rgba(37,99,235,.6);</p>
+<p class="ln">}</p>
+<p class="ln">.brand-txt{min-width:0}</p>
+<p class="ln">.brand-name{font-size:16.5px;font-weight:650;line-height:1.2;</p>
+<p class="ln">  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</p>
+<p class="ln">.brand-sub{font-size:11px;color:var(--mute);margin-top:1px;</p>
+<p class="ln">  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}</p>
+<p class="ln">.top-acts{display:flex;gap:7px;flex:0 0 auto}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.pill{border:1px solid var(--line);background:var(--surface);border-radius:999px;</p>
+<p class="ln">  font-size:12.5px;padding:6px 13px;color:var(--fg2);white-space:nowrap;</p>
+<p class="ln">  transition:transform .1s,background .12s}</p>
+<p class="ln">.pill:active{transform:scale(.96);background:var(--surface2)}</p>
+<p class="ln">.pill.accent{border-color:transparent;background:var(--accent-soft);color:var(--accent);</p>
+<p class="ln">  font-weight:600}</p>
+<p class="ln">.pill.back{padding:7px 14px;margin-bottom:12px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 二级页面包屑：说明「我是从哪进来的」，只出现在二级页 */</p>
+<p class="ln">.crumb{display:none;align-items:center;gap:6px;margin-bottom:12px;font-size:13px}</p>
+<p class="ln">header[data-level="2"] ~ main .crumb{display:flex}</p>
+<p class="ln">.crumb-back{border:1px solid var(--line);background:var(--surface);border-radius:999px;</p>
+<p class="ln">  padding:6px 13px;font-size:12.5px;color:var(--fg2)}</p>
+<p class="ln">.crumb-back:active{background:var(--surface2)}</p>
+<p class="ln">.crumb-sep{color:var(--mute);font-size:12px}</p>
+<p class="ln">.crumb-cur{color:var(--fg);font-weight:600}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 周次行：只在课表页显示 */</p>
+<p class="ln">.week-row{display:none;align-items:center;gap:6px;margin-top:10px}</p>
+<p class="ln">header[data-page="kb"] .week-row{display:flex}</p>
+<p class="ln">header:not([data-page="kb"]) .top-acts{display:none}</p>
+<p class="ln">.wkbtn{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:0;</p>
+<p class="ln">  background:var(--surface2);color:var(--fg2);font-size:19px;line-height:1;</p>
+<p class="ln">  display:flex;align-items:center;justify-content:center}</p>
+<p class="ln">.wkbtn:active{background:#e8ecf5}</p>
+<p class="ln">#wk{flex:1;text-align:center}</p>
+<p class="ln">.wk-main{font-size:15.5px;font-weight:650;letter-spacing:.2px}</p>
+<p class="ln">.wk-sub{font-size:11px;color:var(--mute);margin-top:1px;font-variant-numeric:tabular-nums}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 主体 ---------------- */</p>
+<p class="ln">main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 15 页 / 共 61 页</span></div>
+<p class="ln">.tab{display:none;padding:12px 12px 96px}</p>
+<p class="ln">.tab.active{display:block}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 课表格 ---------------- */</p>
+<p class="ln">.grid{display:grid;grid-template-columns:20px repeat(7,1fr);</p>
+<p class="ln">  grid-auto-rows:46px;gap:2px;align-items:stretch;</p>
+<p class="ln">  background:var(--surface);border-radius:var(--radius);padding:8px 6px 10px;</p>
+<p class="ln">  box-shadow:var(--shadow);overflow:hidden}</p>
+<p class="ln">.gh{font-size:10px;color:var(--mute);text-align:center;</p>
+<p class="ln">  display:flex;align-items:flex-end;justify-content:center;height:24px;</p>
+<p class="ln">  font-weight:500}</p>
+<p class="ln">.gh.today{color:var(--accent);font-weight:700;position:relative}</p>
+<p class="ln">.gh.today::after{content:'';position:absolute;bottom:-3px;left:24%;right:24%;</p>
+<p class="ln">  height:2.5px;background:var(--accent);border-radius:2px}</p>
+<p class="ln">.gp{position:relative;display:flex;flex-direction:column;align-items:center;</p>
+<p class="ln">  justify-content:flex-start;padding-top:4px;line-height:1.1;color:var(--mute)}</p>
+<p class="ln">.gp&gt;div:first-child{font-size:9.5px;font-weight:650;color:#a2abbd}</p>
+<p class="ln">.gp .gt{font-size:5.5px;transform:scale(.95);transform-origin:top center;</p>
+<p class="ln">  opacity:.72;white-space:nowrap;letter-spacing:-.2px}</p>
+<p class="ln">.gp.gfirst::before{content:'';position:absolute;left:-2px;right:-2px;top:-1px;</p>
+<p class="ln">  height:1px;background:var(--line)}</p>
+<p class="ln">.cell{background:var(--surface2);border-radius:7px}</p>
+<p class="ln">.cell.gfirst{box-shadow:inset 0 1.5px 0 var(--line)}</p>
+<p class="ln">.cell.today{background:#eef4ff}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.c{position:relative;background:var(--c,#e8f0fe);border-radius:8px;</p>
+<p class="ln">  padding:4px 4px 4px 6px;display:flex;flex-direction:column;gap:1px;</p>
+<p class="ln">  overflow:hidden;color:#16233a;font-size:8.5px;line-height:1.22;</p>
+<p class="ln">  cursor:pointer;border:1px solid rgba(15,23,42,.045);</p>
+<p class="ln">  box-shadow:0 1px 3px -1px rgba(15,23,42,.12)}</p>
+<p class="ln">.c::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2.5px;</p>
+<p class="ln">  background:var(--cb,#2563eb);opacity:.72}</p>
+<p class="ln">.c:active{filter:brightness(.97);transform:scale(.99)}</p>
+<p class="ln">.c b{font-size:9px;font-weight:650;line-height:1.22;word-break:break-all;</p>
+<p class="ln">  letter-spacing:-.2px;padding-left:1px}</p>
+<p class="ln">.c .room{color:#4a5666;font-size:7.5px;word-break:break-all;padding-left:1px}</p>
+<p class="ln">.c .pr{margin-top:auto;color:#5b6884;font-size:7px;opacity:.9;</p>
+<p class="ln">  white-space:nowrap;padding-left:1px}</p>
+<p class="ln">.c .pr2{margin-top:0;color:#5b6884;font-size:7px;opacity:.9;</p>
+<p class="ln">  white-space:nowrap;padding-left:1px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.hint{font-size:11.5px;color:var(--mute);text-align:center;margin:12px 4px;</p>
+<p class="ln">  line-height:1.65}</p>
+<p class="ln">.hint.left{text-align:left}</p>
+<p class="ln">.hint.tight{margin:0 0 8px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 课表状态条（v1.1.13） ----------------</p>
+<p class="ln"> * 位置必须固定可见：网格 14 行约 690px，手机一屏放不下，</p>
+<p class="ln"> * 状态说明排在网格下面等于没写。这条放在网格上方，永远在首屏。 */</p>
+<p class="ln">.kb-bar{margin:0 0 8px;padding:10px 12px;border-radius:var(--radius);</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 16 页 / 共 61 页</span></div>
+<p class="ln">  background:#fff7e6;border:1px solid #f5d9a0}</p>
+<p class="ln">.kb-bar.bad{background:#fdecea;border-color:#f3c2bd}</p>
+<p class="ln">.kb-bar.ok{background:#e8f5e9;border-color:#bfe3c2}</p>
+<p class="ln">.kb-bar-t{font-size:13px;font-weight:650;color:#7a4a00;line-height:1.4}</p>
+<p class="ln">.kb-bar.bad .kb-bar-t{color:#a5271b}</p>
+<p class="ln">.kb-bar.ok .kb-bar-t{color:#1e6b2e}</p>
+<p class="ln">.kb-bar-s{font-size:11.5px;color:#8a6a35;line-height:1.6;margin-top:4px;</p>
+<p class="ln">  white-space:pre-line;word-break:break-word}</p>
+<p class="ln">.kb-bar.bad .kb-bar-s{color:#8d3b31}</p>
+<p class="ln">.kb-bar.ok .kb-bar-s{color:#2f6b3c}</p>
+<p class="ln">.kb-bar-acts{display:flex;gap:8px;margin-top:8px}</p>
+<p class="ln">.kb-bar-acts .btn{flex:1;width:auto;padding:8px 10px;font-size:12.5px;margin:0}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 通用卡片 / 行 ---------------- */</p>
+<p class="ln">.card{background:var(--surface);border-radius:var(--radius);padding:14px;</p>
+<p class="ln">  margin-bottom:11px;box-shadow:var(--shadow)}</p>
+<p class="ln">.card-title{display:flex;align-items:center;gap:6px;font-size:12px;</p>
+<p class="ln">  font-weight:650;color:var(--mute);margin-bottom:4px;letter-spacing:.5px}</p>
+<p class="ln">.card-title .dot{width:6px;height:6px;border-radius:50%;</p>
+<p class="ln">  background:linear-gradient(140deg,#60a5fa,#2563eb);flex:0 0 auto}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.row{display:flex;justify-content:space-between;align-items:center;gap:12px;</p>
+<p class="ln">  padding:10px 0;font-size:14px}</p>
+<p class="ln">.row+.row{border-top:1px solid var(--line)}</p>
+<p class="ln">.row&gt;span:first-child{color:var(--fg2)}</p>
+<p class="ln">.row .v{color:var(--mute);text-align:right;font-size:13.5px}</p>
+<p class="ln">.row .v.strong{color:var(--fg);font-weight:600}</p>
+<p class="ln">.row .v.dim{color:var(--mute)}</p>
+<p class="ln">.row.click{cursor:pointer;border-radius:8px;margin:0 -6px;padding-left:6px;</p>
+<p class="ln">  padding-right:6px}</p>
+<p class="ln">.row.click:active{background:var(--surface2)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.btn{width:100%;padding:13px;border:0;border-radius:13px;</p>
+<p class="ln">  background:linear-gradient(160deg,#3b82f6,#2563eb);color:#fff;font-size:15px;</p>
+<p class="ln">  font-weight:600;margin-top:10px;letter-spacing:.3px;</p>
+<p class="ln">  box-shadow:0 6px 16px -8px rgba(37,99,235,.85);</p>
+<p class="ln">  transition:transform .1s,opacity .12s}</p>
+<p class="ln">.btn:active{transform:scale(.985);opacity:.92}</p>
+<p class="ln">.btn.ghost{background:var(--surface2);color:var(--fg2);box-shadow:none;</p>
+<p class="ln">  font-weight:500;border:1px solid var(--line)}</p>
+<p class="ln">.btn.soft{background:var(--accent-soft);color:var(--accent);box-shadow:none;</p>
+<p class="ln">  font-weight:600}</p>
+<p class="ln">.btn:disabled{opacity:.5;box-shadow:none}</p>
+<p class="ln">.btn.busy{opacity:.65}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.ok{color:var(--ok)}</p>
+<p class="ln">.warn{color:var(--danger)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 详情面板 ---------------- */</p>
+<p class="ln">#sheet{position:fixed;inset:0;background:rgba(15,23,42,.42);</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 17 页 / 共 61 页</span></div>
+<p class="ln">  backdrop-filter:blur(2px);display:none;align-items:flex-end;z-index:30}</p>
+<p class="ln">#sheet.on{display:flex}</p>
+<p class="ln">.sh-box{width:100%;max-height:88vh;overflow:auto;background:var(--surface);</p>
+<p class="ln">  border-radius:22px 22px 0 0;padding:8px 16px calc(26px + env(safe-area-inset-bottom));</p>
+<p class="ln">  animation:up .22s cubic-bezier(.22,.9,.3,1);</p>
+<p class="ln">  box-shadow:var(--shadow-lift)}</p>
+<p class="ln">@keyframes up{from{transform:translateY(36px);opacity:.5}to{transform:none;opacity:1}}</p>
+<p class="ln">.sh-grip{width:38px;height:4px;border-radius:2px;background:#dde3ee;</p>
+<p class="ln">  margin:0 auto 10px}</p>
+<p class="ln">.sh-head{display:flex;justify-content:space-between;align-items:center;</p>
+<p class="ln">  gap:10px;padding-bottom:10px;border-bottom:1px solid var(--line);</p>
+<p class="ln">  font-size:16px}</p>
+<p class="ln">.sh-head b{font-weight:650;min-width:0;overflow:hidden;text-overflow:ellipsis;</p>
+<p class="ln">  white-space:nowrap}</p>
+<p class="ln">.sh-head .pill{flex:0 0 auto}</p>
+<p class="ln">#sh-body{padding-top:4px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 底部导航 ---------------- */</p>
+<p class="ln">#tabs{flex:0 0 auto;display:flex;background:rgba(255,255,255,.94);</p>
+<p class="ln">  backdrop-filter:blur(12px);border-top:1px solid var(--line);</p>
+<p class="ln">  padding:6px 0 calc(6px + env(safe-area-inset-bottom));z-index:20}</p>
+<p class="ln">#tabs button{flex:1;border:0;background:none;padding:4px 0 2px;</p>
+<p class="ln">  display:flex;flex-direction:column;align-items:center;gap:3px;</p>
+<p class="ln">  font-size:10.5px;color:#9aa3b5;transition:color .12s}</p>
+<p class="ln">#tabs button svg{width:22px;height:22px;opacity:.85}</p>
+<p class="ln">#tabs button.active{color:var(--accent);font-weight:600}</p>
+<p class="ln">#tabs button.active svg{opacity:1}</p>
+<p class="ln">#tabs button:active{transform:scale(.94)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 学习页 ---------------- */</p>
+<p class="ln">.learn-head{display:flex;justify-content:space-between;align-items:center;</p>
+<p class="ln">  padding:2px 2px 10px;font-size:13.5px;color:var(--fg2);font-weight:600}</p>
+<p class="ln">.hwsec{font-size:12px;color:var(--mute);margin:16px 4px 7px;font-weight:650;</p>
+<p class="ln">  letter-spacing:.3px}</p>
+<p class="ln">.hwsec.fold{cursor:pointer;user-select:none;display:flex;align-items:center;</p>
+<p class="ln">  gap:4px;color:#7b8496}</p>
+<p class="ln">.hwsec.fold.on{color:var(--fg2)}</p>
+<p class="ln">.foldbox:empty{display:none}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.hw{display:flex;background:var(--surface);border-radius:var(--radius-sm);</p>
+<p class="ln">  margin-bottom:8px;overflow:hidden;cursor:pointer;position:relative;</p>
+<p class="ln">  box-shadow:var(--shadow);transition:transform .1s}</p>
+<p class="ln">.hw:active{transform:scale(.99);background:var(--surface2)}</p>
+<p class="ln">.hwbar{display:block;width:3.5px;flex:0 0 3.5px;background:#9aa0a6}</p>
+<p class="ln">.hwmain{flex:1;padding:11px 12px;min-width:0}</p>
+<p class="ln">.hwtop{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}</p>
+<p class="ln">.hwtop b{font-size:13.5px;font-weight:600;line-height:1.4;word-break:break-word;</p>
+<p class="ln">  color:var(--fg)}</p>
+<p class="ln">.hwbadge{flex:0 0 auto;font-size:10px;padding:2px 8px;border:1px solid #ddd;</p>
+<p class="ln">  border-radius:999px;line-height:1.5;white-space:nowrap;background:#fff}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 18 页 / 共 61 页</span></div>
+<p class="ln">.hwcourse{display:block;font-size:11.5px;color:var(--mute);margin-top:3px;</p>
+<p class="ln">  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}</p>
+<p class="ln">.hwmeta{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px;font-size:11.5px;</p>
+<p class="ln">  align-items:baseline}</p>
+<p class="ln">.hwleft{font-weight:600}</p>
+<p class="ln">.hwleft.orange{color:var(--warn)}</p>
+<p class="ln">.hwleft.red{color:var(--danger)}</p>
+<p class="ln">.hwleft.gray{color:var(--mute);font-weight:500}</p>
+<p class="ln">.hwdate{color:#a6aebd;font-variant-numeric:tabular-nums}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 分段切换 / 胶囊 ---------------- */</p>
+<p class="ln">.seg{display:flex;background:#eaedf4;border-radius:12px;padding:3px;margin:4px 0 10px}</p>
+<p class="ln">.seg button{flex:1;border:0;background:none;border-radius:9px;padding:8px 0;</p>
+<p class="ln">  font-size:13px;color:#6b7484;transition:background .14s,color .14s}</p>
+<p class="ln">.seg button.on{background:#fff;color:var(--fg);font-weight:650;</p>
+<p class="ln">  box-shadow:0 2px 6px -2px rgba(15,23,42,.25)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.chips{display:flex;gap:7px;margin:0 0 12px;overflow-x:auto;</p>
+<p class="ln">  -webkit-overflow-scrolling:touch;padding:2px 0;scrollbar-width:none}</p>
+<p class="ln">.chips::-webkit-scrollbar{display:none}</p>
+<p class="ln">.chips button{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);</p>
+<p class="ln">  border-radius:999px;font-size:12.5px;padding:6px 14px;color:#6b7484;</p>
+<p class="ln">  transition:transform .1s}</p>
+<p class="ln">.chips button:active{transform:scale(.96)}</p>
+<p class="ln">.chips button.on{border-color:transparent;color:#fff;font-weight:600;</p>
+<p class="ln">  background:linear-gradient(160deg,#3b82f6,#2563eb);</p>
+<p class="ln">  box-shadow:0 4px 12px -6px rgba(37,99,235,.9)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.grp-head{display:flex;justify-content:space-between;align-items:baseline;</p>
+<p class="ln">  font-size:13px;font-weight:650;color:var(--fg2);margin:16px 4px 8px}</p>
+<p class="ln">.grp-head span{font-weight:400;color:var(--mute);font-size:11px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- WIKI ---------------- */</p>
+<p class="ln">.wiki-head{margin-bottom:10px}</p>
+<p class="ln">.wiki-search{width:100%;padding:12px 14px;border:1px solid var(--line);</p>
+<p class="ln">  border-radius:13px;font-size:14px;background:var(--surface);outline:none;</p>
+<p class="ln">  box-shadow:var(--shadow);transition:border-color .14s}</p>
+<p class="ln">.wiki-search:focus{border-color:#bcd0f7}</p>
+<p class="ln">.wiki-acts{display:flex;gap:8px;justify-content:flex-end;margin-top:9px}</p>
+<p class="ln">.wiki-cat{font-size:12px;font-weight:650;color:var(--mute);margin:18px 4px 8px;</p>
+<p class="ln">  letter-spacing:.6px}</p>
+<p class="ln">.wiki-cat2{font-size:11.5px;color:var(--accent);margin-bottom:10px}</p>
+<p class="ln">.wiki-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}</p>
+<p class="ln">.wiki-card{position:relative;background:var(--surface);border-radius:13px;</p>
+<p class="ln">  padding:13px 11px;min-height:64px;display:flex;align-items:flex-start;</p>
+<p class="ln">  box-shadow:var(--shadow);transition:transform .1s}</p>
+<p class="ln">.wiki-card:active{transform:scale(.97);background:var(--surface2)}</p>
+<p class="ln">.wiki-card.mine{background:linear-gradient(160deg,#f4f8ff,#fff);</p>
+<p class="ln">  box-shadow:0 0 0 1px #dbe8ff, var(--shadow)}</p>
+<p class="ln">.wiki-t{font-size:13px;line-height:1.45;font-weight:550;word-break:break-word;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 19 页 / 共 61 页</span></div>
+<p class="ln">  color:var(--fg2)}</p>
+<p class="ln">.wiki-tag{position:absolute;right:7px;top:7px;font-size:9px;color:var(--accent);</p>
+<p class="ln">  background:var(--accent-soft);border-radius:7px;padding:1.5px 5px;</p>
+<p class="ln">  font-weight:600}</p>
+<p class="ln">.wiki-p{font-size:13px;line-height:1.85;color:var(--fg2);margin:0 0 10px}</p>
+<p class="ln">/* 来源行：校园 WIKI 每条都标「这话是哪来的」，字体要明显弱于正文，</p>
+<p class="ln"> * 但不能小到看不清——用户判断内容可不可信全靠这一行。 */</p>
+<p class="ln">.wiki-src{font-size:11.5px;line-height:1.6;color:var(--mute);margin:12px 0 0;</p>
+<p class="ln">  padding-top:10px;border-top:1px solid var(--line)}</p>
+<p class="ln">#wikiBody{padding-bottom:10px}</p>
+<p class="ln">#guideBody{padding-bottom:10px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- WIKI · 校园图片墙（v1.1.6） ---------------- */</p>
+<p class="ln">.ph-sec,.fb-sec{margin-bottom:6px}</p>
+<p class="ln">.ph-head{display:flex;align-items:center;justify-content:space-between;</p>
+<p class="ln">  margin:16px 4px 9px}</p>
+<p class="ln">.ph-title{font-size:12px;font-weight:650;color:var(--mute);</p>
+<p class="ln">  letter-spacing:.6px}</p>
+<p class="ln">.ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}</p>
+<p class="ln">.ph-card{position:relative;border-radius:13px;overflow:hidden;</p>
+<p class="ln">  background:var(--surface2);box-shadow:var(--shadow);</p>
+<p class="ln">  transition:transform .1s}</p>
+<p class="ln">.ph-card:active{transform:scale(.97)}</p>
+<p class="ln">/* 图片按服务端解析出的宽高比占位，没加载完也不会让页面跳一下。</p>
+<p class="ln"> * object-fit:cover 让竖图横图都填满卡片，不留白边。 */</p>
+<p class="ln">.ph-img{display:block;width:100%;height:auto;aspect-ratio:4 / 3;</p>
+<p class="ln">  object-fit:cover;background:var(--surface2)}</p>
+<p class="ln">.ph-cap{position:absolute;left:0;right:0;bottom:0;padding:16px 9px 7px;</p>
+<p class="ln">  font-size:11px;line-height:1.4;color:#fff;word-break:break-word;</p>
+<p class="ln">  background:linear-gradient(transparent,rgba(0,0,0,.62))}</p>
+<p class="ln">.ph-full{display:block;width:100%;height:auto;border-radius:13px;</p>
+<p class="ln">  margin-bottom:10px;background:var(--surface2)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- WIKI · 留言板（v1.1.6） ---------------- */</p>
+<p class="ln">.fb-list{display:flex;flex-direction:column;gap:9px}</p>
+<p class="ln">.fb-card{background:var(--surface);border-radius:13px;padding:12px 13px;</p>
+<p class="ln">  box-shadow:var(--shadow)}</p>
+<p class="ln">.fb-top{display:flex;align-items:center;gap:7px;margin-bottom:7px}</p>
+<p class="ln">.fb-from{font-size:11.5px;font-weight:600;color:var(--fg2)}</p>
+<p class="ln">.fb-kind{font-size:9.5px;color:var(--accent);background:var(--accent-soft);</p>
+<p class="ln">  border-radius:7px;padding:1.5px 6px;font-weight:600}</p>
+<p class="ln">.fb-at{font-size:10.5px;color:var(--mute);margin-left:auto}</p>
+<p class="ln">.fb-text{font-size:13px;line-height:1.7;color:var(--fg2);</p>
+<p class="ln">  white-space:pre-wrap;word-break:break-word}</p>
+<p class="ln">/* 回复块：左侧一条竖线把它和原留言分开，用户一眼看出哪句是管理员说的 */</p>
+<p class="ln">.fb-reply{margin-top:9px;padding:9px 11px;border-left:3px solid var(--accent);</p>
+<p class="ln">  background:var(--accent-soft);border-radius:0 10px 10px 0}</p>
+<p class="ln">.fb-reply-t{font-size:10.5px;font-weight:650;color:var(--accent);</p>
+<p class="ln">  margin-bottom:4px;letter-spacing:.3px}</p>
+<p class="ln">.fb-reply-b{font-size:12.5px;line-height:1.7;color:var(--fg2);</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 20 页 / 共 61 页</span></div>
+<p class="ln">  white-space:pre-wrap;word-break:break-word}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 校园事务 · 饮水机 ---------------- */</p>
+<p class="ln">.fr-label{display:block;font-size:12px;color:var(--mute);margin:14px 0 6px}</p>
+<p class="ln">.fr-input{width:100%;padding:12px 13px;border:1px solid var(--line);</p>
+<p class="ln">  border-radius:12px;font-size:15px;background:var(--surface2);outline:none;</p>
+<p class="ln">  transition:border-color .14s,background .14s;color:var(--fg)}</p>
+<p class="ln">.fr-input:focus{border-color:#bcd0f7;background:#fff}</p>
+<p class="ln">.fr-row{display:flex;gap:8px;align-items:center}</p>
+<p class="ln">.fr-row .fr-input{flex:1}</p>
+<p class="ln">.fr-row .pill{flex:0 0 auto;padding:11px 16px;border-radius:12px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.dev{display:flex;align-items:center;gap:10px;padding:13px 0;</p>
+<p class="ln">  border-top:1px solid var(--line)}</p>
+<p class="ln">.dev:first-child{border-top:0;padding-top:4px}</p>
+<p class="ln">.dev-info{flex:1;min-width:0}</p>
+<p class="ln">.dev-n{font-size:14px;font-weight:600;word-break:break-word;color:var(--fg)}</p>
+<p class="ln">.dev-s{font-size:11.5px;color:var(--mute);margin-top:3px;word-break:break-all;</p>
+<p class="ln">  line-height:1.5}</p>
+<p class="ln">.dev-act{flex:0 0 auto;display:flex;flex-direction:column;gap:6px;</p>
+<p class="ln">  align-items:flex-end}</p>
+<p class="ln">.btn-sm{border:0;border-radius:999px;font-size:12.5px;padding:8px 17px;</p>
+<p class="ln">  white-space:nowrap;font-weight:600;</p>
+<p class="ln">  background:linear-gradient(160deg,#3b82f6,#2563eb);color:#fff;</p>
+<p class="ln">  box-shadow:0 4px 12px -6px rgba(37,99,235,.9);transition:transform .1s}</p>
+<p class="ln">.btn-sm:active{transform:scale(.95)}</p>
+<p class="ln">.btn-sm:disabled{opacity:.45;box-shadow:none}</p>
+<p class="ln">.btn-sm.gray{background:var(--surface2);color:var(--mute);box-shadow:none;</p>
+<p class="ln">  border:1px solid var(--line)}</p>
+<p class="ln">.btn-sm.done{background:#e9f8ee;color:var(--ok);box-shadow:none;border:1px solid #c8ecd4}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 激活门 ---------------- */</p>
+<p class="ln">#gate{position:fixed;inset:0;z-index:100;display:flex;align-items:center;</p>
+<p class="ln">  justify-content:center;padding:28px 22px;overflow:auto;</p>
+<p class="ln">  background:radial-gradient(120% 80% at 50% -10%,#e8f0ff 0%,var(--bg) 55%)}</p>
+<p class="ln">#gate.off{display:none}</p>
+<p class="ln">.gate-box{width:100%;max-width:340px}</p>
+<p class="ln">.gate-badge{width:58px;height:58px;border-radius:19px;margin:0 auto 16px;</p>
+<p class="ln">  background:linear-gradient(140deg,#3b82f6,#2563eb 55%,#4f46e5);</p>
+<p class="ln">  color:#fff;font-size:26px;font-weight:700;display:flex;</p>
+<p class="ln">  align-items:center;justify-content:center;</p>
+<p class="ln">  box-shadow:0 12px 28px -12px rgba(37,99,235,.85)}</p>
+<p class="ln">.gate-badge.sm{width:46px;height:46px;border-radius:15px;font-size:20px;</p>
+<p class="ln">  margin-bottom:12px}</p>
+<p class="ln">.gate-logo{font-size:23px;font-weight:700;letter-spacing:.5px;text-align:center;</p>
+<p class="ln">  color:var(--fg)}</p>
+<p class="ln">.gate-sub{font-size:12.5px;color:var(--mute);text-align:center;margin-top:7px}</p>
+<p class="ln">.gate-tip{font-size:13px;color:var(--fg2);line-height:1.75;text-align:center;</p>
+<p class="ln">  margin:24px 0 20px;padding:14px;background:var(--surface);border-radius:14px;</p>
+<p class="ln">  box-shadow:var(--shadow)}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 21 页 / 共 61 页</span></div>
+<p class="ln">.gate-label{display:block;font-size:12px;color:var(--mute);margin:14px 0 6px}</p>
+<p class="ln">.gate-hint{font-size:11px;color:#b0b7c3}</p>
+<p class="ln">.gate-input{width:100%;padding:13px 14px;border:1px solid var(--line);</p>
+<p class="ln">  border-radius:13px;font-size:15px;background:var(--surface);outline:none;</p>
+<p class="ln">  transition:border-color .14s;color:var(--fg)}</p>
+<p class="ln">.gate-input:focus{border-color:#bcd0f7}</p>
+<p class="ln">#gateCode{letter-spacing:1.8px;font-family:ui-monospace,Menlo,Consolas,monospace;</p>
+<p class="ln">  font-size:14.5px}</p>
+<p class="ln">/* 管理员口令入口：默认只露出一行小字，点了才展开。</p>
+<p class="ln"> * 学生看不到这一栏就不会纠结「我的激活码在哪」。 */</p>
+<p class="ln">.gate-more{margin-top:12px;text-align:center}</p>
+<p class="ln">.gate-more span{font-size:12px;color:var(--mute);cursor:pointer;</p>
+<p class="ln">  padding:4px 8px;border-radius:8px;transition:color .14s,background .14s}</p>
+<p class="ln">.gate-more span:active{background:var(--surface2);color:var(--fg2)}</p>
+<p class="ln">.gate-err{color:var(--danger);font-size:12.5px;min-height:18px;margin-top:9px;</p>
+<p class="ln">  text-align:center;white-space:pre-wrap;line-height:1.6}</p>
+<p class="ln">/* 强制升级时激活门上多出来的第二出口。</p>
+<p class="ln"> * 它和上面的「激活」按钮只隔 6px 会显得像连在一起，所以单独给间距。 */</p>
+<p class="ln">.gate-upd{margin-top:10px}</p>
+<p class="ln">.gate-foot{margin-top:28px;padding-top:18px;border-top:1px solid var(--line);</p>
+<p class="ln">  font-size:11.5px;color:var(--mute);line-height:1.9;text-align:center}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">#app.locked{display:none}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 关于页 ---------------- */</p>
+<p class="ln">.about-hero{text-align:center;padding:22px 0 16px}</p>
+<p class="ln">.about-logo{font-size:21px;font-weight:700;letter-spacing:.5px;color:var(--fg)}</p>
+<p class="ln">.about-ver{display:inline-block;font-size:11px;color:var(--accent);</p>
+<p class="ln">  border:1px solid #d6e4ff;background:var(--accent-soft);border-radius:999px;</p>
+<p class="ln">  padding:2px 10px;margin-top:9px;font-weight:600}</p>
+<p class="ln">.about-desc{font-size:12.5px;color:var(--mute);margin-top:10px}</p>
+<p class="ln">#tab-about .row{align-items:flex-start}</p>
+<p class="ln">#tab-about .row&gt;.v{flex:1;min-width:0;text-align:right;word-break:break-all;</p>
+<p class="ln">  line-height:1.5}</p>
+<p class="ln">#tab-about .row&gt;span:first-child{flex:0 0 auto;white-space:nowrap}</p>
+<p class="ln">.about-p{font-size:12.5px;line-height:1.8;color:var(--fg2);margin:8px 0}</p>
+<p class="ln">.about-p.dim{color:var(--mute)}</p>
+<p class="ln">.lnk{color:var(--accent);text-decoration:none;cursor:pointer;font-weight:500}</p>
+<p class="ln">.lnk:active{opacity:.6}</p>
+<p class="ln">.about-foot{text-align:center;font-size:11.5px;color:var(--mute);</p>
+<p class="ln">  padding:22px 0 10px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ===== 管理员 · 生成激活码 ===== */</p>
+<p class="ln">.adm-in{width:100%;box-sizing:border-box;padding:11px 13px;border:1px solid var(--line);</p>
+<p class="ln">  border-radius:12px;background:var(--surface2);font-size:14px;line-height:1.6;</p>
+<p class="ln">  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;</p>
+<p class="ln">  color:var(--fg);resize:vertical;outline:none;margin:6px 0 12px}</p>
+<p class="ln">.adm-in:focus{border-color:#bcd0f7;background:var(--surface)}</p>
+<p class="ln">.adm-cnt{font-size:11.5px;font-weight:400;color:var(--mute);margin-left:auto}</p>
+<p class="ln">.adm-out{max-height:46vh;overflow:auto;margin:4px 0 12px}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 22 页 / 共 61 页</span></div>
+<p class="ln">.adm-item{display:flex;align-items:center;gap:10px;padding:9px 0;</p>
+<p class="ln">  border-top:1px solid var(--line)}</p>
+<p class="ln">.adm-item:first-child{border-top:0}</p>
+<p class="ln">.adm-id{flex:0 0 auto;font-size:12.5px;color:var(--mute);</p>
+<p class="ln">  font-variant-numeric:tabular-nums}</p>
+<p class="ln">.adm-code{flex:1;min-width:0;font-size:13.5px;font-weight:650;letter-spacing:.4px;</p>
+<p class="ln">  font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;</p>
+<p class="ln">  color:var(--accent);word-break:break-all;cursor:pointer}</p>
+<p class="ln">.adm-code:active{opacity:.6}</p>
+<p class="ln">.adm-cp{flex:0 0 auto;border:1px solid var(--line);background:var(--surface);</p>
+<p class="ln">  border-radius:999px;font-size:11.5px;padding:5px 11px;color:var(--fg2)}</p>
+<p class="ln">.adm-cp:active{background:var(--surface2);transform:scale(.95)}</p>
+<p class="ln">.adm-bad{flex:1;font-size:12.5px;color:var(--danger)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 单行输入（口令 / 版本号 / 链接） */</p>
+<p class="ln">.adm-in.one{padding:11px 13px;font-size:14px}</p>
+<p class="ln">.adm-in+.adm-in.one,#admKey+.adm-in.one{margin-top:8px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 管理员名单行 */</p>
+<p class="ln">.adm-rev{flex:0 0 auto;font-size:11px;color:var(--danger);padding:2px 8px;</p>
+<p class="ln">  border:1px solid #f3c6c6;background:#fff5f5;border-radius:8px}</p>
+<p class="ln">.adm-ok{flex:0 0 auto;font-size:11px;color:var(--ok);padding:2px 8px;</p>
+<p class="ln">  border:1px solid #c6e8cf;background:#f3fbf5;border-radius:8px}</p>
+<p class="ln">.card .btn+.btn{margin-top:8px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 更新提示 ---------------- */</p>
+<p class="ln">#upd{position:fixed;inset:0;z-index:120;display:none;align-items:center;</p>
+<p class="ln">  justify-content:center;padding:24px;background:rgba(15,23,42,.42);</p>
+<p class="ln">  backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}</p>
+<p class="ln">#upd.on{display:flex}</p>
+<p class="ln">.upd-box{width:100%;max-width:330px;background:var(--surface);border-radius:22px;</p>
+<p class="ln">  padding:26px 20px 18px;box-shadow:var(--shadow-lift);text-align:center;</p>
+<p class="ln">  animation:updIn .2s ease-out}</p>
+<p class="ln">@keyframes updIn{from{opacity:0;transform:translateY(10px) scale(.97)}</p>
+<p class="ln">  to{opacity:1;transform:none}}</p>
+<p class="ln">.upd-ico{width:54px;height:54px;border-radius:18px;margin:0 auto 14px;</p>
+<p class="ln">  display:flex;align-items:center;justify-content:center;</p>
+<p class="ln">  font-size:26px;font-weight:700;color:#fff;</p>
+<p class="ln">  background:linear-gradient(140deg,#3b82f6,#2563eb)}</p>
+<p class="ln">.upd-ttl{font-size:18px;font-weight:700}</p>
+<p class="ln">.upd-ver{font-size:12.5px;color:var(--mute);margin-top:5px}</p>
+<p class="ln">.upd-notes{font-size:13px;color:var(--fg2);line-height:1.7;text-align:left;</p>
+<p class="ln">  margin:14px 0 18px;padding:12px 14px;background:var(--surface2);</p>
+<p class="ln">  border-radius:12px;max-height:34vh;overflow:auto;white-space:pre-wrap}</p>
+<p class="ln">.upd-notes:empty{display:none}</p>
+<p class="ln">/* 没有下载直链时，群号是唯一能拿到安装包的地方 */</p>
+<p class="ln">.upd-group{margin:-6px 0 14px;padding:10px 12px;border-radius:12px;</p>
+<p class="ln">  background:var(--accent-soft);color:var(--accent);font-size:12.5px;</p>
+<p class="ln">  font-weight:600;cursor:pointer;letter-spacing:.3px;</p>
+<p class="ln">  font-variant-numeric:tabular-nums}</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 23 页 / 共 61 页</span></div>
+<p class="ln">.upd-group:active{opacity:.7}</p>
+<p class="ln">/* 强制升级时，不给「以后再说」 */</p>
+<p class="ln">#upd.force #updLater{display:none}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 设备绑定 ---------------- */</p>
+<p class="ln">.adm-devmeta{flex:1;min-width:0;font-size:11.5px;color:var(--mute);</p>
+<p class="ln">  text-align:right;font-variant-numeric:tabular-nums;</p>
+<p class="ln">  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}</p>
+<p class="ln">.adm-check{display:flex;align-items:flex-start;gap:9px;margin:4px 0 14px;</p>
+<p class="ln">  font-size:12.5px;line-height:1.55;color:var(--fg2);cursor:pointer}</p>
+<p class="ln">.adm-check input{flex:0 0 auto;width:18px;height:18px;margin:1px 0 0;</p>
+<p class="ln">  accent-color:var(--accent)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ===== 管理控制台 v0.9.2 ===== */</p>
+<p class="ln">.adm-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 12px}</p>
+<p class="ln">.adm-stat{background:var(--surface);border-radius:var(--radius-sm);padding:10px 8px;</p>
+<p class="ln">  text-align:center;box-shadow:var(--shadow)}</p>
+<p class="ln">.adm-stat b{display:block;font-size:17px;font-weight:700;color:var(--fg);</p>
+<p class="ln">  font-variant-numeric:tabular-nums;line-height:1.25}</p>
+<p class="ln">.adm-stat span{display:block;font-size:10.5px;color:var(--mute);margin-top:2px}</p>
+<p class="ln">.adm-seg{margin:0 0 12px}</p>
+<p class="ln">.adm-seg button{font-size:12px;padding:8px 0}</p>
+<p class="ln">.adm-tags{flex:1;min-width:0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}</p>
+<p class="ln">.adm-note{font-size:11px;color:var(--mute);overflow:hidden;</p>
+<p class="ln">  text-overflow:ellipsis;white-space:nowrap;max-width:40vw}</p>
+<p class="ln">.adm-audit-sub{flex:1;min-width:0;font-size:11.5px;color:var(--fg2);</p>
+<p class="ln">  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}</p>
+<p class="ln">.adm-item{align-items:flex-start;flex-wrap:wrap}</p>
+<p class="ln">#admDetailCard .big-row{font-size:13px}</p>
+<p class="ln">.adm-stat b.warn{color:var(--warn)}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ===== 空白引导 / 首次引导 / 学习通卡片（v0.9.9） ===== */</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.empty {</p>
+<p class="ln">  background: var(--surface);</p>
+<p class="ln">  border: 1px dashed var(--line);</p>
+<p class="ln">  border-radius: var(--radius);</p>
+<p class="ln">  padding: 22px 18px;</p>
+<p class="ln">  margin: 14px 0;</p>
+<p class="ln">  text-align: center;</p>
+<p class="ln">}</p>
+<p class="ln">.empty b { display: block; font-size: 15px; margin-bottom: 6px; }</p>
+<p class="ln">.empty p { margin: 0 0 14px; font-size: 12.5px; color: var(--mute); line-height: 1.6; }</p>
+<p class="ln">.empty .btn { width: auto; padding: 9px 22px; font-size: 14px; margin: 0 auto; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.kb-empty { margin: 10px 2px 0; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.cx-card .row:first-of-type { padding-top: 0; }</p>
+<p class="ln">.cx-card .hint { margin: 10px 0 0; }</p>
+<p class="ln">.cx-card .btn { margin-top: 8px; }</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 24 页 / 共 61 页</span></div>
+<p class="ln">&nbsp;</p>
+<p class="ln">#onb {</p>
+<p class="ln">  position: fixed;</p>
+<p class="ln">  inset: 0;</p>
+<p class="ln">  z-index: 130;</p>
+<p class="ln">  display: none;</p>
+<p class="ln">  align-items: center;</p>
+<p class="ln">  justify-content: center;</p>
+<p class="ln">  padding: 20px;</p>
+<p class="ln">  background: rgba(15, 23, 42, .45);</p>
+<p class="ln">  backdrop-filter: blur(3px);</p>
+<p class="ln">}</p>
+<p class="ln">#onb.on { display: flex; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.onb-box {</p>
+<p class="ln">  width: 100%;</p>
+<p class="ln">  max-width: 340px;</p>
+<p class="ln">  background: var(--surface);</p>
+<p class="ln">  border-radius: 22px;</p>
+<p class="ln">  padding: 24px 20px 18px;</p>
+<p class="ln">  box-shadow: 0 24px 60px -20px rgba(15, 23, 42, .5);</p>
+<p class="ln">  animation: onbIn .22s ease-out;</p>
+<p class="ln">  text-align: center;</p>
+<p class="ln">}</p>
+<p class="ln">@keyframes onbIn {</p>
+<p class="ln">  from { opacity: 0; transform: translateY(14px) scale(.98); }</p>
+<p class="ln">  to { opacity: 1; transform: none; }</p>
+<p class="ln">}</p>
+<p class="ln">.onb-box .gate-badge { margin: 0 auto 12px; }</p>
+<p class="ln">.onb-ttl { font-size: 18px; font-weight: 700; }</p>
+<p class="ln">.onb-sub {</p>
+<p class="ln">  font-size: 12.5px;</p>
+<p class="ln">  color: var(--mute);</p>
+<p class="ln">  line-height: 1.65;</p>
+<p class="ln">  margin: 8px 0 18px;</p>
+<p class="ln">}</p>
+<p class="ln">.onb-item {</p>
+<p class="ln">  display: flex;</p>
+<p class="ln">  align-items: center;</p>
+<p class="ln">  gap: 10px;</p>
+<p class="ln">  background: var(--surface2);</p>
+<p class="ln">  border-radius: var(--radius-sm);</p>
+<p class="ln">  padding: 11px 12px;</p>
+<p class="ln">  margin-bottom: 10px;</p>
+<p class="ln">  text-align: left;</p>
+<p class="ln">}</p>
+<p class="ln">.onb-n {</p>
+<p class="ln">  flex: 0 0 auto;</p>
+<p class="ln">  width: 22px; height: 22px;</p>
+<p class="ln">  border-radius: 50%;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 25 页 / 共 61 页</span></div>
+<p class="ln">  background: var(--accent-soft);</p>
+<p class="ln">  color: var(--accent);</p>
+<p class="ln">  font-size: 12px;</p>
+<p class="ln">  font-weight: 700;</p>
+<p class="ln">  display: flex; align-items: center; justify-content: center;</p>
+<p class="ln">}</p>
+<p class="ln">.onb-txt { flex: 1 1 auto; min-width: 0; }</p>
+<p class="ln">.onb-txt b { display: block; font-size: 13.5px; font-weight: 600; }</p>
+<p class="ln">.onb-txt span { font-size: 11.5px; color: var(--mute); }</p>
+<p class="ln">.onb-txt span.ok { color: var(--ok); }</p>
+<p class="ln">.onb-item .btn-sm { flex: 0 0 auto; }</p>
+<p class="ln">.onb-box &gt; .btn { margin-top: 8px; }</p>
+<p class="ln">.onb-box &gt; .hint { margin: 10px 0 0; }</p>
+<p class="ln">/* ===== 公告层（v0.9.10） ===== */</p>
+<p class="ln">#ntc {</p>
+<p class="ln">  position: fixed;</p>
+<p class="ln">  inset: 0;</p>
+<p class="ln">  z-index: 125;</p>
+<p class="ln">  display: none;</p>
+<p class="ln">  align-items: center;</p>
+<p class="ln">  justify-content: center;</p>
+<p class="ln">  padding: 22px;</p>
+<p class="ln">  background: rgba(15, 23, 42, .45);</p>
+<p class="ln">  backdrop-filter: blur(3px);</p>
+<p class="ln">}</p>
+<p class="ln">#ntc.on { display: flex; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">.ntc-box {</p>
+<p class="ln">  width: 100%;</p>
+<p class="ln">  max-width: 336px;</p>
+<p class="ln">  background: var(--surface);</p>
+<p class="ln">  border-radius: 20px;</p>
+<p class="ln">  padding: 22px 20px 16px;</p>
+<p class="ln">  box-shadow: 0 24px 60px -20px rgba(15, 23, 42, .5);</p>
+<p class="ln">  animation: onbIn .2s ease-out;</p>
+<p class="ln">}</p>
+<p class="ln">.ntc-badge {</p>
+<p class="ln">  width: 40px; height: 40px;</p>
+<p class="ln">  margin: 0 auto 12px;</p>
+<p class="ln">  border-radius: 50%;</p>
+<p class="ln">  background: linear-gradient(135deg, #f59e0b, #ea580c);</p>
+<p class="ln">  color: #fff;</p>
+<p class="ln">  font-size: 22px;</p>
+<p class="ln">  font-weight: 700;</p>
+<p class="ln">  display: flex; align-items: center; justify-content: center;</p>
+<p class="ln">}</p>
+<p class="ln">.ntc-ttl {</p>
+<p class="ln">  font-size: 16.5px;</p>
+<p class="ln">  font-weight: 700;</p>
+<p class="ln">  text-align: center;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 26 页 / 共 61 页</span></div>
+<p class="ln">  margin-bottom: 4px;</p>
+<p class="ln">}</p>
+<p class="ln">.ntc-at {</p>
+<p class="ln">  font-size: 11px;</p>
+<p class="ln">  color: var(--mute);</p>
+<p class="ln">  text-align: center;</p>
+<p class="ln">  margin-bottom: 14px;</p>
+<p class="ln">}</p>
+<p class="ln">.ntc-at:empty { display: none; }</p>
+<p class="ln">.ntc-body {</p>
+<p class="ln">  font-size: 14px;</p>
+<p class="ln">  line-height: 1.75;</p>
+<p class="ln">  color: var(--fg2);</p>
+<p class="ln">  white-space: pre-wrap;</p>
+<p class="ln">  word-break: break-word;</p>
+<p class="ln">  max-height: 46vh;</p>
+<p class="ln">  overflow: auto;</p>
+<p class="ln">  background: var(--surface2);</p>
+<p class="ln">  border-radius: var(--radius-sm);</p>
+<p class="ln">  padding: 12px 13px;</p>
+<p class="ln">  margin-bottom: 14px;</p>
+<p class="ln">}</p>
+<p class="ln">.ntc-box .btn { margin-top: 0; }</p>
+<p class="ln">/* 更新弹窗里的「这个版本先不提示了」 */</p>
+<p class="ln">.upd-check {</p>
+<p class="ln">  justify-content: center;</p>
+<p class="ln">  margin: 4px 0 10px;</p>
+<p class="ln">  font-size: 12.5px;</p>
+<p class="ln">  color: var(--mute);</p>
+<p class="ln">}</p>
+<p class="ln">.upd-check input { width: 15px; height: 15px; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ===== 安装包上传（v1.0.0） =====</p>
+<p class="ln"> * 选包区做成一块可点的大目标，而不是又一个按钮：发版时手上正拿着手机，</p>
+<p class="ln"> * 目标大一点不容易点错，也能一眼看出「现在选的是哪个包」。</p>
+<p class="ln"> */</p>
+<p class="ln">.apk-pick {</p>
+<p class="ln">  display: flex;</p>
+<p class="ln">  align-items: center;</p>
+<p class="ln">  gap: 12px;</p>
+<p class="ln">  padding: 14px;</p>
+<p class="ln">  margin: 8px 0 4px;</p>
+<p class="ln">  border: 1.5px dashed #c9d6ea;</p>
+<p class="ln">  border-radius: 14px;</p>
+<p class="ln">  background: var(--surface2);</p>
+<p class="ln">  cursor: pointer;</p>
+<p class="ln">  transition: border-color .14s, background .14s, transform .1s;</p>
+<p class="ln">}</p>
+<p class="ln">.apk-pick:active { transform: scale(.985); background: #eef3fb; }</p>
+<p class="ln">.apk-pick.has {</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 27 页 / 共 61 页</span></div>
+<p class="ln">  border-style: solid;</p>
+<p class="ln">  border-color: #bcd0f7;</p>
+<p class="ln">  background: var(--accent-soft);</p>
+<p class="ln">}</p>
+<p class="ln">.apk-pick-ico {</p>
+<p class="ln">  flex: 0 0 auto;</p>
+<p class="ln">  width: 40px; height: 40px;</p>
+<p class="ln">  border-radius: 12px;</p>
+<p class="ln">  background: #fff;</p>
+<p class="ln">  color: var(--accent);</p>
+<p class="ln">  font-size: 22px;</p>
+<p class="ln">  font-weight: 600;</p>
+<p class="ln">  display: flex; align-items: center; justify-content: center;</p>
+<p class="ln">  box-shadow: 0 2px 8px -4px rgba(37, 99, 235, .6);</p>
+<p class="ln">}</p>
+<p class="ln">.apk-pick.has .apk-pick-ico { background: var(--accent); color: #fff; }</p>
+<p class="ln">.apk-pick-txt { flex: 1; min-width: 0; }</p>
+<p class="ln">.apk-pick-txt b {</p>
+<p class="ln">  display: block;</p>
+<p class="ln">  font-size: 13.5px;</p>
+<p class="ln">  font-weight: 650;</p>
+<p class="ln">  color: var(--fg);</p>
+<p class="ln">  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;</p>
+<p class="ln">}</p>
+<p class="ln">.apk-pick-txt span {</p>
+<p class="ln">  display: block;</p>
+<p class="ln">  font-size: 11.5px;</p>
+<p class="ln">  color: var(--mute);</p>
+<p class="ln">  margin-top: 3px;</p>
+<p class="ln">  font-variant-numeric: tabular-nums;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 服务器上那份包的信息卡：一行一项，长哈希要能截断不撑破 */</p>
+<p class="ln">.apk-hosted {</p>
+<p class="ln">  margin-top: 12px;</p>
+<p class="ln">  padding: 10px 12px 12px;</p>
+<p class="ln">  border-radius: 13px;</p>
+<p class="ln">  background: var(--surface2);</p>
+<p class="ln">  border: 1px solid var(--line);</p>
+<p class="ln">}</p>
+<p class="ln">.apk-hosted .row { padding: 7px 0; font-size: 12.5px; }</p>
+<p class="ln">.apk-hosted .row + .row { border-top: 1px solid #eef1f7; }</p>
+<p class="ln">.apk-hosted .row .v {</p>
+<p class="ln">  max-width: 62%;</p>
+<p class="ln">  overflow: hidden;</p>
+<p class="ln">  text-overflow: ellipsis;</p>
+<p class="ln">  white-space: nowrap;</p>
+<p class="ln">}</p>
+<p class="ln">.mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }</p>
+<p class="ln">.card .btn-sm { margin-top: 10px; width: 100%; }</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 28 页 / 共 61 页</span></div>
+<p class="ln">.card .btn-sm + .btn-sm { margin-top: 8px; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* 结算过程回显：一行一项，和 .apk-hosted 同款视觉语言 */</p>
+<p class="ln">.settle-box {</p>
+<p class="ln">  margin: 10px 0 4px;</p>
+<p class="ln">  padding: 8px 12px;</p>
+<p class="ln">  border-radius: 12px;</p>
+<p class="ln">  background: var(--surface2);</p>
+<p class="ln">  border: 1px solid var(--line);</p>
+<p class="ln">}</p>
+<p class="ln">.settle-row {</p>
+<p class="ln">  display: flex;</p>
+<p class="ln">  align-items: baseline;</p>
+<p class="ln">  justify-content: space-between;</p>
+<p class="ln">  gap: 10px;</p>
+<p class="ln">  padding: 6px 0;</p>
+<p class="ln">  font-size: 12.5px;</p>
+<p class="ln">  font-variant-numeric: tabular-nums;</p>
+<p class="ln">}</p>
+<p class="ln">.settle-row + .settle-row { border-top: 1px solid #eef1f7; }</p>
+<p class="ln">.settle-row .k { color: var(--mute); flex: none; }</p>
+<p class="ln">.settle-row .v {</p>
+<p class="ln">  color: var(--fg);</p>
+<p class="ln">  font-weight: 600;</p>
+<p class="ln">  max-width: 66%;</p>
+<p class="ln">  text-align: right;</p>
+<p class="ln">  word-break: break-all;</p>
+<p class="ln">}</p>
+<p class="ln">/* ---------------- 管理控制台 · 审核（v1.1.6） ---------------- */</p>
+<p class="ln">.rev-list{display:flex;flex-direction:column;gap:10px;margin:6px 0 12px}</p>
+<p class="ln">.rev-item{background:var(--surface2);border-radius:13px;padding:10px;</p>
+<p class="ln">  display:flex;flex-direction:column;gap:8px}</p>
+<p class="ln">/* 审核时图片要够大才能看清拍的是什么。整宽 + 4:3 裁切，</p>
+<p class="ln"> * 一屏能看到两张，滑动列表比点进详情快。 */</p>
+<p class="ln">.rev-img{display:block;width:100%;aspect-ratio:4 / 3;object-fit:cover;</p>
+<p class="ln">  border-radius:10px;background:#e8eaef}</p>
+<p class="ln">.rev-meta{display:flex;align-items:center;gap:6px;flex-wrap:wrap}</p>
+<p class="ln">.rev-badge{font-size:10px;font-weight:650;color:var(--mute);</p>
+<p class="ln">  background:var(--surface);border-radius:7px;padding:2px 7px}</p>
+<p class="ln">.rev-badge.ok{color:var(--ok);background:#e9f8ee}</p>
+<p class="ln">.rev-sub{font-size:10.5px;color:var(--mute)}</p>
+<p class="ln">.rev-cap{font-size:12.5px;line-height:1.6;color:var(--fg2);word-break:break-word}</p>
+<p class="ln">.rev-text{font-size:12.5px;line-height:1.75;color:var(--fg2);</p>
+<p class="ln">  white-space:pre-wrap;word-break:break-word}</p>
+<p class="ln">.rev-acts{display:flex;gap:7px;flex-wrap:wrap}</p>
+<p class="ln">.rev-reply{padding:8px 10px;border-left:3px solid var(--accent);</p>
+<p class="ln">  background:var(--accent-soft);border-radius:0 9px 9px 0}</p>
+<p class="ln">.rev-reply-t{font-size:10px;font-weight:650;color:var(--accent);margin-bottom:3px}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 首次使用教程（v1.1.6） ----------------</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 29 页 / 共 61 页</span></div>
+<p class="ln"> * 六页横排，靠 transform 位移，不做真实滚动：</p>
+<p class="ln"> * 滚动在国产 ROM 的 WebView 上有回弹和边缘露白，翻页动画看起来像卡了。</p>
+<p class="ln"> */</p>
+<p class="ln">#tut{</p>
+<p class="ln">  position:fixed; inset:0; z-index:70; display:none;</p>
+<p class="ln">  background:var(--bg); padding:22px 18px;</p>
+<p class="ln">  align-items:center; justify-content:center;</p>
+<p class="ln">}</p>
+<p class="ln">#tut.on{ display:flex; }</p>
+<p class="ln">.tut-box{</p>
+<p class="ln">  width:100%; max-width:430px; background:var(--surface);</p>
+<p class="ln">  border-radius:20px; box-shadow:0 12px 40px rgba(20,30,60,.16);</p>
+<p class="ln">  padding:22px 20px 16px; overflow:hidden;</p>
+<p class="ln">  animation:onbIn .22s ease-out;</p>
+<p class="ln">}</p>
+<p class="ln">/* 容器裁切：strip 横排 6 屏宽，位移 -100% * idx */</p>
+<p class="ln">.tut-strip{</p>
+<p class="ln">  display:flex; width:100%;</p>
+<p class="ln">  transition:transform .26s cubic-bezier(.22,.7,.3,1);</p>
+<p class="ln">  will-change:transform;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-pg{</p>
+<p class="ln">  flex:0 0 100%; width:100%; padding-right:2px;</p>
+<p class="ln">  max-height:60vh; overflow-y:auto; -webkit-overflow-scrolling:touch;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-icon{</p>
+<p class="ln">  width:46px; height:46px; border-radius:14px; margin:0 auto 14px;</p>
+<p class="ln">  display:flex; align-items:center; justify-content:center;</p>
+<p class="ln">  font-size:20px; font-weight:700; color:#fff;</p>
+<p class="ln">  background:linear-gradient(150deg,#4b7bec,#2f5fe0);</p>
+<p class="ln">  box-shadow:0 6px 16px rgba(60,110,230,.28);</p>
+<p class="ln">}</p>
+<p class="ln">.tut-ttl{</p>
+<p class="ln">  font-size:19px; font-weight:700; text-align:center;</p>
+<p class="ln">  margin:0 0 14px; color:var(--fg); line-height:1.35;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-p{</p>
+<p class="ln">  font-size:13.5px; line-height:1.85; color:var(--fg2);</p>
+<p class="ln">  margin:0 0 11px; word-break:break-word;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-tip{</p>
+<p class="ln">  font-size:12px; line-height:1.7; color:var(--accent);</p>
+<p class="ln">  background:var(--accent-soft); border-radius:11px;</p>
+<p class="ln">  padding:10px 12px; margin:14px 0 0;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-dots{</p>
+<p class="ln">  display:flex; align-items:center; justify-content:center;</p>
+<p class="ln">  gap:6px; margin:16px 0 14px;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-dots i{</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 30 页 / 共 61 页</span></div>
+<p class="ln">  width:6px; height:6px; border-radius:3px; background:var(--line);</p>
+<p class="ln">  transition:width .22s, background .22s;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-dots i.on{ width:18px; background:var(--accent); }</p>
+<p class="ln">.tut-acts{ display:flex; align-items:center; gap:10px; }</p>
+<p class="ln">.tut-acts .btn{ flex:1 1 auto; margin:0; }</p>
+<p class="ln">.tut-skip{</p>
+<p class="ln">  flex:0 0 auto; border:0; background:transparent; color:var(--mute);</p>
+<p class="ln">  font-size:13px; padding:10px 12px; border-radius:10px;</p>
+<p class="ln">}</p>
+<p class="ln">.tut-skip:active{ background:var(--surface2); }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">/* ---------------- 使用声明层（v1.1.11） ----------------</p>
+<p class="ln"> * 首次打开弹一次，顺序 声明 → 教程 → 登录引导。</p>
+<p class="ln"> * 和 #tut 用同一套版式语言，但只一屏、可滚动，所以不用横排 strip。</p>
+<p class="ln"> *</p>
+<p class="ln"> * z-index 取全场最高（132，比 #onb 的 130 还高一层）：</p>
+<p class="ln"> * 它是最先弹的一层，而 UpdateUI.check 在启动 1500ms 后会去拉版本、</p>
+<p class="ln"> * 有可能把 #upd（120）或 #ntc（125）顶出来。声明是「必须看见」的东西，</p>
+<p class="ln"> * 不能被更新提示盖住 —— 盖上等于没看见，还让人以为点不动。</p>
+<p class="ln"> */</p>
+<p class="ln">#disc{</p>
+<p class="ln">  position:fixed; inset:0; z-index:132; display:none;</p>
+<p class="ln">  background:var(--bg); padding:22px 18px;</p>
+<p class="ln">  align-items:center; justify-content:center;</p>
+<p class="ln">}</p>
+<p class="ln">#disc.on{ display:flex; }</p>
+<p class="ln">.disc-box{</p>
+<p class="ln">  position:relative;</p>
+<p class="ln">  width:100%; max-width:430px; background:var(--surface);</p>
+<p class="ln">  border-radius:20px; box-shadow:0 12px 40px rgba(20,30,60,.16);</p>
+<p class="ln">  padding:22px 20px 16px; animation:onbIn .22s ease-out;</p>
+<p class="ln">}</p>
+<p class="ln">.disc-x{</p>
+<p class="ln">  position:absolute; top:12px; right:12px;</p>
+<p class="ln">  width:30px; height:30px; border:0; border-radius:50%;</p>
+<p class="ln">  background:var(--surface2); color:var(--mute);</p>
+<p class="ln">  font-size:13px; line-height:1; padding:0;</p>
+<p class="ln">  display:flex; align-items:center; justify-content:center;</p>
+<p class="ln">}</p>
+<p class="ln">.disc-x:active{ background:#e8ecf5; }</p>
+<p class="ln">.disc-ttl{</p>
+<p class="ln">  font-size:19px; font-weight:700; color:var(--fg);</p>
+<p class="ln">  padding-right:34px; line-height:1.35;</p>
+<p class="ln">}</p>
+<p class="ln">.disc-sub{</p>
+<p class="ln">  font-size:12.5px; color:var(--mute);</p>
+<p class="ln">  margin:6px 0 14px; line-height:1.6;</p>
+<p class="ln">}</p>
+<p class="ln">/* 内容区自己滚：声明有几段，小屏放不下一屏，不能把按钮挤出去 */</p>
+</div>
+<div class="pg brk"><div>（此处省略源程序中间部分，共 396 页）</div><div style="margin-top:12px">以下为源程序末尾部分</div></div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 31 页 / 共 61 页</span></div>
+<p class="ln">  if (Array.isArray(node)) { node.forEach(n =&gt; texts(n, acc)); return acc; }</p>
+<p class="ln">  if (typeof node === 'object') {</p>
+<p class="ln">    if (typeof node.text === 'string') acc.push(node.text);</p>
+<p class="ln">    for (const k of Object.keys(node)) {</p>
+<p class="ln">      if (k === 'text') continue;</p>
+<p class="ln">      const v = node[k];</p>
+<p class="ln">      if (v &amp;&amp; typeof v === 'object') texts(v, acc);</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">  return acc;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function liBlocks(html) {</p>
+<p class="ln">  const out = [];</p>
+<p class="ln">  const re = /&lt;li[^&gt;]*&gt;[\s\S]*?&lt;\/li&gt;/g;</p>
+<p class="ln">  let m;</p>
+<p class="ln">  while ((m = re.exec(html))) {</p>
+<p class="ln">    if (m[0].indexOf('作业状态') &gt;= 0 || m[0].indexOf('考试状态') &gt;= 0) out.push(m[0]);</p>
+<p class="ln">  }</p>
+<p class="ln">  return out;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function main() {</p>
+<p class="ln">  if (!fs.existsSync(SCAN)) { console.log('没有扫描结果目录：' + SCAN); return; }</p>
+<p class="ln">  fs.mkdirSync(OUT, { recursive: true });</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  const files = fs.readdirSync(SCAN).filter(f =&gt; f.endsWith('.txt'));</p>
+<p class="ln">  let win = 0, lis = 0;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  for (const f of files) {</p>
+<p class="ln">    const lines = fs.readFileSync(path.join(SCAN, f), 'utf8').split('\n');</p>
+<p class="ln">    const base = f.replace(/\.txt$/, '');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    lines.forEach((line, idx) =&gt; {</p>
+<p class="ln">      if (!line.trim()) return;</p>
+<p class="ln">      let ev;</p>
+<p class="ln">      try { ev = JSON.parse(line); } catch (e) { return; }</p>
+<p class="ln">      const acc = texts(ev, []);</p>
+<p class="ln">      const payload = acc.join('\n');</p>
+<p class="ln">      if (payload.indexOf('作业状态') &lt; 0 &amp;&amp; payload.indexOf('考试状态') &lt; 0) return;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      /* 1) 状态词前后窗口：看得到 span/strong 的真实嵌套 */</p>
+<p class="ln">      const marks = ['作业状态', '考试状态'];</p>
+<p class="ln">      marks.forEach(mk =&gt; {</p>
+<p class="ln">        let i = payload.indexOf(mk);</p>
+<p class="ln">        let n = 0;</p>
+<p class="ln">        while (i &gt;= 0 &amp;&amp; n &lt; 6) {</p>
+<p class="ln">          const seg = payload.slice(Math.max(0, i - 1500), i + 1500);</p>
+<p class="ln">          fs.writeFileSync(path.join(OUT, base + '_' + idx + '_' + mk + '_' + n + '.txt'), seg, 'utf8');</p>
+<p class="ln">          win++; n++;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 32 页 / 共 61 页</span></div>
+<p class="ln">          i = payload.indexOf(mk, i + 1);</p>
+<p class="ln">        }</p>
+<p class="ln">      });</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      /* 2) 整块 li：正则拿去测结构用 */</p>
+<p class="ln">      const blocks = liBlocks(payload);</p>
+<p class="ln">      blocks.forEach((b, i) =&gt; {</p>
+<p class="ln">        fs.writeFileSync(path.join(OUT, base + '_' + idx + '_li' + i + '.html'), b, 'utf8');</p>
+<p class="ln">        lis++;</p>
+<p class="ln">      });</p>
+<p class="ln">    });</p>
+<p class="ln">  }</p>
+<p class="ln">  console.log('窗口样本 ' + win + ' 个，li 块 ' + lis + ' 个，输出目录 ' + OUT);</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">main();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/extract_cx_page.js ========</p>
+<p class="ln">/* 从会话日志里捞真正的学习通页面响应（不是源码回显）。</p>
+<p class="ln"> *</p>
+<p class="ln"> * 上一版 extract_cx_html.js 捞出来的全是「源码里讨论这段 HTML 的注释」，</p>
+<p class="ln"> * 因为判断条件只看了「有没有『作业状态』四个字」，而 core/chaoxing.py 的</p>
+<p class="ln"> * 文档字符串里就写着这四个字。</p>
+<p class="ln"> *</p>
+<p class="ln"> * 这一版加两条硬判据：</p>
+<p class="ln"> *   1) 载荷里必须有 &gt;=3 个 HTML 起始标签（&lt;li / &lt;div / &lt;span / &lt;table ...），</p>
+<p class="ln"> *      源码注释不会有这种密度；</p>
+<p class="ln"> *   2) 必须出现「作业状态：&lt;/span&gt;」或「考试状态：&lt;/span&gt;」这种**带标签的状态位**，</p>
+<p class="ln"> *      这才是真页面，文档里写的是纯文本。</p>
+<p class="ln"> * 命中后按「li 块」切片保存，直接可以拿来跑正则。</p>
+<p class="ln"> */</p>
+<p class="ln">const fs = require('fs');</p>
+<p class="ln">const path = require('path');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const SCAN = process.argv[2] || path.join(__dirname, '..', 'build_scan');</p>
+<p class="ln">const OUT = process.argv[3] || path.join(__dirname, '..', 'build_html2');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function texts(node, acc) {</p>
+<p class="ln">  if (!node) return acc;</p>
+<p class="ln">  if (Array.isArray(node)) { node.forEach(n =&gt; texts(n, acc)); return acc; }</p>
+<p class="ln">  if (typeof node === 'object') {</p>
+<p class="ln">    if (typeof node.text === 'string') acc.push(node.text);</p>
+<p class="ln">    for (const k of Object.keys(node)) {</p>
+<p class="ln">      if (k === 'text') continue;</p>
+<p class="ln">      const v = node[k];</p>
+<p class="ln">      if (v &amp;&amp; typeof v === 'object') texts(v, acc);</p>
+<p class="ln">      else if (typeof v === 'string' &amp;&amp; v.length &gt; 500) acc.push(v);</p>
+<p class="ln">    }</p>
+<p class="ln">  }</p>
+<p class="ln">  return acc;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 33 页 / 共 61 页</span></div>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function tagCount(s) {</p>
+<p class="ln">  const m = s.match(/&lt;(li|div|span|table|ul|tr|td|a|strong|p)[\s&gt;]/gi);</p>
+<p class="ln">  return m ? m.length : 0;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function looksLikePage(s) {</p>
+<p class="ln">  if (tagCount(s) &lt; 3) return false;</p>
+<p class="ln">  return /作业状态：&lt;\/span&gt;|考试状态：&lt;\/span&gt;/.test(s.replace(/&amp;nbsp;/g, ' '));</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function liBlocks(html) {</p>
+<p class="ln">  const out = [];</p>
+<p class="ln">  const re = /&lt;li[^&gt;]*&gt;[\s\S]*?&lt;\/li&gt;/g;</p>
+<p class="ln">  let m;</p>
+<p class="ln">  while ((m = re.exec(html))) {</p>
+<p class="ln">    const b = m[0];</p>
+<p class="ln">    if (b.indexOf('作业状态') &gt;= 0 || b.indexOf('考试状态') &gt;= 0) out.push(b);</p>
+<p class="ln">  }</p>
+<p class="ln">  return out;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function main() {</p>
+<p class="ln">  if (!fs.existsSync(SCAN)) { console.log('没有扫描结果目录：' + SCAN); return; }</p>
+<p class="ln">  fs.mkdirSync(OUT, { recursive: true });</p>
+<p class="ln">  const files = fs.readdirSync(SCAN).filter(f =&gt; f.endsWith('.txt'));</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  let pageHit = 0, liTotal = 0;</p>
+<p class="ln">  for (const f of files) {</p>
+<p class="ln">    const lines = fs.readFileSync(path.join(SCAN, f), 'utf8').split('\n');</p>
+<p class="ln">    const base = f.replace(/\.txt$/, '');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    lines.forEach((line, idx) =&gt; {</p>
+<p class="ln">      if (!line.trim()) return;</p>
+<p class="ln">      let ev;</p>
+<p class="ln">      try { ev = JSON.parse(line); } catch (e) { return; }</p>
+<p class="ln">      const payload = texts(ev, []).join('\n');</p>
+<p class="ln">      if (!looksLikePage(payload)) return;</p>
+<p class="ln">      pageHit++;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      /* 整页存一份（可能几十 KB，够看清结构） */</p>
+<p class="ln">      const pageFile = path.join(OUT, base + '_' + idx + '_page.html');</p>
+<p class="ln">      fs.writeFileSync(pageFile, payload, 'utf8');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">      const blocks = liBlocks(payload);</p>
+<p class="ln">      blocks.forEach((b, i) =&gt; {</p>
+<p class="ln">        fs.writeFileSync(path.join(OUT, base + '_' + idx + '_li' + i + '.html'), b, 'utf8');</p>
+<p class="ln">        liTotal++;</p>
+<p class="ln">      });</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 34 页 / 共 61 页</span></div>
+<p class="ln">      console.log('PAGE ' + base + '#' + idx + '  tags=' + tagCount(payload)</p>
+<p class="ln">        + '  li=' + blocks.length + '  bytes=' + payload.length);</p>
+<p class="ln">    });</p>
+<p class="ln">  }</p>
+<p class="ln">  console.log('真页面 ' + pageHit + ' 个，li 块 ' + liTotal + ' 个 -&gt; ' + OUT);</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">main();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/fix_urls.py ========</p>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""修复已生成数据里的失效链接（幂等，可反复运行）。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">背景：早期版本把作业链接拼成 /mooc-ans/work/doHomeWork?...，实测该路径 404；</p>
+<p class="ln">考试链接缺 examId 且依赖登录态。新版本统一改为「课程主页」深链。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">本脚本扫描 data/homework.json，把指向死路径的 url 改写为课程主页，</p>
+<p class="ln">并把原值存进 answer_url_legacy 便于对照。</p>
+<p class="ln">"""</p>
+<p class="ln">import json</p>
+<p class="ln">import os</p>
+<p class="ln">import sys</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</p>
+<p class="ln">DATA = os.path.join(ROOT, "data", "homework.json")</p>
+<p class="ln">WEB = os.path.join(ROOT, "web", "homework.js")</p>
+<p class="ln">ASSETS = os.path.join(ROOT, "android", "assets", "homework.js")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">HOST = "https://mooc1.chaoxing.com"</p>
+<p class="ln"># 实测 404 / 不可靠的路径前缀</p>
+<p class="ln">BAD_MARKERS = ("/mooc-ans/work/doHomeWork", "/exam-ans/exam/test/reVersionTestStartNew")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def course_page(item):</p>
+<p class="ln">    return ("%s/visit/stucoursemiddle?courseid=%s&amp;clazzid=%s&amp;vc=1&amp;cpi=%s"</p>
+<p class="ln">            % (HOST, item.get("courseid", ""), item.get("classid", ""),</p>
+<p class="ln">               item.get("cpi", "")))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def fix_item(item, key):</p>
+<p class="ln">    url = item.get(key) or ""</p>
+<p class="ln">    legacy = item.get("answer_url_legacy") or item.get("url_legacy") or ""</p>
+<p class="ln">    bad = any(m in url for m in BAD_MARKERS) or not url</p>
+<p class="ln">    if bad:</p>
+<p class="ln">        if url:</p>
+<p class="ln">            item[key + "_legacy"] = url</p>
+<p class="ln">        item[key] = course_page(item)</p>
+<p class="ln">        item["entry"] = "course"</p>
+<p class="ln">        return True</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 35 页 / 共 61 页</span></div>
+<p class="ln">    return False</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    if not os.path.exists(DATA):</p>
+<p class="ln">        print("找不到 %s" % DATA)</p>
+<p class="ln">        return 1</p>
+<p class="ln">    d = json.load(open(DATA, encoding="utf-8"))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    nw = sum(1 for w in d.get("works", []) if fix_item(w, "answer_url"))</p>
+<p class="ln">    ne = sum(1 for e in d.get("exams", []) if fix_item(e, "url"))</p>
+<p class="ln">    print("作业改写 %d 条，考试改写 %d 条" % (nw, ne))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    with open(DATA, "w", encoding="utf-8") as f:</p>
+<p class="ln">        json.dump(d, f, ensure_ascii=False, indent=1)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    payload = ("window.HOMEWORK = "</p>
+<p class="ln">               + json.dumps(d, ensure_ascii=False, separators=(",", ":")) + ";\n")</p>
+<p class="ln">    for p in (WEB, ASSETS):</p>
+<p class="ln">        if os.path.isdir(os.path.dirname(p)):</p>
+<p class="ln">            with open(p, "w", encoding="utf-8") as f:</p>
+<p class="ln">                f.write(payload)</p>
+<p class="ln">            print("写入", os.path.relpath(p, ROOT))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 抽查</p>
+<p class="ln">    print("\n抽查（前 3 条作业 / 前 3 场考试）：")</p>
+<p class="ln">    for w in d.get("works", [])[:3]:</p>
+<p class="ln">        print("  作业", w.get("answer_url", "")[:96])</p>
+<p class="ln">    for e in d.get("exams", [])[:3]:</p>
+<p class="ln">        print("  考试", e.get("url", "")[:96])</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == "__main__":</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/gen_license.py ========</p>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""激活码生成器（管理员用）</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">激活码 = Base32(HMAC-SHA256(SECRET, 学号)) 前 16 位，与学号一一对应。</p>
+<p class="ln">App 内用同样的算法和密钥本地校验，不联网。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python tools/gen_license.py 20261440105            # 生成单个</p>
+<p class="ln">    python tools/gen_license.py 20261440105 20261440106  # 批量</p>
+<p class="ln">    python tools/gen_license.py --file ids.txt          # 从文件读（每行一个学号）</p>
+<p class="ln">    python tools/gen_license.py --file ids.txt -o licenses.csv</p>
+<p class="ln">&nbsp;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 36 页 / 共 61 页</span></div>
+<p class="ln">注意：</p>
+<p class="ln">    SECRET 必须与 web/license.js 里的常量完全一致，否则生成的码在 App 里无效。</p>
+<p class="ln">"""</p>
+<p class="ln">import argparse</p>
+<p class="ln">import hashlib</p>
+<p class="ln">import hmac</p>
+<p class="ln">import os</p>
+<p class="ln">import sys</p>
+<p class="ln">&nbsp;</p>
+<p class="ln"># !!! 必须与 web/license.js 的 SECRET 保持一致 !!!</p>
+<p class="ln">SECRET = "XXMU-HELPER-GU-2026-v1"</p>
+<p class="ln">ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"  # Crockford Base32</p>
+<p class="ln">GROUP = 4</p>
+<p class="ln">GROUPS = 4</p>
+<p class="ln">CODE_LEN = GROUP * GROUPS</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def to_base32(data: bytes, chars: int) -&gt; str:</p>
+<p class="ln">    bits = 0</p>
+<p class="ln">    value = 0</p>
+<p class="ln">    out = []</p>
+<p class="ln">    for byte in data:</p>
+<p class="ln">        value = (value &lt;&lt; 8) | byte</p>
+<p class="ln">        bits += 8</p>
+<p class="ln">        while bits &gt;= 5 and len(out) &lt; chars:</p>
+<p class="ln">            out.append(ALPHABET[(value &gt;&gt; (bits - 5)) &amp; 31])</p>
+<p class="ln">            bits -= 5</p>
+<p class="ln">        if len(out) &gt;= chars:</p>
+<p class="ln">            break</p>
+<p class="ln">    return "".join(out)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def code_for(student_id: str) -&gt; str:</p>
+<p class="ln">    sid = str(student_id).strip()</p>
+<p class="ln">    if not sid:</p>
+<p class="ln">        return ""</p>
+<p class="ln">    mac = hmac.new(SECRET.encode("utf-8"), sid.encode("utf-8"), hashlib.sha256).digest()</p>
+<p class="ln">    raw = to_base32(mac, CODE_LEN)</p>
+<p class="ln">    return "-".join(raw[i:i + GROUP] for i in range(0, len(raw), GROUP))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def normalize(code: str) -&gt; str:</p>
+<p class="ln">    s = "".join(c for c in str(code).upper() if c.isalnum())</p>
+<p class="ln">    return s.replace("O", "0").replace("I", "1").replace("L", "1").replace("U", "V")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def verify(student_id: str, code: str) -&gt; bool:</p>
+<p class="ln">    return normalize(code) == normalize(code_for(student_id))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 37 页 / 共 61 页</span></div>
+<p class="ln">def read_ids(args, file_path):</p>
+<p class="ln">    ids = list(args or [])</p>
+<p class="ln">    if file_path:</p>
+<p class="ln">        with open(file_path, encoding="utf-8") as f:</p>
+<p class="ln">            for line in f:</p>
+<p class="ln">                line = line.strip()</p>
+<p class="ln">                if line and not line.startswith("#"):</p>
+<p class="ln">                    ids.append(line.split()[0])</p>
+<p class="ln">    return ids</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    ap = argparse.ArgumentParser(description="生成 xxmu-app 激活码")</p>
+<p class="ln">    ap.add_argument("ids", nargs="*", help="学号")</p>
+<p class="ln">    ap.add_argument("--file", help="学号列表文件，每行一个")</p>
+<p class="ln">    ap.add_argument("-o", "--out", help="输出 CSV 文件")</p>
+<p class="ln">    ap.add_argument("--selftest", action="store_true", help="跑内置自检向量")</p>
+<p class="ln">    a = ap.parse_args()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if a.selftest:</p>
+<p class="ln">        # 与 web/license.js 的 JS 实现交叉验证过的向量</p>
+<p class="ln">        vectors = [("20261440105", "24DN-JFSG-7NKV-RNBT"),</p>
+<p class="ln">                   ("123456789", "0MZP-84D9-WEKE-S1JC")]</p>
+<p class="ln">        ok = True</p>
+<p class="ln">        for sid, expect in vectors:</p>
+<p class="ln">            got = code_for(sid)</p>
+<p class="ln">            flag = "OK  " if got == expect else "FAIL"</p>
+<p class="ln">            if got != expect:</p>
+<p class="ln">                ok = False</p>
+<p class="ln">            print("%s  %-14s -&gt; %s (期望 %s)" % (flag, sid, got, expect))</p>
+<p class="ln">        print("\n自检结果:", "通过" if ok else "不一致！SECRET 或算法被改动过")</p>
+<p class="ln">        return 0 if ok else 1</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    ids = read_ids(a.ids, a.file)</p>
+<p class="ln">    if not ids:</p>
+<p class="ln">        ap.print_help()</p>
+<p class="ln">        return 1</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    rows = []</p>
+<p class="ln">    for sid in ids:</p>
+<p class="ln">        c = code_for(sid)</p>
+<p class="ln">        if not c:</p>
+<p class="ln">            print("跳过空学号", file=sys.stderr)</p>
+<p class="ln">            continue</p>
+<p class="ln">        rows.append((sid, c))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    width = max(len(r[0]) for r in rows)</p>
+<p class="ln">    print("%-*s  %s" % (width, "学号", "激活码"))</p>
+<p class="ln">    print("-" * (width + 2 + 19))</p>
+<p class="ln">    for sid, c in rows:</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 38 页 / 共 61 页</span></div>
+<p class="ln">        print("%-*s  %s" % (width, sid, c))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if a.out:</p>
+<p class="ln">        with open(a.out, "w", encoding="utf-8-sig", newline="") as f:</p>
+<p class="ln">            f.write("学号,激活码\n")</p>
+<p class="ln">            for sid, c in rows:</p>
+<p class="ln">                f.write("%s,%s\n" % (sid, c))</p>
+<p class="ln">        print("\n已写入 %s（%d 条）" % (a.out, len(rows)))</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == "__main__":</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/patch_v1116.py ========</p>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""把 app.js 里 v1.1.0~v1.1.15 的结算两块（endWaterAndSettle + openSettle）</p>
+<p class="ln">整体替换成 v1.1.16 的「停止 / 放水 / 定量放水」。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用脚本做而不是手工 edit：要替换的是一整段 8.7 KB 的连续区域，其中含大量</p>
+<p class="ln">中文与模板字符串，靠 edit 的 old_string 容易差一个空格就匹配不上。</p>
+<p class="ln">定位靠「startWater 之前那一段」这个唯一锚点，替换范围由 index 精确算出。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python -X utf8 tools/patch_v1116.py --check    # 只看边界，不写</p>
+<p class="ln">    python -X utf8 tools/patch_v1116.py            # 真替换</p>
+<p class="ln">"""</p>
+<p class="ln">import io</p>
+<p class="ln">import os</p>
+<p class="ln">import sys</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</p>
+<p class="ln">APP = os.path.join(ROOT, 'web', 'app.js')</p>
+<p class="ln">NEWFILE = os.path.join(ROOT, 'tools', '_v1116_startwater.js.txt')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">A_ANCHOR = '  /**\n   * 出水。\n'</p>
+<p class="ln">B_ANCHOR = '  function startWater(dev, fn) {'</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    s = io.open(APP, encoding='utf-8').read()</p>
+<p class="ln">    a = s.index(A_ANCHOR)</p>
+<p class="ln">    b = s.index(B_ANCHOR)</p>
+<p class="ln">    if b &lt;= a:</p>
+<p class="ln">        raise SystemExit('边界算反了，中止')</p>
+<p class="ln">    # 安全：这段里必须同时出现两个待删函数名，否则说明定位错了（改版后重跑要重新确认）</p>
+<p class="ln">    seg = s[a:b]</p>
+<p class="ln">    for must in ('function endWaterAndSettle(', 'function openSettle('):</p>
+<p class="ln">        if must not in seg:</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 39 页 / 共 61 页</span></div>
+<p class="ln">            raise SystemExit('待替换区间里没有 %s，定位不对，中止' % must)</p>
+<p class="ln">    print('替换区间 [%d, %d)，长度 %d' % (a, b, b - a))</p>
+<p class="ln">    print('首行: %r' % seg[:40])</p>
+<p class="ln">    print('尾行: %r' % seg[-40:])</p>
+<p class="ln">    if '--check' in sys.argv:</p>
+<p class="ln">        print('--check：未写入')</p>
+<p class="ln">        return 0</p>
+<p class="ln">    new = io.open(NEWFILE, encoding='utf-8').read()</p>
+<p class="ln">    s2 = s[:a] + new + s[b:]</p>
+<p class="ln">    io.open(APP, 'w', encoding='utf-8', newline='\n').write(s2)</p>
+<p class="ln">    print('已写入，新长度 %d（原 %d）' % (len(s2), len(s)))</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == '__main__':</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/publish_apk.py ========</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""把打好的 APK 直接推进 Cloudflare KV，并把线上 latest 指过去。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">为什么不用 Worker 的 /v1/admin/upload：</p>
+<p class="ln">    那条路由要 X-Admin-Key，而 ADMIN_KEY 是部署时随机生成、只写在</p>
+<p class="ln">    server/DEPLOY-OUT.txt（本机没有）里的 secret，敲不出来。但 KV 是可以</p>
+<p class="ln">    用 Cloudflare API Token 直接写的 —— 同一个 AUTH 命名空间，写进去的</p>
+<p class="ln">    apk:blob / apk:meta / cfg 三个键与 /v1/admin/upload 写下的完全等价</p>
+<p class="ln">    （键名见 server/worker.js:342-343 与 :435）。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python tools/publish_apk.py                      # 用 apk/ 里最新的包</p>
+<p class="ln">    python tools/publish_apk.py --apk apk/xx.apk --notes "更新说明"</p>
+<p class="ln">    python tools/publish_apk.py --no-publish         # 只存不切 latest</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">令牌来源（按顺序）：环境变量 CLOUDFLARE_API_TOKEN → 文件 D:\\_cftoken.txt</p>
+<p class="ln">"""</p>
+<p class="ln">import argparse</p>
+<p class="ln">import hashlib</p>
+<p class="ln">import json</p>
+<p class="ln">import os</p>
+<p class="ln">import re</p>
+<p class="ln">import subprocess</p>
+<p class="ln">import sys</p>
+<p class="ln">import time</p>
+<p class="ln">import urllib.error</p>
+<p class="ln">import urllib.parse</p>
+<p class="ln">import urllib.request</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ACCOUNT_ID = 'ebb7ecfd16008b9e3696ad5b4bc930d7'</p>
+<p class="ln">KV_NAMESPACE = '02669ca1cef04c5e930d4e3bb2d0d780'</p>
+<p class="ln"># v1.1.17 起是自有域名（2026-11-04 接通，Pages custom domain = active）。</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 40 页 / 共 61 页</span></div>
+<p class="ln"># 注意这里只有「学生实际访问的入口」变了，Worker 本体仍是 xxmu-auth.yg-xxmu.workers.dev，</p>
+<p class="ln"># 由 Pages 那层薄代理转发。旧地址 xxmu-auth.pages.dev 依然可用，作为回滚口。</p>
+<p class="ln">BASE = 'https://www.xxmuhelper.top'</p>
+<p class="ln">API = 'https://api.cloudflare.com/client/v4/accounts/%s/storage/kv/namespaces/%s/values'</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</p>
+<p class="ln">APK_DIR = os.path.join(ROOT, 'apk')</p>
+<p class="ln">MANIFEST = os.path.join(ROOT, 'android', 'AndroidManifest.xml')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def read_token():</p>
+<p class="ln">    tok = (os.environ.get('CLOUDFLARE_API_TOKEN') or '').strip()</p>
+<p class="ln">    if tok:</p>
+<p class="ln">        return tok</p>
+<p class="ln">    p = r'D:\_cftoken.txt'</p>
+<p class="ln">    if os.path.exists(p):</p>
+<p class="ln">        return open(p, encoding='utf-8').read().strip()</p>
+<p class="ln">    sys.exit('缺少令牌：设置 CLOUDFLARE_API_TOKEN，或写入 D:\\_cftoken.txt')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def _open_retry(req, timeout=60, tries=4):</p>
+<p class="ln">    """带重试的 urlopen。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    学校这条网到 api.cloudflare.com 的 TLS 握手会间歇性被掐，报</p>
+<p class="ln">    `EOF occurred in violation of protocol` 或 `handshake operation timed out`，</p>
+<p class="ln">    而同一个域名用 curl 打又是 0.8 秒就通 —— 不是令牌问题、也不是封禁，</p>
+<p class="ln">    纯粹是这条链路偶发。以前没重试，一次握手失败就整趟发布中断，</p>
+<p class="ln">    还得人工判断「到底写进去没有」。改成退避重试 4 次，</p>
+<p class="ln">    每次间隔 2/4/6 秒；仍然失败才把原始异常抛出去。"""</p>
+<p class="ln">    last = None</p>
+<p class="ln">    for i in range(tries):</p>
+<p class="ln">        try:</p>
+<p class="ln">            return urllib.request.urlopen(req, timeout=timeout)</p>
+<p class="ln">        except urllib.error.HTTPError:</p>
+<p class="ln">            raise                      # 4xx/5xx 是明确答复，不该重试</p>
+<p class="ln">        except Exception as e:         # noqa: BLE001 - 网络层什么都可能抛</p>
+<p class="ln">            last = e</p>
+<p class="ln">            if i &lt; tries - 1:</p>
+<p class="ln">                print('  网络抖动（%s），%.0f 秒后重试…' % (type(e).__name__, 2 * (i + 1)))</p>
+<p class="ln">                time.sleep(2 * (i + 1))</p>
+<p class="ln">    raise last</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def kv_put(token, key, body, content_type='application/octet-stream'):</p>
+<p class="ln">    url = (API % (ACCOUNT_ID, KV_NAMESPACE)) + '/' + urllib.parse.quote(key, safe='')</p>
+<p class="ln">    req = urllib.request.Request(url, data=body, method='PUT')</p>
+<p class="ln">    req.add_header('Authorization', 'Bearer ' + token)</p>
+<p class="ln">    req.add_header('Content-Type', content_type)</p>
+<p class="ln">    try:</p>
+<p class="ln">        with _open_retry(req, timeout=180) as r:</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 41 页 / 共 61 页</span></div>
+<p class="ln">            out = json.loads(r.read().decode('utf-8') or '{}')</p>
+<p class="ln">    except urllib.error.HTTPError as e:</p>
+<p class="ln">        sys.exit('写 %s 失败：HTTP %s %s' % (key, e.code, e.read().decode('utf-8', 'replace')[:800]))</p>
+<p class="ln">    if not out.get('success'):</p>
+<p class="ln">        sys.exit('写 %s 失败：%s' % (key, json.dumps(out, ensure_ascii=False)[:800]))</p>
+<p class="ln">    return out</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def kv_get(token, key, raw=False):</p>
+<p class="ln">    url = (API % (ACCOUNT_ID, KV_NAMESPACE)) + '/' + urllib.parse.quote(key, safe='')</p>
+<p class="ln">    req = urllib.request.Request(url, method='GET')</p>
+<p class="ln">    req.add_header('Authorization', 'Bearer ' + token)</p>
+<p class="ln">    try:</p>
+<p class="ln">        with _open_retry(req, timeout=90) as r:</p>
+<p class="ln">            body = r.read()</p>
+<p class="ln">    except urllib.error.HTTPError as e:</p>
+<p class="ln">        if e.code == 404:</p>
+<p class="ln">            return None</p>
+<p class="ln">        sys.exit('读 %s 失败：HTTP %s' % (key, e.code))</p>
+<p class="ln">    # KV 的 REST 接口对「文本值」返回 JSON 编码的字符串；对 arrayBuffer 返回裸字节。</p>
+<p class="ln">    if raw:</p>
+<p class="ln">        return body</p>
+<p class="ln">    try:</p>
+<p class="ln">        txt = body.decode('utf-8')</p>
+<p class="ln">    except UnicodeDecodeError:</p>
+<p class="ln">        return body</p>
+<p class="ln">    if txt.startswith('"') and txt.endswith('"'):</p>
+<p class="ln">        try:</p>
+<p class="ln">            return json.loads(txt)</p>
+<p class="ln">        except Exception:</p>
+<p class="ln">            return txt</p>
+<p class="ln">    return txt</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def latest_apk():</p>
+<p class="ln">    if not os.path.isdir(APK_DIR):</p>
+<p class="ln">        sys.exit('没有 apk/ 目录')</p>
+<p class="ln">    cands = [os.path.join(APK_DIR, f) for f in os.listdir(APK_DIR) if f.endswith('.apk')]</p>
+<p class="ln">    if not cands:</p>
+<p class="ln">        sys.exit('apk/ 里没有 .apk')</p>
+<p class="ln">    return max(cands, key=os.path.getmtime)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def manifest_ver(apk_path):</p>
+<p class="ln">    """从 **APK 自身** 读出真实版本号。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    v1.1.15 修：原来读的是磁盘上的 `android/AndroidManifest.xml`，而不是包里那份。</p>
+<p class="ln">    两者在「出完包又改了清单」之后就会不一致 —— 比如出完 v1.1.15、</p>
+<p class="ln">    想把 v1.1.14 的旧包重新发一次（回滚），清单里写着 1.1.15，</p>
+<p class="ln">    于是 cfg.latest 被记成 1.1.15、而 apk:blob 里是 1.1.14 的字节：</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 42 页 / 共 61 页</span></div>
+<p class="ln">    学生端看到「有新版本」但装上去还是旧版，永远升不完；</p>
+<p class="ln">    `/v1/apk` 的 `x-apk-ver` 与 `cfg.latest.version` 也对不上。</p>
+<p class="ln">    这类错误没有任何报错，只能靠事后比对才发现。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    优先用 aapt2 dump badging 读包内清单；aapt2 不在就直接读 ZIP 里的二进制</p>
+<p class="ln">    AndroidManifest（在 UTF-16 区段里扫版本号不现实），所以退而求其次读磁盘清单</p>
+<p class="ln">    但**明确打警告**，让调用方知道自己在赌。</p>
+<p class="ln">    """</p>
+<p class="ln">    aapt2 = os.environ.get('AAPT2') or ''</p>
+<p class="ln">    if not aapt2:</p>
+<p class="ln">        sdk = os.environ.get('ANDROID_HOME') or r'D:\android-sdk'</p>
+<p class="ln">        cand = os.path.join(sdk, 'build-tools', '33.0.2', 'aapt2.exe')</p>
+<p class="ln">        aapt2 = cand if os.path.exists(cand) else ''</p>
+<p class="ln">    if aapt2:</p>
+<p class="ln">        try:</p>
+<p class="ln">            out = subprocess.run([aapt2, 'dump', 'badging', apk_path],</p>
+<p class="ln">                                 capture_output=True, text=True,</p>
+<p class="ln">                                 encoding='utf-8', errors='replace').stdout</p>
+<p class="ln">            vn = re.search(r"versionName='([^']+)'", out)</p>
+<p class="ln">            vc = re.search(r"versionCode='(\d+)'", out)</p>
+<p class="ln">            if vn and vc:</p>
+<p class="ln">                return vn.group(1), int(vc.group(1))</p>
+<p class="ln">            print('  !! aapt2 没读到版本号，退回读磁盘清单（清单可能与包不一致）')</p>
+<p class="ln">        except Exception as e:                                   # noqa: BLE001</p>
+<p class="ln">            print('  !! aapt2 执行失败（%s），退回读磁盘清单' % type(e).__name__)</p>
+<p class="ln">    else:</p>
+<p class="ln">        print('  !! 找不到 aapt2，退回读磁盘清单（清单可能与包不一致）')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    mani = open(MANIFEST, encoding='utf-8').read()</p>
+<p class="ln">    vn = re.search(r'versionName="([^"]+)"', mani)</p>
+<p class="ln">    vc = re.search(r'versionCode="(\d+)"', mani)</p>
+<p class="ln">    if not vn or not vc:</p>
+<p class="ln">        sys.exit('解析 AndroidManifest.xml 的 versionCode/versionName 失败')</p>
+<p class="ln">    print('  !! 用的是磁盘清单的 %s/%s —— 发布旧包时这里会是错的' % (vn.group(1), vc.group(1)))</p>
+<p class="ln">    return vn.group(1), int(vc.group(1))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def http_open(url, timeout=30):</p>
+<p class="ln">    """带浏览器 UA 取一次。Cloudflare 边缘会直接 403 掉 python-urllib 的默认 UA，</p>
+<p class="ln">    所以自检这一步必须伪装成浏览器，否则会以为「发布失败」。"""</p>
+<p class="ln">    req = urllib.request.Request(url, method='GET')</p>
+<p class="ln">    req.add_header('User-Agent', 'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 '</p>
+<p class="ln">                                 '(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')</p>
+<p class="ln">    return urllib.request.urlopen(req, timeout=timeout)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    ap = argparse.ArgumentParser()</p>
+<p class="ln">    ap.add_argument('--apk', default='')</p>
+<p class="ln">    ap.add_argument('--notes', default='')</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 43 页 / 共 61 页</span></div>
+<p class="ln">    ap.add_argument('--notes-file', default='')</p>
+<p class="ln">    ap.add_argument('--no-publish', action='store_true')</p>
+<p class="ln">    args = ap.parse_args()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    apk = args.apk or latest_apk()</p>
+<p class="ln">    if not os.path.exists(apk):</p>
+<p class="ln">        sys.exit('找不到 APK：' + apk)</p>
+<p class="ln">    blob = open(apk, 'rb').read()</p>
+<p class="ln">    if blob[:2] != b'PK':</p>
+<p class="ln">        sys.exit('这不是 APK：文件头不是 ZIP（PK）')</p>
+<p class="ln">    if len(blob) &lt; 1024:</p>
+<p class="ln">        sys.exit('文件太小，不像安装包')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    sha = hashlib.sha256(blob).hexdigest()</p>
+<p class="ln">    vname, vcode = manifest_ver(apk)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    notes = args.notes</p>
+<p class="ln">    if args.notes_file:</p>
+<p class="ln">        notes = open(args.notes_file, encoding='utf-8').read().strip()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    token = read_token()</p>
+<p class="ln">    print('APK     :', os.path.relpath(apk, ROOT))</p>
+<p class="ln">    print('version : %s (code %d)' % (vname, vcode))</p>
+<p class="ln">    print('size    :', len(blob))</p>
+<p class="ln">    print('sha256  :', sha)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 1) 二进制本体</p>
+<p class="ln">    kv_put(token, 'apk:blob', blob, 'application/octet-stream')</p>
+<p class="ln">    print('[1/4] apk:blob 已写入')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 2) 元信息（与 /v1/admin/upload 写的字段同名）</p>
+<p class="ln">    meta = {</p>
+<p class="ln">        'name': os.path.basename(apk),</p>
+<p class="ln">        'size': len(blob),</p>
+<p class="ln">        'sha256': sha,</p>
+<p class="ln">        'ver': vname,</p>
+<p class="ln">        'code': vcode,</p>
+<p class="ln">        'at': int(time.time()),</p>
+<p class="ln">    }</p>
+<p class="ln">    kv_put(token, 'apk:meta', json.dumps(meta, ensure_ascii=False).encode('utf-8'),</p>
+<p class="ln">           'application/json; charset=utf-8')</p>
+<p class="ln">    print('[2/4] apk:meta 已写入')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 3) 回读校验本体没被截断</p>
+<p class="ln">    back = kv_get(token, 'apk:blob', raw=True)</p>
+<p class="ln">    if back is None:</p>
+<p class="ln">        sys.exit('回读 apk:blob 为空')</p>
+<p class="ln">    bsha = hashlib.sha256(back).hexdigest()</p>
+<p class="ln">    if bsha != sha:</p>
+<p class="ln">        sys.exit('回读校验失败：线上 %d 字节 %s ≠ 本地 %d 字节 %s'</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 44 页 / 共 61 页</span></div>
+<p class="ln">                 % (len(back), bsha[:16], len(blob), sha[:16]))</p>
+<p class="ln">    print('[3/4] 回读校验通过（%d 字节，SHA-256 一致）' % len(back))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 4) 切 latest</p>
+<p class="ln">    raw_cfg = kv_get(token, 'cfg')</p>
+<p class="ln">    if not isinstance(raw_cfg, str):</p>
+<p class="ln">        sys.exit('读到的 cfg 不是文本，中止（不敢覆盖）')</p>
+<p class="ln">    cfg = json.loads(raw_cfg)</p>
+<p class="ln">    old = dict(cfg.get('latest') or {})</p>
+<p class="ln">    if args.no_publish:</p>
+<p class="ln">        print('[4/4] --no-publish：cfg 未改动，latest 仍是 %s/%s'</p>
+<p class="ln">              % (old.get('version'), old.get('code')))</p>
+<p class="ln">        return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    latest = dict(old)</p>
+<p class="ln">    latest.update({</p>
+<p class="ln">        'version': vname,</p>
+<p class="ln">        'code': vcode,</p>
+<p class="ln">        'url': BASE + '/v1/apk',</p>
+<p class="ln">        'size': len(blob),</p>
+<p class="ln">        'sha256': sha,</p>
+<p class="ln">    })</p>
+<p class="ln">    if notes:</p>
+<p class="ln">        latest['notes'] = notes</p>
+<p class="ln">    cfg['latest'] = latest</p>
+<p class="ln">    # min.code 保持 0：不强制升级，只在检测到新版本时提示</p>
+<p class="ln">    kv_put(token, 'cfg', json.dumps(cfg, ensure_ascii=False).encode('utf-8'),</p>
+<p class="ln">           'application/json; charset=utf-8')</p>
+<p class="ln">    print('[4/4] cfg.latest 已切到 %s / code %s' % (vname, vcode))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 线上自检</p>
+<p class="ln">    print('\n线上自检：')</p>
+<p class="ln">    with http_open(BASE + '/v1/config', 30) as r:</p>
+<p class="ln">        live = json.loads(r.read().decode('utf-8'))</p>
+<p class="ln">    lv = live.get('latest') or {}</p>
+<p class="ln">    print('  /v1/config  latest=%s code=%s size=%s sha=%s…'</p>
+<p class="ln">          % (lv.get('version'), lv.get('code'), lv.get('size'), str(lv.get('sha256'))[:16]))</p>
+<p class="ln">    with http_open(BASE + '/v1/apk', 180) as r:</p>
+<p class="ln">        got = r.read()</p>
+<p class="ln">    gsha = hashlib.sha256(got).hexdigest()</p>
+<p class="ln">    print('  /v1/apk     %d 字节 sha=%s…' % (len(got), gsha[:16]))</p>
+<p class="ln">    if gsha != sha:</p>
+<p class="ln">        print('  !! 下载回来的包和本地不一致')</p>
+<p class="ln">        return 1</p>
+<p class="ln">    print('  下载链路一致')</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == '__main__':</p>
+<p class="ln">    sys.exit(main())</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 45 页 / 共 61 页</span></div>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/scan_sessions.js ========</p>
+<p class="ln">/* 扫全部 session 日志（zstd 压缩的 JSONL），找出历史上抓过的学习通页面片段。</p>
+<p class="ln"> *</p>
+<p class="ln"> * 用法：node tools/scan_sessions.js &lt;输出目录&gt;</p>
+<p class="ln"> *</p>
+<p class="ln"> * 为什么要有这个工具：学习通的作业/考试清单页 HTML 结构没法猜——真实页面里</p>
+<p class="ln"> * 「作业状态」这四个字周围的标签嵌套、有没有额外 class、状态词到底取到哪儿，</p>
+<p class="ln"> * 决定了正则能不能用。与其凭记忆写正则再上真机试，不如把历史会话里留过的</p>
+<p class="ln"> * 原始响应找出来。找到就把命中行写进输出目录，人工看真结构。</p>
+<p class="ln"> */</p>
+<p class="ln">const fs = require('fs');</p>
+<p class="ln">const path = require('path');</p>
+<p class="ln">const zlib = require('zlib');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const ROOT = path.join(process.env.USERPROFILE || process.env.HOME || '.', '.dsh', 'sessions');</p>
+<p class="ln">const OUT = process.argv[2] || path.join(__dirname, '..', 'build_scan');</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">const NEEDLES = [</p>
+<p class="ln">  '作业状态',</p>
+<p class="ln">  '考试状态',</p>
+<p class="ln">  'getAllWork',</p>
+<p class="ln">  'ulDiv',</p>
+<p class="ln">  'goTest(',</p>
+<p class="ln">  'inspectTask',</p>
+<p class="ln">];</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function walk(dir, acc) {</p>
+<p class="ln">  let ents;</p>
+<p class="ln">  try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return acc; }</p>
+<p class="ln">  for (const e of ents) {</p>
+<p class="ln">    const p = path.join(dir, e.name);</p>
+<p class="ln">    if (e.isDirectory()) walk(p, acc);</p>
+<p class="ln">    else if (/\.zstd$/.test(e.name)) acc.push(p);</p>
+<p class="ln">  }</p>
+<p class="ln">  return acc;</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">function main() {</p>
+<p class="ln">  const files = walk(ROOT, []);</p>
+<p class="ln">  console.log('session 日志文件数 = ' + files.length);</p>
+<p class="ln">  if (!files.length) { console.log('没找到，检查 ' + ROOT); return; }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  fs.mkdirSync(OUT, { recursive: true });</p>
+<p class="ln">  const stat = {};</p>
+<p class="ln">  NEEDLES.forEach(n =&gt; { stat[n] = 0; });</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  let scanned = 0;</p>
+<p class="ln">  for (const f of files) {</p>
+<p class="ln">    let text;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 46 页 / 共 61 页</span></div>
+<p class="ln">    try { text = zlib.zstdDecompressSync(fs.readFileSync(f)).toString('utf8'); }</p>
+<p class="ln">    catch (e) { continue; }</p>
+<p class="ln">    scanned++;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const hits = NEEDLES.filter(n =&gt; text.indexOf(n) &gt;= 0);</p>
+<p class="ln">    if (!hits.length) continue;</p>
+<p class="ln">    hits.forEach(n =&gt; { stat[n]++; });</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    const sid = path.basename(path.dirname(f));</p>
+<p class="ln">    const outFile = path.join(OUT, sid + '.txt');</p>
+<p class="ln">    const lines = text.split('\n').filter(l =&gt; hits.some(n =&gt; l.indexOf(n) &gt;= 0));</p>
+<p class="ln">    fs.writeFileSync(outFile, lines.join('\n'), 'utf8');</p>
+<p class="ln">    console.log('HIT ' + sid + '  lines=' + lines.length + '  ' + hits.join(','));</p>
+<p class="ln">  }</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">  console.log('--- 各关键词命中文件数 ---');</p>
+<p class="ln">  NEEDLES.forEach(n =&gt; console.log('  ' + n + ' -&gt; ' + stat[n]));</p>
+<p class="ln">  console.log('扫描完成，命中内容已写入 ' + OUT);</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">main();</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/set_notice.py ========</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""更新线上公告（KV 里的 cfg.notice / noticeTitle / noticeAt）。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python tools/set_notice.py --title "标题" --body-file notices/xxx.txt</p>
+<p class="ln">    python tools/set_notice.py --clear</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">为什么不走 /v1/admin/setcfg：那个接口要 X-Admin-Key，而 ADMIN_KEY 是</p>
+<p class="ln">tools/deploy_server.ps1 部署时随机生成的，本机那份早就丢了（见 HANDOFF 坑 9）。</p>
+<p class="ln">Cloudflare API Token 能直接写 KV，效果与管理员接口完全等价。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">踩过的两个坑（和 publish_apk.py 里一样）：</p>
+<p class="ln">  1. 边缘会拦 python-urllib 的默认 UA（403，error code 1010），必须带浏览器 UA；</p>
+<p class="ln">  2. KV 的 REST 读接口对文本值返回的是「数字数组形式的 JSON 字符串」，</p>
+<p class="ln">     要先 json.loads 解一层。</p>
+<p class="ln">"""</p>
+<p class="ln">import argparse</p>
+<p class="ln">import json</p>
+<p class="ln">import os</p>
+<p class="ln">import sys</p>
+<p class="ln">import time</p>
+<p class="ln">import urllib.error</p>
+<p class="ln">import urllib.parse</p>
+<p class="ln">import urllib.request</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ACCOUNT_ID = 'ebb7ecfd16008b9e3696ad5b4bc930d7'</p>
+<p class="ln">KV_NAMESPACE = '02669ca1cef04c5e930d4e3bb2d0d780'</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 47 页 / 共 61 页</span></div>
+<p class="ln">BASE = 'https://www.xxmuhelper.top'   # v1.1.17 起用自有域名；旧 pages.dev 仍可用</p>
+<p class="ln">TOKEN_FILE = r'D:\_cftoken.txt'</p>
+<p class="ln">UA = ('Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 '</p>
+<p class="ln">      '(KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def token():</p>
+<p class="ln">    t = os.environ.get('CLOUDFLARE_API_TOKEN', '').strip()</p>
+<p class="ln">    if t:</p>
+<p class="ln">        return t</p>
+<p class="ln">    if os.path.exists(TOKEN_FILE):</p>
+<p class="ln">        return open(TOKEN_FILE, 'r', encoding='utf-8').read().strip()</p>
+<p class="ln">    sys.exit('找不到 Cloudflare API Token（环境变量 CLOUDFLARE_API_TOKEN 或 ' + TOKEN_FILE + '）')</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def kv_url(key):</p>
+<p class="ln">    return ('https://api.cloudflare.com/client/v4/accounts/%s/storage/kv/namespaces/%s/values/%s'</p>
+<p class="ln">            % (ACCOUNT_ID, KV_NAMESPACE, urllib.parse.quote(key, safe='')))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def http_open(req, timeout=30, tries=3):</p>
+<p class="ln">    last = None</p>
+<p class="ln">    for i in range(tries):</p>
+<p class="ln">        try:</p>
+<p class="ln">            return urllib.request.urlopen(req, timeout=timeout)</p>
+<p class="ln">        except urllib.error.HTTPError:</p>
+<p class="ln">            raise</p>
+<p class="ln">        except Exception as e:          # 网络层异常重试，HTTP 错误不重试</p>
+<p class="ln">            last = e</p>
+<p class="ln">            time.sleep(1.2 * (i + 1))</p>
+<p class="ln">    raise last</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def get_cfg(tok):</p>
+<p class="ln">    req = urllib.request.Request(kv_url('cfg'), headers={'Authorization': 'Bearer ' + tok, 'User-Agent': UA})</p>
+<p class="ln">    raw = http_open(req).read().decode('utf-8')</p>
+<p class="ln">    try:</p>
+<p class="ln">        v = json.loads(raw)</p>
+<p class="ln">    except Exception:</p>
+<p class="ln">        v = raw</p>
+<p class="ln">    if isinstance(v, list):</p>
+<p class="ln">        v = bytes(v).decode('utf-8')</p>
+<p class="ln">    if isinstance(v, str):</p>
+<p class="ln">        v = json.loads(v)</p>
+<p class="ln">    return v</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def put_cfg(tok, cfg):</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 48 页 / 共 61 页</span></div>
+<p class="ln">    body = json.dumps(cfg, ensure_ascii=False).encode('utf-8')</p>
+<p class="ln">    req = urllib.request.Request(kv_url('cfg'), data=body, method='PUT', headers={</p>
+<p class="ln">        'Authorization': 'Bearer ' + tok,</p>
+<p class="ln">        'User-Agent': UA,</p>
+<p class="ln">        'Content-Type': 'application/octet-stream',</p>
+<p class="ln">    })</p>
+<p class="ln">    http_open(req).read()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def show(cfg):</p>
+<p class="ln">    print('noticeTitle :', cfg.get('noticeTitle') or '(空)')</p>
+<p class="ln">    print('noticeAt    :', cfg.get('noticeAt') or 0)</p>
+<p class="ln">    body = (cfg.get('notice') or '').strip()</p>
+<p class="ln">    print('notice      :', (body[:120] + '…') if len(body) &gt; 120 else (body or '(空)'))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    # Windows 控制台默认 GBK，中文标题会显示成乱码（内容没错，只是看不见）。</p>
+<p class="ln">    try:</p>
+<p class="ln">        sys.stdout.reconfigure(encoding='utf-8')</p>
+<p class="ln">    except Exception:</p>
+<p class="ln">        pass</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    ap = argparse.ArgumentParser()</p>
+<p class="ln">    ap.add_argument('--title', default='')</p>
+<p class="ln">    ap.add_argument('--body-file', default='')</p>
+<p class="ln">    ap.add_argument('--clear', action='store_true')</p>
+<p class="ln">    ap.add_argument('--show', action='store_true')</p>
+<p class="ln">    a = ap.parse_args()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    tok = token()</p>
+<p class="ln">    cfg = get_cfg(tok)</p>
+<p class="ln">    print('--- 改前 ---')</p>
+<p class="ln">    show(cfg)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if a.show:</p>
+<p class="ln">        return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if a.clear:</p>
+<p class="ln">        cfg['notice'] = ''</p>
+<p class="ln">        cfg['noticeTitle'] = ''</p>
+<p class="ln">        cfg['noticeAt'] = 0</p>
+<p class="ln">    else:</p>
+<p class="ln">        if not a.body_file:</p>
+<p class="ln">            sys.exit('要么 --body-file，要么 --clear，要么 --show')</p>
+<p class="ln">        p = a.body_file if os.path.isabs(a.body_file) else os.path.join(ROOT, a.body_file)</p>
+<p class="ln">        body = open(p, 'r', encoding='utf-8').read().strip()</p>
+<p class="ln">        if not body:</p>
+<p class="ln">            sys.exit('正文是空的')</p>
+<p class="ln">        cfg['notice'] = body</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 49 页 / 共 61 页</span></div>
+<p class="ln">        cfg['noticeTitle'] = a.title or '公告'</p>
+<p class="ln">        cfg['noticeAt'] = int(time.time())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    put_cfg(tok, cfg)</p>
+<p class="ln">    back = get_cfg(tok)</p>
+<p class="ln">    print('--- 改后 ---')</p>
+<p class="ln">    show(back)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    # 边缘缓存 60 秒，等它过期再验一次线上</p>
+<p class="ln">    print('--- 线上（可能还要等最多 60 秒边缘缓存过期）---')</p>
+<p class="ln">    req = urllib.request.Request(BASE + '/v1/config', headers={'User-Agent': UA})</p>
+<p class="ln">    live = json.loads(http_open(req).read().decode('utf-8'))</p>
+<p class="ln">    print('live noticeAt  :', live.get('noticeAt'))</p>
+<p class="ln">    print('live title     :', live.get('noticeTitle'))</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == '__main__':</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/sync_all.py ========</p>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""PC 端一键同步：青果课表 + 学习通作业 -&gt; data/*.json + web/*.js + android/assets/*.js</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python tools/sync_all.py                    # 全量（课表用已保存的 session 直接拉，免验证码）</p>
+<p class="ln">    python tools/sync_all.py --login 学号 密码   # 强制重新登录（会存验证码图，需人工看图再跑一次）</p>
+<p class="ln">    python tools/sync_all.py --captcha 1234      # 用刚才的验证码完成登录并同步</p>
+<p class="ln">    python tools/sync_all.py --hw-only           # 只同步作业</p>
+<p class="ln">    python tools/sync_all.py --kb-only           # 只同步课表</p>
+<p class="ln">    python tools/sync_all.py --no-assets         # 不同步 android/assets（只改 web/ 时用）</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">退出码：0 成功 / 2 登录态失效 / 3 需要人工输入验证码 / 4 部分失败</p>
+<p class="ln">"""</p>
+<p class="ln">import argparse</p>
+<p class="ln">import os</p>
+<p class="ln">import sys</p>
+<p class="ln">import time</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">HERE = os.path.dirname(os.path.abspath(__file__))</p>
+<p class="ln">ROOT = os.path.dirname(HERE)</p>
+<p class="ln">CORE = os.path.join(ROOT, "core")</p>
+<p class="ln">sys.path.insert(0, CORE)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">import paths          # noqa: E402</p>
+<p class="ln">import kingo          # noqa: E402</p>
+<p class="ln">import parse_kb       # noqa: E402</p>
+<p class="ln">import normalize      # noqa: E402</p>
+<p class="ln">import times as xtimes  # noqa: E402</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 50 页 / 共 61 页</span></div>
+<p class="ln">import sync as S      # noqa: E402</p>
+<p class="ln">import sync_hw as SH  # noqa: E402</p>
+<p class="ln">import chaoxing       # noqa: E402</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def banner(msg):</p>
+<p class="ln">    print("\n=== %s  %s ===" % (msg, time.strftime("%Y-%m-%d %H:%M:%S")))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def do_kb(user=None, pwd=None, captcha=None, assets=True):</p>
+<p class="ln">    """课表：有 session 就直接拉；否则需要登录（验证码要人工看图）。"""</p>
+<p class="ln">    ck = kingo.load_session()</p>
+<p class="ln">    if ck:</p>
+<p class="ln">        banner("课表：复用 session")</p>
+<p class="ln">        try:</p>
+<p class="ln">            u = user or _session_user()</p>
+<p class="ln">            html = kingo.fetch_schedule(ck, u, xn=paths.XN, xq=paths.XQ)</p>
+<p class="ln">            if len(html) &lt; 2000:</p>
+<p class="ln">                raise RuntimeError("课表 HTML 太短（%d），可能 session 过期" % len(html))</p>
+<p class="ln">            return _write_schedule(html, u, assets)</p>
+<p class="ln">        except Exception as e:</p>
+<p class="ln">            print("session 失效（%s），需要重新登录" % e)</p>
+<p class="ln">    # 账号密码兜底：环境变量 XXMU_USER / XXMU_PWD（cron 用）或命令行</p>
+<p class="ln">    user = user or paths.env("XXMU_USER")</p>
+<p class="ln">    pwd = pwd or paths.env("XXMU_PWD")</p>
+<p class="ln">    if not (user and pwd):</p>
+<p class="ln">        print("没有可用 session，且未提供学号密码：请跑 --login 学号 密码，"</p>
+<p class="ln">              "或设 XXMU_USER / XXMU_PWD")</p>
+<p class="ln">        return "need_login"</p>
+<p class="ln">    banner("课表：登录")</p>
+<p class="ln">    r = S.sync(user, pwd, captcha, push_assets=assets)</p>
+<p class="ln">    if r.get("need_captcha"):</p>
+<p class="ln">        print("验证码图 -&gt; %s" % r["img"])</p>
+<p class="ln">        print("看清后跑：python tools/sync_all.py --captcha 验证码")</p>
+<p class="ln">        return "need_captcha"</p>
+<p class="ln">    print("课表 OK：%d 门课" % r["count"])</p>
+<p class="ln">    return "ok"</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def _session_user():</p>
+<p class="ln">    """从已有 schedule.json 里取学号，避免命令行重复输入。"""</p>
+<p class="ln">    import json</p>
+<p class="ln">    p = os.path.join(ROOT, "data", "schedule.json")</p>
+<p class="ln">    try:</p>
+<p class="ln">        return json.load(open(p, encoding="utf-8")).get("user")</p>
+<p class="ln">    except Exception:</p>
+<p class="ln">        return None</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def _write_schedule(html, user, assets):</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 51 页 / 共 61 页</span></div>
+<p class="ln">    cells = parse_kb.parse(html)</p>
+<p class="ln">    if not cells:</p>
+<p class="ln">        raise RuntimeError("解析出 0 个课表格子，页面结构可能变了")</p>
+<p class="ln">    courses = normalize.normalize(cells)</p>
+<p class="ln">    out = {"user": user, "synced_at": int(time.time()), "term": paths.TERM,</p>
+<p class="ln">           "cells": cells, "courses": courses, "times": xtimes.TIMES,</p>
+<p class="ln">           "count": sum(len(c["courses"]) for c in cells)}</p>
+<p class="ln">    import json</p>
+<p class="ln">    with open(os.path.join(ROOT, "data", "schedule.json"), "w", encoding="utf-8") as f:</p>
+<p class="ln">        json.dump(out, f, ensure_ascii=False, indent=1)</p>
+<p class="ln">    S.write_js(os.path.join(ROOT, "web", "data.js"), "SCHEDULE", out)</p>
+<p class="ln">    if assets:</p>
+<p class="ln">        S.write_js(os.path.join(ROOT, "android", "assets", "data.js"), "SCHEDULE", out)</p>
+<p class="ln">    print("课表 OK：%d 门课 / %d 个格子" % (len(courses), len(cells)))</p>
+<p class="ln">    return "ok"</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def do_hw(assets=True):</p>
+<p class="ln">    banner("作业：学习通")</p>
+<p class="ln">    try:</p>
+<p class="ln">        d = SH.build()</p>
+<p class="ln">    except chaoxing.CookieExpired as e:</p>
+<p class="ln">        print("学习通登录态失效：%s" % e)</p>
+<p class="ln">        print("→ 手机重登学习通后 adb pull，路径见 XXMU_COOKIE_DB=%s" % paths.COOKIE_DB)</p>
+<p class="ln">        return "cookie_expired"</p>
+<p class="ln">    import json</p>
+<p class="ln">    os.makedirs(os.path.join(ROOT, "data"), exist_ok=True)</p>
+<p class="ln">    with open(os.path.join(ROOT, "data", "homework.json"), "w", encoding="utf-8") as f:</p>
+<p class="ln">        json.dump(d, f, ensure_ascii=False, indent=1)</p>
+<p class="ln">    payload = ("window.HOMEWORK = "</p>
+<p class="ln">               + json.dumps(d, ensure_ascii=False, separators=(",", ":")) + ";\n")</p>
+<p class="ln">    targets = [os.path.join(ROOT, "web", "homework.js")]</p>
+<p class="ln">    if assets:</p>
+<p class="ln">        targets.append(os.path.join(ROOT, "android", "assets", "homework.js"))</p>
+<p class="ln">    for p in targets:</p>
+<p class="ln">        with open(p, "w", encoding="utf-8") as f:</p>
+<p class="ln">            f.write(payload)</p>
+<p class="ln">    print("作业 OK：课程 %d 门 / 作业 %d 条 / 待做 %d 条 / 考试待考 %d"</p>
+<p class="ln">          % (d["courses"], d["total"], d["pending"], d.get("exam_upcoming", 0)))</p>
+<p class="ln">    if d["errors"]:</p>
+<p class="ln">        print("单门课失败 %d 个：" % len(d["errors"]))</p>
+<p class="ln">        for e in d["errors"][:5]:</p>
+<p class="ln">            print("  - %s: %s" % (e.get("course"), e.get("error")))</p>
+<p class="ln">    return "ok"</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    ap = argparse.ArgumentParser(description="PC 一键同步（课表 + 作业）")</p>
+<p class="ln">    ap.add_argument("--login", nargs=2, metavar=("学号", "密码"), help="强制重新登录教务")</p>
+<p class="ln">    ap.add_argument("--captcha", help="验证码（配合上次 --login 产生的图）")</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 52 页 / 共 61 页</span></div>
+<p class="ln">    ap.add_argument("--user", help="学号（复用 session 时可选，默认读 schedule.json）")</p>
+<p class="ln">    ap.add_argument("--kb-only", action="store_true")</p>
+<p class="ln">    ap.add_argument("--hw-only", action="store_true")</p>
+<p class="ln">    ap.add_argument("--no-assets", action="store_true", help="不写 android/assets")</p>
+<p class="ln">    a = ap.parse_args()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    assets = not a.no_assets</p>
+<p class="ln">    print("[env] " + paths.describe())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    results = {}</p>
+<p class="ln">    if not a.hw_only:</p>
+<p class="ln">        user = (a.login[0] if a.login else None) or a.user or _session_user()</p>
+<p class="ln">        pwd = a.login[1] if a.login else None</p>
+<p class="ln">        results["kb"] = do_kb(user, pwd, a.captcha, assets)</p>
+<p class="ln">    if not a.kb_only:</p>
+<p class="ln">        results["hw"] = do_hw(assets)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    print("\n--- 汇总 ---")</p>
+<p class="ln">    for k, v in results.items():</p>
+<p class="ln">        print("  %s: %s" % (k, v))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if "need_captcha" in results.values():</p>
+<p class="ln">        return 3</p>
+<p class="ln">    if "cookie_expired" in results.values() or "need_login" in results.values():</p>
+<p class="ln">        return 2</p>
+<p class="ln">    if any(v != "ok" for v in results.values()):</p>
+<p class="ln">        return 4</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == "__main__":</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/sync_assets.py ========</p>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""把 web/ 同步到 android/assets/，并校验 5 个文件逐字节一致。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">改完前端必须跑这个，否则 APK 里是旧页面（HANDOFF 坑 1）。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">用法：</p>
+<p class="ln">    python tools/sync_assets.py          # 同步 + 校验</p>
+<p class="ln">    python tools/sync_assets.py --check  # 只校验，不写</p>
+<p class="ln">"""</p>
+<p class="ln">import argparse</p>
+<p class="ln">import hashlib</p>
+<p class="ln">import os</p>
+<p class="ln">import shutil</p>
+<p class="ln">import sys</p>
+<p class="ln">&nbsp;</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 53 页 / 共 61 页</span></div>
+<p class="ln">HERE = os.path.dirname(os.path.abspath(__file__))</p>
+<p class="ln">ROOT = os.path.dirname(HERE)</p>
+<p class="ln">WEB = os.path.join(ROOT, "web")</p>
+<p class="ln">ASSETS = os.path.join(ROOT, "android", "assets")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">FILES = ["index.html", "app.css", "app.js", "data.js", "homework.js"]</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def md5(p):</p>
+<p class="ln">    h = hashlib.md5()</p>
+<p class="ln">    with open(p, "rb") as f:</p>
+<p class="ln">        for chunk in iter(lambda: f.read(65536), b""):</p>
+<p class="ln">            h.update(chunk)</p>
+<p class="ln">    return h.hexdigest()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    ap = argparse.ArgumentParser()</p>
+<p class="ln">    ap.add_argument("--check", action="store_true", help="只校验不写")</p>
+<p class="ln">    a = ap.parse_args()</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    os.makedirs(ASSETS, exist_ok=True)</p>
+<p class="ln">    bad = []</p>
+<p class="ln">    for name in FILES:</p>
+<p class="ln">        src = os.path.join(WEB, name)</p>
+<p class="ln">        dst = os.path.join(ASSETS, name)</p>
+<p class="ln">        if not os.path.exists(src):</p>
+<p class="ln">            print("缺少源文件 web/%s" % name)</p>
+<p class="ln">            bad.append(name)</p>
+<p class="ln">            continue</p>
+<p class="ln">        if not a.check:</p>
+<p class="ln">            shutil.copyfile(src, dst)</p>
+<p class="ln">            print("cp web/%-14s -&gt; android/assets/" % name)</p>
+<p class="ln">        a1, a2 = md5(src), (md5(dst) if os.path.exists(dst) else "MISSING")</p>
+<p class="ln">        ok = a1 == a2</p>
+<p class="ln">        print("%s %-14s %s" % ("OK  " if ok else "DIFF", name, a1[:12]))</p>
+<p class="ln">        if not ok:</p>
+<p class="ln">            bad.append(name)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    if bad:</p>
+<p class="ln">        print("\n不一致：%s" % ", ".join(bad))</p>
+<p class="ln">        return 1</p>
+<p class="ln">    print("\n5/5 文件一致，assets 与 web 同步完成。")</p>
+<p class="ln">    return 0</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == "__main__":</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">// ======== 文件：tools/verify_apk.py ========</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 54 页 / 共 61 页</span></div>
+<p class="ln">#!/usr/bin/env python3</p>
+<p class="ln"># -*- coding: utf-8 -*-</p>
+<p class="ln">"""出包后四件套校验（v1.1.2 起）。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    python tools/verify_apk.py [apk 路径]</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">不给路径时自动挑 apk/ 下版本号最大的那个包，期望的 versionCode/versionName</p>
+<p class="ln">从 android/AndroidManifest.xml 里读 —— 免得每次发版都回来手改这个脚本。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">四件：</p>
+<p class="ln">  1. assets/ 15 个文件与 web/ 逐字节一致（打包最容易静默出错的一环：</p>
+<p class="ln">     sync_assets 扫目录复制，漏一个就是白屏或功能凭空消失）</p>
+<p class="ln">  2. classes.dex 里能搜到本版新增的符号（证明改的是代码不是注释）</p>
+<p class="ln">  3. aapt2 badging：包名 / versionCode / versionName / label 全对</p>
+<p class="ln">  4. apksigner 证书 SHA-256 与上一版一致（不一致 = 老用户装不上，只能卸载重装）</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">任一项不过就 exit 1，可以直接挂到发布流程里。</p>
+<p class="ln">"""</p>
+<p class="ln">import hashlib</p>
+<p class="ln">import os</p>
+<p class="ln">import re</p>
+<p class="ln">import subprocess</p>
+<p class="ln">import sys</p>
+<p class="ln">import zipfile</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))</p>
+<p class="ln">BT = r"D:\android-sdk\build-tools\33.0.2"</p>
+<p class="ln">AAPT2 = os.path.join(BT, "aapt2.exe")</p>
+<p class="ln">SIGNER = os.path.join(BT, "lib", "apksigner.jar")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln"># 上一版（v1.1.1）的签名证书指纹，包名同、证书必须同</p>
+<p class="ln">EXPECT_CERT_SHA256 = "0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799"</p>
+<p class="ln">&nbsp;</p>
+<p class="ln"># 本版必须能在 dex 里找到的字符串（改的是 Java，改注释不会让符号出现）</p>
+<p class="ln"># 这几条是 v1.1.2 的抓账号修复，必须一直在，属于回归护栏。</p>
+<p class="ln">NEW_DEX_SYMBOLS = [</p>
+<p class="ln">    "PLACEHOLDER_WORDS",</p>
+<p class="ln">    "isPlaceholderLike",</p>
+<p class="ln">    "placeholderJsArray",</p>
+<p class="ln">    # v1.1.4 的分段下载：缺了任何一个都说明 Http.java 没编进去，</p>
+<p class="ln">    # 前端却已经按「有进度」在显示，用户会看到按钮永远停在「下载中…」。</p>
+<p class="ln">    "probeLength",</p>
+<p class="ln">    "fetchRange",</p>
+<p class="ln">    "downloadSingle",</p>
+<p class="ln">    "onApkProgress",</p>
+<p class="ln">    # v1.1.6 校园图片上传：Http.uploadRaw 不塞 X-Admin-Key（学生也是上传者），</p>
+<p class="ln">    # 缺了它前端点「选照片」会走一条根本不存在的桥。</p>
+<p class="ln">    "uploadRaw",</p>
+<p class="ln">    "pickPhotoForUpload",</p>
+<p class="ln">    "handlePhotoResult",</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 55 页 / 共 61 页</span></div>
+<p class="ln">    "notifyPhotoUploaded",</p>
+<p class="ln">    # v1.1.6 顺带修的老 bug：WebChromeClient 默认不实现 onJsPrompt，</p>
+<p class="ln">    # 页面里所有 prompt() 静默返回 null。这个类不存在就等于没修。</p>
+<p class="ln">    "onJsPrompt",</p>
+<p class="ln">    # v1.1.7 上传时把设备指纹一起带上：限流键从 IP 改成 fp。</p>
+<p class="ln">    # 少了它，全校几百人共用一个出口 IP，第 4 张图 / 第 6 条留言就开始 429。</p>
+<p class="ln">    "xxmu_fp",</p>
+<p class="ln">    # v1.1.8 审计修复（docs/audit-backend.md + docs/audit-frontend.md）：</p>
+<p class="ln">    # 服务端那几个符号不在 dex 里（它们是 worker.js 的），放到下面的</p>
+<p class="ln">    # WORKER_SYMBOLS 检查。dex 这边只盯真正编进包的 Java 侧改动。</p>
+<p class="ln">    "sha256",</p>
+<p class="ln">    # v1.1.8 桥的白名单：httpGet 带教务 Cookie，uploadApk 能读文件，</p>
+<p class="ln">    # 两个都必须先验目标。</p>
+<p class="ln">    "allowedCookieHost",</p>
+<p class="ln">    "insideAppDirs",</p>
+<p class="ln">    # v1.1.8 二维码解码搬到后台线程 + 采样（4 万像素原图在 UI 线程解会 ANR）。</p>
+<p class="ln">    "decodeQrFromUri",</p>
+<p class="ln">    "recycleQuietly",</p>
+<p class="ln">    # v1.1.9：选包回调也搬后台线程 + try-with-resources + 失败删半截文件</p>
+<p class="ln">    "xxmu-pickapk",</p>
+<p class="ln">]</p>
+<p class="ln">&nbsp;</p>
+<p class="ln"># 本版必须能在前端资产里找到的字符串（改的是 JS）</p>
+<p class="ln">NEW_JS_SYMBOLS = {</p>
+<p class="ln">    "assets/license.js": ["looksLikeAccount", "PLACEHOLDER_WORDS", "clearCheck",</p>
+<p class="ln">                          # v1.1.8 学号格式收紧（isActivated / whoami 都只认 6-20 位数字）</p>
+<p class="ln">                          "\\d{6,20}"],</p>
+<p class="ln">    "assets/app.js": ["kbMismatchAck", "kbMismatchToastShown", "APKDL",</p>
+<p class="ln">                      "__onApkProgress", "重试下载",</p>
+<p class="ln">                      # v1.1.5 作业状态：这一批全是「静默失败」型 bug ——</p>
+<p class="ln">                      # 解析不到就 status=''，然后被当成「已完成」，不报错不报警。</p>
+<p class="ln">                      "isDoneStatus", "status_known",</p>
+<p class="ln">                      # v1.1.6 管理端审核面板</p>
+<p class="ln">                      "loadRevPhotos", "loadRevFb", "revPhotoList",</p>
+<p class="ln">                      # v1.1.7 错误信息不再拼 innerHTML</p>
+<p class="ln">                      "function errText", "function hintInto",</p>
+<p class="ln">                      # v1.1.8 审计：重入锁 / 叠放不丢课 / 倒计时不重建 / 审核图走 objectURL</p>
+<p class="ln">                      "SYNCING", "crowded", "it.__x = x", "revPhotoSrc",</p>
+<p class="ln">                      "尺寸未知", "重新上架", "function firstTime",</p>
+<p class="ln">                      # v1.1.13 课表空态：状态说明必须能看见、必须有诊断出口</p>
+<p class="ln">                      "function paintKbBar", "function kbWeekStats",</p>
+<p class="ln">                      "function kbDiagText", "kbBarBound",</p>
+<p class="ln">                      # v1.1.14 详情卡：改完 display 必须跟着滚动，否则卡片落在视口外</p>
+<p class="ln">                      "function showDetail(id, fromRow)", "DETAIL_FROM",</p>
+<p class="ln">                      "card.scrollIntoView"],</p>
+<p class="ln">    "assets/about.js": ["btnClearCheck", "btnShowHwRaw", "Tut.afterUnlock",</p>
+<p class="ln">                        "已过期，重新登录一次",</p>
+<p class="ln">                        # v1.1.13 课表抓取原文</p>
+<p class="ln">                        "btnShowKbRaw", "version: () =&gt; APP_VERSION"],</p>
+<p class="ln">    "assets/chaoxing.js": ["pickStatus", "wordIn", "status_known",</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 56 页 / 共 61 页</span></div>
+<p class="ln">                           "diagReset", "未批阅",</p>
+<p class="ln">                           # v1.1.9：缓存坏了要说出来，不能当成「没同步过」</p>
+<p class="ln">                           "LAST_READ_ERR", "readErr"],</p>
+<p class="ln">    "assets/index.html": ["btnShowHwRaw", "fbHw",</p>
+<p class="ln">                          # v1.1.6</p>
+<p class="ln">                          'id="tut"', 'id="rowTut"', 'id="revPhotoList"',</p>
+<p class="ln">                          'id="revFbList"', 'src="tut.js"',</p>
+<p class="ln">                          # v1.1.8 概览区的提示位</p>
+<p class="ln">                          'id="admStatMsg"',</p>
+<p class="ln">                          # v1.1.11 使用声明：首次弹窗 + 关于页完整版 + 我的页入口</p>
+<p class="ln">                          'id="disc"', 'id="discOk"', 'id="discX"',</p>
+<p class="ln">                          'id="rowDisc"', 'id="discCard"',</p>
+<p class="ln">                          'src="disc.js"',</p>
+<p class="ln">                          # v1.1.13 课表状态条（必须排在 #grid 之前）</p>
+<p class="ln">                          'id="kbBar"', 'id="kbBarT"', 'id="kbBarS"',</p>
+<p class="ln">                          'id="kbBarSync"', 'id="kbBarDiag"',</p>
+<p class="ln">                          'id="btnShowKbRaw"',</p>
+<p class="ln">                          # v1.1.14 详情卡必须排在名单卡之前（排下面会落在视口外）</p>
+<p class="ln">                          'id="admDetailCard"', 'id="admDetailBody"'],</p>
+<p class="ln">    # v1.1.11：声明必须能独立工作（不联网、读不到 pref 当没看过）</p>
+<p class="ln">    "assets/disc.js": ["xxmu_disc_done", "function afterUnlock", "function replay",</p>
+<p class="ln">                       "replayMode", "function gateLocked"],</p>
+<p class="ln">    "assets/tut.js": ["xxmu_tut_done", "afterUnlock", "replay", "replayMode"],</p>
+<p class="ln">    "assets/wiki.js": ["photosSection", "fbSection", "startUpload",</p>
+<p class="ln">                       "composeFeedback", "__onPhotoUploaded",</p>
+<p class="ln">                       # v1.1.8 失败态不再退化成「暂无内容」</p>
+<p class="ln">                       "PHOTO_ERR", "FB_ERR"],</p>
+<p class="ln">    "assets/auth.js": ["const Photos =", "const Feedback =", "/v1/photos",</p>
+<p class="ln">                       "/v1/feedback",</p>
+<p class="ln">                       # v1.1.7 留言带上 fp，限流不再按 IP（全校共享额度）</p>
+<p class="ln">                       "fp: f",</p>
+<p class="ln">                       # v1.1.8 服务器拒绝分档：别把「限流」当成「你被封了」</p>
+<p class="ln">                       "const HARD =", "const KEEP =", "photoRaw"],</p>
+<p class="ln">    "assets/sync.js": ["showable", "bad_weeks",</p>
+<p class="ln">                       # v1.1.13 解析器两个洞 + 诊断留样</p>
+<p class="ln">                       "k(\\d)(\\d{1,2})",</p>
+<p class="ln">                       "(?=[^&gt;]*padding-bottom:\\s*5px)(?=[^&gt;]*clear:\\s*both)",</p>
+<p class="ln">                       "function diagReset", "function keepSample", "LAST.err"],</p>
+<p class="ln">    "assets/onboard.js": ["__onLoginSuccess = function (chk)", "oldKb(chk)"],</p>
+<p class="ln">}</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">ok = True</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def manifest_version():</p>
+<p class="ln">    """从 AndroidManifest.xml 读出版本号，作为 badging 对比的期望值。"""</p>
+<p class="ln">    p = os.path.join(ROOT, "android", "AndroidManifest.xml")</p>
+<p class="ln">    txt = open(p, encoding="utf-8").read()</p>
+<p class="ln">    code = re.search(r'android:versionCode="(\d+)"', txt)</p>
+<p class="ln">    name = re.search(r'android:versionName="([^"]+)"', txt)</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 57 页 / 共 61 页</span></div>
+<p class="ln">    return (code.group(1) if code else "112",</p>
+<p class="ln">            name.group(1) if name else "1.1.2")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def newest_apk():</p>
+<p class="ln">    """apk/ 下版本号最大的包（按 (x,y,z) 排序，不靠字符串）。"""</p>
+<p class="ln">    d = os.path.join(ROOT, "apk")</p>
+<p class="ln">    best = None</p>
+<p class="ln">    for f in os.listdir(d):</p>
+<p class="ln">        m = re.match(r"xxmu-helper-v(\d+)\.(\d+)\.(\d+)\.apk$", f)</p>
+<p class="ln">        if not m:</p>
+<p class="ln">            continue</p>
+<p class="ln">        key = tuple(int(x) for x in m.groups())</p>
+<p class="ln">        if best is None or key &gt; best[0]:</p>
+<p class="ln">            best = (key, os.path.join(d, f))</p>
+<p class="ln">    return best[1] if best else os.path.join(d, "xxmu-helper-v1.1.2.apk")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def fail(msg):</p>
+<p class="ln">    global ok</p>
+<p class="ln">    ok = False</p>
+<p class="ln">    print("  [FAIL] " + msg)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def check_assets(apk):</p>
+<p class="ln">    print("[1] assets 逐字节比对")</p>
+<p class="ln">    web = os.path.join(ROOT, "web")</p>
+<p class="ln">    exts = (".html", ".css", ".js")</p>
+<p class="ln">    names = sorted(f for f in os.listdir(web)</p>
+<p class="ln">                   if f.lower().endswith(exts) and os.path.isfile(os.path.join(web, f)))</p>
+<p class="ln">    with zipfile.ZipFile(apk) as z:</p>
+<p class="ln">        entries = {n: z.getinfo(n) for n in z.namelist()}</p>
+<p class="ln">        for n in names:</p>
+<p class="ln">            key = "assets/" + n</p>
+<p class="ln">            if key not in entries:</p>
+<p class="ln">                fail("APK 里缺 " + key)</p>
+<p class="ln">                continue</p>
+<p class="ln">            packed = z.read(key)</p>
+<p class="ln">            local = open(os.path.join(web, n), "rb").read()</p>
+<p class="ln">            if packed != local:</p>
+<p class="ln">                fail("%s 不一致 (apk %d / web %d)" % (n, len(packed), len(local)))</p>
+<p class="ln">            else:</p>
+<p class="ln">                print("    OK %-14s %d bytes" % (n, len(local)))</p>
+<p class="ln">    print("    共 %d 个前端文件" % len(names))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def check_dex(apk):</p>
+<p class="ln">    print("[2] 符号落盘（dex + 前端资产）")</p>
+<p class="ln">    with zipfile.ZipFile(apk) as z:</p>
+<p class="ln">        dex = z.read("classes.dex")</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 58 页 / 共 61 页</span></div>
+<p class="ln">        for s in NEW_DEX_SYMBOLS:</p>
+<p class="ln">            if s.encode("utf-8") in dex:</p>
+<p class="ln">                print("    OK dex/%-22s" % s)</p>
+<p class="ln">            else:</p>
+<p class="ln">                fail("dex 里找不到 " + s)</p>
+<p class="ln">        for name, syms in NEW_JS_SYMBOLS.items():</p>
+<p class="ln">            blob = z.read(name)</p>
+<p class="ln">            for s in syms:</p>
+<p class="ln">                if s.encode("utf-8") in blob:</p>
+<p class="ln">                    print("    OK %-14s %-20s" % (name.split("/")[-1], s))</p>
+<p class="ln">                else:</p>
+<p class="ln">                    fail("%s 里找不到 %s" % (name, s))</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">WORKER_SYMBOLS = [</p>
+<p class="ln">    # 服务端自毁类：一次 KV 读失败就用空数组覆盖真实名单（不可逆）</p>
+<p class="ln">    "function idxApply(",</p>
+<p class="ln">    "拒绝自动重建",</p>
+<p class="ln">    # 管理列表一次请求 200 次 KV 读，超免费版 50 子请求上限</p>
+<p class="ln">    "const PAGE = 40;",</p>
+<p class="ln">    # 管理员口令必须定长比较（safeEq 会把内容转大写，不能比口令）</p>
+<p class="ln">    "function constEq(",</p>
+<p class="ln">    # 图片索引读改写竞态留下的孤儿字节，要能清理</p>
+<p class="ln">    "act === 'orphan'",</p>
+<p class="ln">    # 边缘缓存要显式调 caches.default，只写 cache-control 头等于没做</p>
+<p class="ln">    "function edgeCache(",</p>
+<p class="ln">    # 反代会把学生 IP 换成 Cloudflare 自己的，限流必须能认回真实 IP</p>
+<p class="ln">    "xxmu-pages-proxy-v1",</p>
+<p class="ln">    # v1.1.9：名单条数上限（假学号无限新增会把全站 KV 写额度刷爆）</p>
+<p class="ln">    "const IDX_CAP = 5000;",</p>
+<p class="ln">    # v1.1.9：cfg 解析失败不许把默认值缓存成事实</p>
+<p class="ln">    "cfg 解析失败，本次不缓存",</p>
+<p class="ln">    # v1.1.9：激活时的管理员口令也要定长比较</p>
+<p class="ln">    "!constEq(ak, want)",</p>
+<p class="ln">    # v1.1.10 抗打三条：随机 query 不许绕过边缘缓存</p>
+<p class="ln">    "ignoreQuery",</p>
+<p class="ln">    # v1.1.10：404 也要能进负缓存（/v1/photo?k=随机 每次都读 ph:idx）</p>
+<p class="ln">    "negTtl",</p>
+<p class="ln">    # v1.1.10：没匹配到任何路由的请求必须有兜底限流</p>
+<p class="ln">    "all:ip:",</p>
+<p class="ln">    # v1.1.10：回源本身也要限额（换着 key 刷负缓存救不了）</p>
+<p class="ln">    "costLimit",</p>
+<p class="ln">]</p>
+<p class="ln">&nbsp;</p>
+<p class="ln"># pages 代理层的锚点（不在 APK 也不在 worker.js 里，单独钉）</p>
+<p class="ln">PAGES_SYMBOLS = [</p>
+<p class="ln">    # 读 body 失败要回 413 JSON，而不是让平台默认 500 HTML 冒上去</p>
+<p class="ln">    "init.body = await request.arrayBuffer();",</p>
+<p class="ln">    "status: 413",</p>
+<p class="ln">]</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 59 页 / 共 61 页</span></div>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def check_worker():</p>
+<p class="ln">    """服务端代码不在 APK 里，但它们是同一个发布批次的一部分。</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">    前两次发版都出现过「App 更新了、worker 忘了部署」—— 前端在等一个</p>
+<p class="ln">    新接口，线上跑的还是老代码，报错全是 404，看代码怎么看都是对的。</p>
+<p class="ln">    这里把 worker.js 的锚点也钉住，出包时顺手确认它已经改到位。</p>
+<p class="ln">    """</p>
+<p class="ln">    print("[5] worker.js / pages 代理锚点")</p>
+<p class="ln">    wp = os.path.join(ROOT, "server", "worker.js")</p>
+<p class="ln">    txt = open(wp, encoding="utf-8").read()</p>
+<p class="ln">    for s in WORKER_SYMBOLS:</p>
+<p class="ln">        if s in txt:</p>
+<p class="ln">            print("    OK worker/%-24s" % s)</p>
+<p class="ln">        else:</p>
+<p class="ln">            fail("worker.js 里找不到 " + s)</p>
+<p class="ln">    pp = os.path.join(ROOT, "server", "pages", "dist", "_worker.js")</p>
+<p class="ln">    ptxt = open(pp, encoding="utf-8").read()</p>
+<p class="ln">    if "headers.set('x-xxmu-ip', ip)" in ptxt:</p>
+<p class="ln">        print("    OK pages/转发真实 IP")</p>
+<p class="ln">    else:</p>
+<p class="ln">        fail("pages 代理没把真实 IP 转给上游（限流退化成全校共享一个桶）")</p>
+<p class="ln">    for s in PAGES_SYMBOLS:</p>
+<p class="ln">        if s in ptxt:</p>
+<p class="ln">            print("    OK pages/%-24s" % s)</p>
+<p class="ln">        else:</p>
+<p class="ln">            fail("pages 代理里找不到 " + s)</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def check_badging(apk):</p>
+<p class="ln">    print("[3] aapt2 badging")</p>
+<p class="ln">    r = subprocess.run([AAPT2, "dump", "badging", apk],</p>
+<p class="ln">                       capture_output=True, text=True, encoding="utf-8", errors="replace")</p>
+<p class="ln">    txt = r.stdout</p>
+<p class="ln">    want = {</p>
+<p class="ln">        "package": r"package: name='([^']+)'",</p>
+<p class="ln">        "versionCode": r"versionCode='([^']+)'",</p>
+<p class="ln">        "versionName": r"versionName='([^']+)'",</p>
+<p class="ln">        "label": r"application-label:'([^']*)'",</p>
+<p class="ln">    }</p>
+<p class="ln">    got = {}</p>
+<p class="ln">    for k, pat in want.items():</p>
+<p class="ln">        m = re.search(pat, txt)</p>
+<p class="ln">        got[k] = m.group(1) if m else "(未找到)"</p>
+<p class="ln">        print("    %-12s %s" % (k, got[k]))</p>
+<p class="ln">    exp_code, exp_name = manifest_version()</p>
+<p class="ln">    if got["package"] != "com.xxmu.helper":</p>
+<p class="ln">        fail("包名不对")</p>
+<p class="ln">    if got["versionCode"] != exp_code:</p>
+</div>
+<div class="pg">
+<div class="hd"><span class="l">河医大助手校园教务辅助软件 V1.1.17 源程序</span><span>第 60 页 / 共 61 页</span></div>
+<p class="ln">        fail("versionCode 应为 %s（manifest 里写的）" % exp_code)</p>
+<p class="ln">    if got["versionName"] != exp_name:</p>
+<p class="ln">        fail("versionName 应为 %s（manifest 里写的）" % exp_name)</p>
+<p class="ln">    if got["label"] != "河医大助手":</p>
+<p class="ln">        fail("应用名不对（中文可能被写坏）")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def check_cert(apk):</p>
+<p class="ln">    print("[4] 签名证书")</p>
+<p class="ln">    r = subprocess.run(["java", "-jar", SIGNER, "verify", "--print-certs", apk],</p>
+<p class="ln">                       capture_output=True, text=True, encoding="utf-8", errors="replace")</p>
+<p class="ln">    m = re.search(r"SHA-256 digest: ([0-9a-f]+)", r.stdout)</p>
+<p class="ln">    if not m:</p>
+<p class="ln">        fail("apksigner 没输出指纹\n" + r.stdout[-800:] + r.stderr[-800:])</p>
+<p class="ln">        return</p>
+<p class="ln">    d = m.group(1)</p>
+<p class="ln">    print("    SHA-256 " + d)</p>
+<p class="ln">    if d != EXPECT_CERT_SHA256:</p>
+<p class="ln">        fail("证书变了！老用户会装不上（必须与 v1.1.1 一致）")</p>
+<p class="ln">    else:</p>
+<p class="ln">        print("    与 v1.1.1 一致")</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">def main():</p>
+<p class="ln">    apk = sys.argv[1] if len(sys.argv) &gt; 1 else newest_apk()</p>
+<p class="ln">    if not os.path.exists(apk):</p>
+<p class="ln">        raise SystemExit("找不到 APK：" + apk)</p>
+<p class="ln">    print("APK: " + apk)</p>
+<p class="ln">    print("大小: %d bytes" % os.path.getsize(apk))</p>
+<p class="ln">    print("SHA-256: %s\n" % hashlib.sha256(open(apk, "rb").read()).hexdigest())</p>
+<p class="ln">    check_assets(apk)</p>
+<p class="ln">    print()</p>
+<p class="ln">    check_dex(apk)</p>
+<p class="ln">    print()</p>
+<p class="ln">    check_badging(apk)</p>
+<p class="ln">    print()</p>
+<p class="ln">    check_cert(apk)</p>
+<p class="ln">    print()</p>
+<p class="ln">    check_worker()</p>
+<p class="ln">    print()</p>
+<p class="ln">    if ok:</p>
+<p class="ln">        print("[PASS] 四件套全部通过")</p>
+<p class="ln">        return 0</p>
+<p class="ln">    print("[FAIL] 有检查项未通过，不要发这个包")</p>
+<p class="ln">    return 1</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">&nbsp;</p>
+<p class="ln">if __name__ == "__main__":</p>
+<p class="ln">    sys.exit(main())</p>
+<p class="ln">&nbsp;</p>
+</div>
+</body></html>

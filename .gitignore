@@ -1,0 +1,103 @@
+# ============================================================
+# 河医大助手 · 公开仓库忽略清单
+#
+# 这个仓库里同时住着「要公开的东西」和「绝不能公开的东西」。
+# 下面按严重程度分三段，每一条都对应 tools/scan_secrets.py 里的一条规则
+# —— 那个脚本会在提交前检查，任何一段漏掉都会让 CI 变成红色。
+#
+# 铁律：**一旦把密钥或真实学生数据提交进 Git，历史里删不干净。**
+# 别人 clone 过就扩散了，所以必须在第一次提交前就挡住。
+# ============================================================
+
+# ---------- 一、凭据与密钥（泄露 = 别人能改你的站点 / 签冒牌包）----------
+
+# 签名密钥：丢了没法证明后续版本是你发的；泄露了别人能签出冒充你的安装包
+*.jks
+*.keystore
+
+# Cloudflare 部署输出（含 ADMIN_KEY 明文）
+server/DEPLOY-OUT.txt
+
+# Cloudflare API Token（存在用户目录，正常不会进仓库，但防止手滑复制过来）
+_cftoken.txt
+_newadminkey.txt
+
+# 学生教务账号密码
+secrets.json
+.xxmu.env
+
+# ---------- 二、真实学生数据（公开仓库里出现 = 隐私事故）----------
+#
+# build_* 这几个目录是调试抓取时存下来的**真实页面快照**，
+# 里面有真实学号、真实课表、真实作业状态。它们只有调试价值，
+# 不参与构建，也不需要公开。
+
+build_html/
+build_html2/
+build_scan/
+build_httptest/
+build_r8_test/
+build_test/
+
+# 教务 / 学习通会话与中间产物
+data/session.json
+data/captcha.jpg
+data/st_*.pkl
+data/cx_cookies.db
+data/*.db
+data/*.pkl
+
+# 激活码 / 名单之类管理员私货（历史遗留，防止手滑）
+licenses.csv
+ids.txt
+
+# ---------- 三、构建产物（体积大，且都能从源码重新生成）----------
+
+# web/ 的构建副本：build_apk.py 每次出包都会扫 web/ 全量同步过来，
+# 它不是源码，改它没用（下次出包会被覆盖），进仓库只会让人改错地方
+android/assets/
+
+# 打包中间产物
+build/
+android/build/
+*.apk.tmp
+*.idsig
+
+# wrangler 本地状态
+.wrangler/
+.wrangler
+
+# 历史安装包与发版说明：走 GitHub Releases，不进仓库
+# （50 多个包 16 MB，clone 一次全拉下来，而且每个包都能从 tag 重建）
+apk/*.apk
+apk/*.notes.txt
+
+# ---------- 四、系统与工具垃圾 ----------
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+Thumbs.db
+desktop.ini
+*.log
+logs/
+
+# 临时调试文件（历史遗留的 build_*.* 散落脚本）
+build_chk.js
+build_manifest_dump.txt
+build_net.py
+build_pages_chk.mjs
+build_probe*.py
+build_rng.py
+_manifest_recovered.xml
+
+# 临时截图 / 补丁脚本
+_crop_*.png
+_patch_*.py
+_*.tmp
+
+# 软著材料的中间产物：PDF 和 HTML 要留（是交付物），
+# 但 source.txt 是把全部源码拼成的一个 1.1 MB 大文件，
+# 内容与 web/、android/、core/ 里的源码完全重复，提交它只会让 diff 变脏。
+publish/srcreg/source.txt
