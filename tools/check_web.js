@@ -705,11 +705,23 @@ has(site, 'id="mVer"', '官网版本号由接口填充');
 const hardVer = /id="mVer">v[\d.]+</.test(site);
 console.log('  官网版本号没有写死                =', !hardVer);
 if (hardVer) fail('官网把版本号写死了（必须由 /v1/config 填充，否则发版后会两处数字不一致）');
-/* 零外部依赖：不引 CDN / 外链字体 / 外链图标。断网也要能打开。 */
-const ext = (site.match(/(?:src|href)\s*=\s*["']https?:\/\/[^"']+/) || [])
-  .filter(s => !/href\s*=\s*["']https?:\/\/(?:xxmuhelper\.top|xxmu-auth\.pages\.dev)/.test(s));
-console.log('  官网无外部 CDN 依赖              =', ext.length === 0);
-if (ext.length) fail('官网引用了外部资源（断网会坏）：' + ext.slice(0, 3).join(', '));
+/* 零外部依赖：不引 CDN / 外链字体 / 外链图标。断网也要能打开。
+ *
+ * 判据必须区分两类：
+ *   · `src=` 与 `<link href=>` —— 页面**运行时要去取**的资源，断网就坏，一律禁。
+ *   · 普通 `href=` —— 只是超链接，点了才请求；指 GitHub / QQ 是正常的，
+ *     断网也不会让页面坏掉，反而漏掉这些才是问题（v1.1.20 加了联系方式卡）。
+ * 上一版把两类混为一谈，加了 GitHub 链接就误报「引用了外部资源」。 */
+const resRefs = site.match(/(?:src|<link[^>]*href)\s*=\s*["']https?:\/\/[^"']+/gi) || [];
+console.log('  官网外链资源引用数                =', resRefs.length);
+if (resRefs.length) fail('官网用 src/link 引了外部资源（断网会坏、也可能被墙）：'
+  + resRefs.slice(0, 3).join(', '));
+/* 超链接白名单：只允许指向自有站点、GitHub、QQ、邮箱、mailto。 */
+const badLinks = (site.match(/href\s*=\s*["'](https?:\/\/[^"']+)/gi) || [])
+  .map(s => s.replace(/^href\s*=\s*["']/i, ''))
+  .filter(u => !/^https?:\/\/(?:www\.)?(?:xxmuhelper\.top|xxmu-auth\.pages\.dev|github\.com|qm\.qq\.com|wpa\.qq\.com)/.test(u));
+console.log('  超链接均指向白名单域名            =', badLinks.length === 0);
+if (badLinks.length) fail('官网有不认识的超链接：' + badLinks.slice(0, 3).join(', '));
 
 /* app.css 的配色要和官网一致，否则「同一个产品两张脸」。 */
 const appCss = read('web/app.css');
@@ -747,6 +759,54 @@ if (!wxWords) fail('提示里要出现「在浏览器中打开」，那是用户
 const dlOk = /<a class="btn" id="dlBtn" href="\/v1\/apk"/.test(site);
 console.log('  下载链接没有被改成「微信专用版」  =', dlOk);
 if (!dlOk) fail('下载按钮保持 href="/v1/apk"；微信拦不拦是它的事，我们不去猜绕过链接');
+
+// ---- v1.1.20：官网改版（界面示意图 + 联系方式） ----
+/* 这一批的风险是「图片 404」和「联系方式漏写 https://」。
+ * 图片 404 在本地看不见（文件在），部署后路径不对就是一片破图；
+ * 联系方式写成相对路径，用户点进去会跳到自家域名下 404。
+ * 两者都不报错，只能靠静态断言 + 逐文件存在性检查挡住。 */
+console.log('\nv1.1.20 checkpoints:');
+
+const IMG_DIR = 'server/pages/dist/img';
+const IMG_FILES = ['logo.svg', 'shot-kb.svg', 'shot-learn.svg', 'shot-water.svg'];
+IMG_FILES.forEach(n => {
+  const p = path.join(root, IMG_DIR, n);
+  const exists = fs.existsSync(p) && fs.statSync(p).size > 200;
+  console.log('  ' + n.padEnd(16) + ' 存在且非空 =', exists);
+  if (!exists) fail(IMG_DIR + '/' + n + ' 不存在或太小（官网会显示破图）');
+});
+
+/* 页面里引用的每个 /img/ 路径都必须真的存在 —— 少一个就是破图。 */
+const imgRefs = [...new Set((site.match(/\/img\/[a-z0-9-]+\.svg/g) || []))];
+console.log('  官网引用图片数                    =', imgRefs.length);
+if (imgRefs.length < 3) fail('官网至少应有三张界面示意图（课表/学习/饮水机）');
+imgRefs.forEach(r => {
+  const p = path.join(root, IMG_DIR, r.replace('/img/', ''));
+  if (!fs.existsSync(p)) fail('官网引用了不存在的图片 ' + r);
+});
+
+/* SVG 必须是合法 XML 结构 —— 曾因 defs 写在 <svg> 外面导致整张图
+ * 报「error on line 1 at column 572: Unexpected token: <」，页面上是空白。 */
+IMG_FILES.forEach(n => {
+  const s = fs.readFileSync(path.join(root, IMG_DIR, n), 'utf8').trim();
+  const opens = (s.match(/<svg/g) || []).length;
+  const headOk = s.startsWith('<svg');
+  console.log('  ' + n.padEnd(16) + ' 单个 svg 根元素 =', opens === 1 && headOk);
+  if (opens !== 1 || !headOk) fail(IMG_DIR + '/' + n + ' 必须以单个 <svg> 开头（defs 要放在 svg 内部）');
+});
+
+/* 联系方式：QQ 号、GitHub 必须是完整的 https 绝对链接。 */
+has(site, '572833261', '官网写了作者 QQ');
+has(site, 'https://github.com/cyanheee/xxmu-helper', '官网写了 GitHub 绝对链接');
+has(site, '1097668324', '官网写了群号');
+const relGh = /href="(?!https?:\/\/)github\.com/.test(site);
+console.log('  没有相对的 github.com 链接        =', !relGh);
+if (relGh) fail('官网里出现 href="github.com/..."（缺 https:// 前缀，点进去会 404）');
+
+/* 图片必须如实标明是示意图，不许暗示是真机截图。 */
+const honestShot = site.indexOf('示意图') >= 0;
+console.log('  图片标注为「示意图」              =', honestShot);
+if (!honestShot) fail('界面图是代码绘制的示意图，页面必须如实标注，不能写成真机截图');
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

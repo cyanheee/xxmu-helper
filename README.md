@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="docs/shots/logo.svg" width="88" alt="河医大助手">
+
 # 河医大助手 / XXMU Helper
 
 **河南医药大学 · 学生自建的校园教务辅助工具**
@@ -11,8 +13,17 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 [![Platform](https://img.shields.io/badge/platform-Android%207.0%2B-3ddc84?logo=android&logoColor=white)](#)
 [![Version](https://img.shields.io/badge/version-1.1.17-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![QQ](https://img.shields.io/badge/QQ-572833261-12b7f5?logo=tencentqq&logoColor=white)](https://wpa.qq.com/msgrd?v=3&uin=572833261&site=qq&menu=yes)
 
 **[简体中文](#简体中文) · [English](#english)**
+
+<br>
+
+<img src="docs/shots/shot-kb.svg" width="24%" alt="课表">
+<img src="docs/shots/shot-learn.svg" width="24%" alt="学习">
+<img src="docs/shots/shot-water.svg" width="24%" alt="饮水机">
+
+<sub>界面示意图（按 App 真实结构绘制，非真机截图）</sub>
 
 </div>
 
@@ -42,11 +53,22 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 | 方式 | 地址 |
 |---|---|
 | 官网 | <https://www.xxmuhelper.top> |
-| GitHub Release | [v1.1.17](https://github.com/cyanheee/xxmu-helper/releases) |
+| GitHub Release | [最新版本](https://github.com/cyanheee/xxmu-helper/releases) |
 | 直连下载 | <https://xxmu-auth.pages.dev/v1/apk> |
 | 更新群 | QQ `1097668324` |
 
 > 在微信里打开会提示无法下载安装包，这是微信的限制。点右上角「···」→「在浏览器打开」，再点一次下载即可。
+
+### 联系我
+
+用的人多了我才知道该继续做什么。有问题、想提需求、发现 bug，都可以直接找我。
+
+| 渠道 | 联系方式 |
+|---|---|
+| QQ | **572833261** |
+| QQ 群（更新通知） | [1097668324](https://qm.qq.com/q/xxmuhelper) |
+| 邮箱 | 572833261@qq.com |
+| GitHub | [github.com/cyanheee](https://github.com/cyanheee) |
 
 ### 功能
 
@@ -203,11 +225,22 @@ None of these is hard on its own, but you do them several times a day. This app 
 | Channel | Address |
 |---|---|
 | Website | <https://www.xxmuhelper.top> |
-| GitHub Release | [v1.1.17](https://github.com/cyanheee/xxmu-helper/releases) |
+| GitHub Release | [Latest release](https://github.com/cyanheee/xxmu-helper/releases) |
 | Direct APK | <https://xxmu-auth.pages.dev/v1/apk> |
 | Update group | QQ `1097668324` |
 
 > Opening the page inside WeChat will refuse to download the APK — that is WeChat's own restriction. Tap "···" in the top-right corner → "Open in browser", then tap download again.
+
+### Contact
+
+The more people use it, the clearer it is what to build next. Bug reports, feature requests and questions are all welcome.
+
+| Channel | Contact |
+|---|---|
+| QQ | **572833261** |
+| QQ group (release updates) | [1097668324](https://qm.qq.com/q/xxmuhelper) |
+| Email | 572833261@qq.com |
+| GitHub | [github.com/cyanheee](https://github.com/cyanheee) |
 
 ### Features
 

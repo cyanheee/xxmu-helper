@@ -3,13 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>河医大助手 · 河南医药大学学生助手</title>
-<meta name="description" content="课表、作业倒计时、空教室、校园资源、饮水机——河南医药大学学生自己做的轻量工具。安卓安装包直接下载。">
+<title>河医大助手 · 河南医药大学学生自建的课表工具</title>
+<meta name="description" content="课表、作业倒计时、空教室、饮水机——河南医药大学学生自己做的安卓小工具。免费，无需注册，数据留本机。">
 <meta name="theme-color" content="#2563eb">
 <meta property="og:title" content="河医大助手">
 <meta property="og:description" content="课表、作业、空教室、饮水机，一个 App 全有。河南医药大学学生自己做的小工具。">
 <meta property="og:type" content="website">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='18' fill='%232563eb'/><text x='32' y='45' font-size='36' text-anchor='middle' fill='white' font-family='sans-serif' font-weight='700'>河</text></svg>">
+<meta property="og:image" content="/img/logo.svg">
+<link rel="icon" href="/img/logo.svg" type="image/svg+xml">
 <style>
 /* ============================================================
    河医大助手 · 官网
@@ -27,148 +28,174 @@
   --mute:#8b94a6;
   --line:#e9edf5;
   --accent:#2563eb;
+  --accent2:#4f46e5;
   --accent-soft:#eaf1ff;
   --ok:#16a34a;
   --warn:#ea580c;
-  --radius:20px;
-  --radius-sm:12px;
+  --radius:22px;
+  --radius-sm:14px;
   --shadow:0 1px 2px rgba(15,23,42,.04), 0 6px 18px -10px rgba(15,23,42,.16);
-  --shadow-lift:0 2px 6px rgba(15,23,42,.06), 0 18px 40px -16px rgba(15,23,42,.26);
-  --wrap:760px;
+  --shadow-lift:0 2px 6px rgba(15,23,42,.06), 0 22px 48px -20px rgba(15,23,42,.28);
+  --wrap:820px;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
 body{
   margin:0;background:var(--bg);color:var(--fg);
-  font:16px/1.62 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
   -webkit-font-smoothing:antialiased;letter-spacing:.1px;
+  overflow-x:hidden;
 }
 a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
-.wrap{max-width:var(--wrap);margin:0 auto;padding:0 20px}
+img{max-width:100%;display:block}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px}
 
-/* ---------------- 顶部品牌行 ---------------- */
-.top{padding:22px 0 6px}
-.brand{display:flex;align-items:center;gap:12px}
+/* ---------------- 顶部 ---------------- */
+.top{padding:26px 0 4px}
+.brand{display:flex;align-items:center;gap:13px}
 .mark{
-  width:44px;height:44px;border-radius:15px;flex:0 0 auto;
+  width:46px;height:46px;border-radius:15px;flex:0 0 auto;
   background:linear-gradient(140deg,#3b82f6,#2563eb 55%,#4f46e5);
-  color:#fff;font-size:20px;font-weight:700;
+  color:#fff;font-size:21px;font-weight:700;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 6px 18px -6px rgba(37,99,235,.62);
+  box-shadow:0 8px 20px -8px rgba(37,99,235,.7);
 }
-.brand h1{margin:0;font-size:19px;font-weight:700;letter-spacing:.2px}
-.brand p{margin:2px 0 0;font-size:12.5px;color:var(--mute)}
+.brand-txt h1{margin:0;font-size:19px;font-weight:750;letter-spacing:.2px}
+.brand-txt p{margin:1px 0 0;font-size:12.5px;color:var(--mute)}
 
 /* ---------------- Hero ---------------- */
-.hero{padding:34px 0 8px}
-.hero h2{
-  margin:0 0 14px;font-size:clamp(27px,6.4vw,38px);
-  line-height:1.26;font-weight:750;letter-spacing:-.4px;
+.hero{padding:40px 0 10px;display:grid;grid-template-columns:1fr;gap:30px}
+.hero-copy h2{
+  margin:0 0 16px;font-size:clamp(28px,6.6vw,42px);
+  line-height:1.22;font-weight:780;letter-spacing:-.8px;
 }
-.hero h2 em{
+.hero-copy h2 em{
   font-style:normal;
-  background:linear-gradient(120deg,#2563eb,#4f46e5);
+  background:linear-gradient(118deg,#2563eb,#4f46e5);
   -webkit-background-clip:text;background-clip:text;color:transparent;
 }
-.hero .lead{margin:0 0 26px;font-size:16.5px;color:var(--fg2);max-width:34em}
+.hero-copy .lead{margin:0 0 8px;font-size:16.5px;color:var(--fg2);max-width:32em}
 
-/* 下载卡：这是整页最重要的东西，给足存在感 */
+/* 亮点小标签 */
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+.pill{
+  font-size:12.5px;color:var(--fg2);background:var(--surface);
+  border:1px solid var(--line);border-radius:999px;padding:6px 13px;
+  box-shadow:var(--shadow);
+}
+.pill b{color:var(--accent);font-weight:650}
+
+/* 下载卡 */
 .dl{
   background:var(--surface);border-radius:var(--radius);
-  padding:22px;box-shadow:var(--shadow-lift);
-  border:1px solid var(--line);
+  padding:24px;box-shadow:var(--shadow-lift);border:1px solid var(--line);
 }
-.dl-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.dl-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:9px;
-  border:0;border-radius:14px;padding:15px 26px;
+  border:0;border-radius:15px;padding:16px 28px;
   font:inherit;font-size:16px;font-weight:650;color:#fff;cursor:pointer;
   background:linear-gradient(140deg,#3b82f6,#2563eb 60%,#4f46e5);
-  box-shadow:0 8px 22px -8px rgba(37,99,235,.72);
-  transition:transform .12s ease,box-shadow .12s ease;
-  flex:1 1 220px;text-decoration:none;
+  box-shadow:0 10px 26px -10px rgba(37,99,235,.78);
+  transition:transform .13s ease,box-shadow .13s ease;
+  flex:1 1 210px;text-decoration:none;
 }
-.btn:hover{transform:translateY(-1px);box-shadow:0 12px 28px -8px rgba(37,99,235,.8);text-decoration:none}
+.btn:hover{transform:translateY(-1px);box-shadow:0 14px 32px -10px rgba(37,99,235,.85);text-decoration:none}
 .btn:active{transform:translateY(0)}
 .btn svg{flex:0 0 auto}
 .btn[disabled]{opacity:.6;pointer-events:none}
 .btn-ghost{
   flex:0 0 auto;background:var(--surface2);color:var(--fg2);
-  box-shadow:none;border:1px solid var(--line);padding:15px 22px;
+  box-shadow:none;border:1px solid var(--line);padding:16px 22px;
 }
 .btn-ghost:hover{background:#eef2f9;box-shadow:none}
 
-/* 版本信息行 */
 .meta{
-  display:flex;flex-wrap:wrap;gap:8px 18px;margin-top:16px;
+  display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;
   padding-top:16px;border-top:1px solid var(--line);
   font-size:13px;color:var(--mute);
 }
-.meta b{color:var(--fg2);font-weight:600;font-variant-numeric:tabular-nums}
+.meta b{color:var(--fg2);font-weight:650;font-variant-numeric:tabular-nums}
 .dot-ok{
   display:inline-block;width:7px;height:7px;border-radius:50%;
   background:var(--ok);margin-right:6px;vertical-align:1px;
   box-shadow:0 0 0 3px rgba(22,163,74,.14);
 }
-.note{
-  margin:14px 0 0;font-size:12.5px;color:var(--mute);line-height:1.7;
-}
+.note{margin:14px 0 0;font-size:12.5px;color:var(--mute);line-height:1.75}
 .note.warn{color:#9a3412}
 
-/* 微信内置浏览器专属提示：只在对微信里显示（JS 加 .show），
- * 普通浏览器完全看不到这条，不打扰绝大多数用户。 */
+/* 微信提示 */
 #wxTip{
-  display:none;margin:14px 0 0;padding:14px 16px;
-  border-radius:14px;border:1px solid #fde3c8;background:#fff8f1;
-  font-size:13px;line-height:1.75;color:#8a3d0c;
+  display:none;margin:14px 0 0;padding:15px 17px;
+  border-radius:15px;border:1px solid #fde3c8;background:#fff8f1;
+  font-size:13px;line-height:1.8;color:#8a3d0c;
 }
 #wxTip.show{display:block}
 #wxTip b{color:#c2410c}
 #wxTip .kbd{
-  display:inline-block;padding:2px 7px;margin:0 2px;border-radius:6px;
+  display:inline-block;padding:2px 8px;margin:0 3px;border-radius:7px;
   background:#fff;border:1px solid #f5cda6;white-space:nowrap;
   font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:#9a3412;
 }
-.note code{
-  background:var(--surface2);border:1px solid var(--line);
-  padding:1px 6px;border-radius:6px;font-size:12px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
+
+/* ---------------- 手机示意（右侧） ---------------- */
+.shots{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+  align-items:end;
+}
+.phone{
+  position:relative;border-radius:26px;overflow:hidden;
+  background:var(--bg);
+  box-shadow:0 3px 8px rgba(15,23,42,.06), 0 26px 50px -22px rgba(15,23,42,.4);
+  border:1px solid rgba(255,255,255,.9);
+  transform:translateY(0);
+  transition:transform .3s ease;
+}
+.phone img{width:100%;height:auto}
+.phone:hover{transform:translateY(-6px)}
+.phone:nth-child(2){transform:translateY(-14px)}
+.phone:nth-child(2):hover{transform:translateY(-20px)}
+.shots-cap{
+  grid-column:1/-1;text-align:center;font-size:12px;color:var(--mute);
+  margin-top:6px;
 }
 
-/* ---------------- 区块通用 ---------------- */
-section{padding:44px 0 0}
-.sec-h{margin:0 0 6px;font-size:20px;font-weight:700;letter-spacing:-.1px}
-.sec-p{margin:0 0 22px;font-size:14.5px;color:var(--mute)}
+/* ---------------- 区块 ---------------- */
+section{padding:52px 0 0}
+.sec-h{margin:0 0 6px;font-size:21px;font-weight:750;letter-spacing:-.2px}
+.sec-p{margin:0 0 24px;font-size:14.5px;color:var(--mute)}
 
-/* 功能网格 */
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:12px}
-.card{
+/* 功能清单：左图标右文字，比纯卡片更像产品介绍 */
+.feat{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+.fcard{
   background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);padding:16px 16px 15px;
+  border-radius:var(--radius-sm);padding:18px;
   box-shadow:var(--shadow);
+  transition:transform .16s ease,box-shadow .16s ease;
 }
-.card .ic{
-  width:34px;height:34px;border-radius:11px;background:var(--accent-soft);
-  display:flex;align-items:center;justify-content:center;margin-bottom:10px;
-  font-size:17px;
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.fcard .ic{
+  width:36px;height:36px;border-radius:12px;background:var(--accent-soft);
+  display:flex;align-items:center;justify-content:center;margin-bottom:12px;
+  font-size:18px;
 }
-.card h3{margin:0 0 5px;font-size:14.5px;font-weight:650}
-.card p{margin:0;font-size:13px;color:var(--mute);line-height:1.6}
+.fcard h3{margin:0 0 6px;font-size:15px;font-weight:680}
+.fcard p{margin:0;font-size:13px;color:var(--mute);line-height:1.65}
 
 /* 步骤 */
-.steps{counter-reset:s;display:grid;gap:10px}
+.steps{counter-reset:s;display:grid;gap:11px}
 .step{
   counter-increment:s;position:relative;
   background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);padding:14px 16px 14px 52px;
+  border-radius:var(--radius-sm);padding:15px 18px 15px 56px;
   font-size:14px;color:var(--fg2);box-shadow:var(--shadow);
 }
 .step::before{
-  content:counter(s);position:absolute;left:15px;top:13px;
-  width:24px;height:24px;border-radius:8px;
+  content:counter(s);position:absolute;left:16px;top:14px;
+  width:26px;height:26px;border-radius:9px;
   background:var(--accent-soft);color:var(--accent);
-  font-size:13px;font-weight:700;
+  font-size:13px;font-weight:750;
   display:flex;align-items:center;justify-content:center;
 }
 .step b{color:var(--fg);font-weight:650}
@@ -176,72 +203,89 @@ section{padding:44px 0 0}
 /* FAQ */
 details{
   background:var(--surface);border:1px solid var(--line);
-  border-radius:var(--radius-sm);padding:0;margin-bottom:9px;
+  border-radius:var(--radius-sm);margin-bottom:10px;
   box-shadow:var(--shadow);overflow:hidden;
 }
 details summary{
-  cursor:pointer;padding:14px 16px;font-size:14.5px;font-weight:620;
+  cursor:pointer;padding:15px 18px;font-size:14.5px;font-weight:650;
   list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center;
 }
 details summary::-webkit-details-marker{display:none}
 details summary::after{
-  content:'+';color:var(--mute);font-size:19px;font-weight:400;
-  line-height:1;transition:transform .16s ease;
+  content:'+';color:var(--mute);font-size:20px;font-weight:400;line-height:1;
+  transition:transform .18s ease;flex:0 0 auto;
 }
 details[open] summary::after{transform:rotate(45deg)}
-details .body{padding:0 16px 15px;font-size:13.5px;color:var(--fg2);line-height:1.72}
+details .body{padding:0 18px 16px;font-size:13.5px;color:var(--fg2);line-height:1.78}
 details .body p{margin:0 0 8px}
 details .body p:last-child{margin-bottom:0}
 
-/* 群号卡 */
-.group{
-  background:linear-gradient(140deg,#eff5ff,#f6f8ff);
-  border:1px solid #dbe6fb;border-radius:var(--radius);
-  padding:22px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;
-  box-shadow:var(--shadow);
+/* ---------------- 联系方式 ---------------- */
+.contact{
+  background:linear-gradient(150deg,#eef4ff,#f8f9ff 60%,#f3f0ff);
+  border:1px solid #dde7fb;border-radius:var(--radius);
+  padding:26px;box-shadow:var(--shadow);
 }
-.group .qmark{
-  width:46px;height:46px;border-radius:14px;flex:0 0 auto;
-  background:#fff;display:flex;align-items:center;justify-content:center;
-  font-size:21px;box-shadow:0 2px 8px -2px rgba(37,99,235,.3);
+.contact h2{margin:0 0 6px;font-size:19px;font-weight:750;letter-spacing:-.2px}
+.contact .sub{margin:0 0 20px;font-size:13.5px;color:var(--fg2)}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(226px,1fr));gap:12px}
+.clink{
+  display:flex;align-items:center;gap:13px;
+  background:var(--surface);border:1px solid #e4ebfa;
+  border-radius:15px;padding:14px 16px;
+  color:inherit;text-decoration:none;
+  transition:transform .14s ease,box-shadow .14s ease,border-color .14s ease;
+  box-shadow:0 1px 2px rgba(15,23,42,.03);
 }
-.group .txt{flex:1 1 200px;min-width:0}
-.group .txt b{display:block;font-size:15px;margin-bottom:2px}
-.group .txt span{font-size:13px;color:var(--mute)}
-.group .num{
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;
-  font-size:19px;font-weight:700;letter-spacing:.6px;color:var(--accent);
-  background:#fff;border:1px solid #dbe6fb;border-radius:11px;
-  padding:9px 16px;cursor:pointer;user-select:all;
-  font-variant-numeric:tabular-nums;
+.clink:hover{
+  transform:translateY(-2px);text-decoration:none;
+  box-shadow:0 12px 26px -14px rgba(37,99,235,.55);
+  border-color:#c7d8f7;
 }
-.group .num:active{background:#f0f5ff}
+.clink .ci{
+  width:38px;height:38px;border-radius:12px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);font-size:18px;
+}
+.clink .ct{min-width:0;flex:1}
+.clink .ct b{display:block;font-size:14px;font-weight:680;line-height:1.3}
+.clink .ct span{display:block;font-size:12.5px;color:var(--mute);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clink .arr{color:#c3cfe4;font-size:17px;flex:0 0 auto}
 
-/* 页脚 */
+/* ---------------- 页脚 ---------------- */
 footer{
-  margin-top:52px;padding:26px 0 40px;border-top:1px solid var(--line);
-  font-size:12.5px;color:var(--mute);line-height:1.9;
+  margin-top:56px;padding:28px 0 44px;border-top:1px solid var(--line);
+  font-size:12.5px;color:var(--mute);line-height:1.95;
 }
-footer .links{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:10px}
-footer .links a{color:var(--fg2)}
-footer .disclaim{font-size:12px;color:#a3abbb}
+footer .fl{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+footer .fl a{color:var(--fg2)}
+footer .disclaim{font-size:12px;color:#a3abbb;max-width:52em}
 
-/* 复制提示 */
+/* Toast */
 #toast{
-  position:fixed;left:50%;bottom:34px;transform:translate(-50%,16px);
-  background:rgba(15,23,42,.92);color:#fff;font-size:13.5px;
-  padding:10px 18px;border-radius:11px;opacity:0;pointer-events:none;
+  position:fixed;left:50%;bottom:36px;transform:translate(-50%,16px);
+  background:rgba(15,23,42,.93);color:#fff;font-size:13.5px;
+  padding:11px 20px;border-radius:12px;opacity:0;pointer-events:none;
   transition:opacity .2s ease,transform .2s ease;z-index:99;white-space:nowrap;
+  max-width:90vw;
 }
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
+@media (min-width:760px){
+  .hero{grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}
+  .hero-copy h2{font-size:40px}
+}
 @media (max-width:520px){
   .wrap{padding:0 16px}
-  .hero{padding:24px 0 4px}
+  .hero{padding:26px 0 4px;gap:26px}
   .dl{padding:18px}
   .btn{padding:15px 20px;font-size:15.5px}
   .btn-ghost{flex:1 1 100%}
-  section{padding:34px 0 0}
+  section{padding:38px 0 0}
+  .shots{gap:9px}
+  .phone:nth-child(2){transform:translateY(-8px)}
+  .contact{padding:20px}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
@@ -255,7 +299,7 @@ footer .disclaim{font-size:12px;color:#a3abbb}
   <div class="top">
     <div class="brand">
       <div class="mark">河</div>
-      <div>
+      <div class="brand-txt">
         <h1>河医大助手</h1>
         <p>河南医药大学 · 学生自建</p>
       </div>
@@ -263,76 +307,91 @@ footer .disclaim{font-size:12px;color:#a3abbb}
   </div>
 
   <div class="hero">
-    <h2>课表、作业、空教室<br><em>一个 App 就够了</em></h2>
-    <p class="lead">
-      把手动查课表、翻作业截止时间、找空教室这些事合到一处。
-      针对河南医药大学做的，不是通用模板。安卓手机，装上即用。
-    </p>
-
-    <div class="dl">
-      <div class="dl-row">
-        <a class="btn" id="dlBtn" href="/v1/apk" rel="noopener">
-          <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>
-          </svg>
-          下载安卓版
-        </a>
-        <a class="btn btn-ghost" href="#how">怎么装</a>
-      </div>
-
-      <div class="meta" id="meta">
-        <span><span class="dot-ok"></span>最新版 <b id="mVer">—</b></span>
-        <span>大小 <b id="mSize">—</b></span>
-        <span>更新 <b id="mDate">—</b></span>
-      </div>
-
-      <p class="note" id="dlNote">
-        点上面的按钮直接下载 APK。装的时候系统会问「是否允许安装未知应用」，
-        允许一次就行——这个提示是安卓对所有非商店应用的标准要求。
+    <div class="hero-copy">
+      <h2>课表、作业、空教室<br><em>一个 App 就够了</em></h2>
+      <p class="lead">
+        把手动查课表、翻作业截止时间、找空教室这些事合到一处。
+        针对河南医药大学做的，不是通用模板。
       </p>
 
-      <div id="wxTip">
-        <b>你现在是在微信里打开这个页面。</b>微信不让网页直接下载安装包，
-        点「下载安卓版」它会弹一条拦截提示——这是微信的限制，不是链接坏了。
-        照下面两步做：<br>
-        ① 在那条提示里点「<b>在浏览器中打开</b>」；
-        没看到这句就点右上角的 <span class="kbd">···</span>，选「在浏览器打开」<br>
-        ② 浏览器打开后，再点一次「下载安卓版」，包就开始下了<br>
-        拿到的还是同一个包，和直接下载没有区别。
+      <div class="pills">
+        <span class="pill"><b>免费</b> · 无广告</span>
+        <span class="pill"><b>无需注册</b> · 填学号即用</span>
+        <span class="pill"><b>数据留本机</b> · 密码不上传</span>
       </div>
+
+      <div class="dl">
+        <div class="dl-row">
+          <a class="btn" id="dlBtn" href="/v1/apk" rel="noopener">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>
+            </svg>
+            下载安卓版
+          </a>
+          <a class="btn btn-ghost" href="#how">怎么装</a>
+        </div>
+
+        <div class="meta" id="meta">
+          <span><span class="dot-ok"></span>最新版 <b id="mVer">—</b></span>
+          <span>大小 <b id="mSize">—</b></span>
+          <span>更新 <b id="mDate">—</b></span>
+        </div>
+
+        <p class="note" id="dlNote">
+          点上面的按钮直接下载安装包。装的时候系统会问「是否允许安装未知应用」，
+          允许一次就行——这是安卓对所有非商店应用的标准要求。
+        </p>
+
+        <div id="wxTip">
+          <b>你现在是在微信里打开这个页面。</b>微信不让网页直接下载安装包，
+          点「下载安卓版」它会弹一条拦截提示——这是微信的限制，不是链接坏了。
+          照下面两步做：<br>
+          ① 在那条提示里点「<b>在浏览器中打开</b>」；
+          没看到这句就点右上角的 <span class="kbd">···</span>，选「在浏览器打开」<br>
+          ② 浏览器打开后，再点一次「下载安卓版」，包就开始下了<br>
+          拿到的还是同一个包，和直接下载没有区别。
+        </div>
+      </div>
+    </div>
+
+    <div class="shots">
+      <div class="phone"><img src="/img/shot-kb.svg" alt="课表页：七列网格，今天所在列高亮" width="390" height="780"></div>
+      <div class="phone"><img src="/img/shot-learn.svg" alt="学习页：作业按紧急程度排序，右侧显示剩余时间" width="390" height="780"></div>
+      <div class="phone"><img src="/img/shot-water.svg" alt="校园事务页：饮水机设定目标水量后自动停止" width="390" height="780"></div>
+      <div class="shots-cap">界面示意图（按 App 真实结构绘制，非真机截图）</div>
     </div>
   </div>
 
   <section>
     <h2 class="sec-h">里面有什么</h2>
     <p class="sec-p">都是真在用的功能，不是罗列出来的卖点。</p>
-    <div class="grid">
-      <div class="card">
+    <div class="feat">
+      <div class="fcard">
         <div class="ic">📅</div>
         <h3>本周课表</h3>
-        <p>登录教务后自动读取，按周次高亮今天。哪节课在哪间教室、几点上，一眼看到。</p>
+        <p>登录教务后自动读取，按周渲染成网格。今天所在列高亮，每门课显示教室与起止时间。</p>
       </div>
-      <div class="card">
+      <div class="fcard">
         <div class="ic">⏳</div>
         <h3>作业与考试倒计时</h3>
-        <p>学习通的作业按紧急程度排好，还剩几小时写得清清楚楚。读不到状态时会直说，不会假装已完成。</p>
+        <p>按紧急程度排好，还剩几小时写得清清楚楚。读不到状态时会直说，不会假装已完成。</p>
       </div>
-      <div class="card">
+      <div class="fcard">
         <div class="ic">🚪</div>
         <h3>空教室</h3>
-        <p>按你课表里出现过的教室，算出某天某几节哪间空着。也会给出整周都空的自习地点。</p>
+        <p>按你课表里出现过的教室，算出某天某几节哪间空着。也能找整周都空的自习位置。</p>
       </div>
-      <div class="card">
+      <div class="fcard">
         <div class="ic">🚰</div>
         <h3>饮水机</h3>
         <p>扫一次码记住机器，之后在手机上点就能解锁放水，还能设目标水量自动停。</p>
       </div>
-      <div class="card">
+      <div class="fcard">
         <div class="ic">📚</div>
         <h3>校园资料</h3>
         <p>教务、学习通、办事去处、官方账号入口都归到一处，不用再到处问链接。</p>
       </div>
-      <div class="card">
+      <div class="fcard">
         <div class="ic">🔒</div>
         <h3>数据留在本机</h3>
         <p>教务和超星的密码不经过任何服务器。服务端只存版本号和公告这类轻量状态。</p>
@@ -401,7 +460,7 @@ footer .disclaim{font-size:12px;color:#a3abbb}
       <summary>换了手机 / 重装了怎么办</summary>
       <div class="body">
         <p>重新装一次、重新填学号、重新登录教务就行。课表会自动同步回来。</p>
-        <p>一个学号可以绑几台设备，超过上限时联系群里的管理员清一下记录。</p>
+        <p>一个学号可以绑几台设备，超过上限时联系管理员清一下记录。</p>
       </div>
     </details>
 
@@ -414,24 +473,59 @@ footer .disclaim{font-size:12px;color:#a3abbb}
     </details>
   </section>
 
-  <section>
-    <div class="group">
-      <div class="qmark">💬</div>
-      <div class="txt">
-        <b>有问题进群说</b>
-        <span>更新通知、报故障、提需求都在这里</span>
+  <section id="contact">
+    <div class="contact">
+      <h2>找我</h2>
+      <p class="sub">有问题、想提需求、发现 bug，都可以直接找我。用的人多，我会继续维护。</p>
+      <div class="cgrid">
+        <div class="clink" id="qqCard" role="button" tabindex="0" aria-label="复制 QQ 号">
+          <div class="ci">💬</div>
+          <div class="ct">
+            <b>QQ</b>
+            <span id="qqNum">572833261</span>
+          </div>
+          <div class="arr">⧉</div>
+        </div>
+        <a class="clink" href="https://github.com/cyanheee/xxmu-helper" target="_blank" rel="noopener">
+          <div class="ci">
+            <svg width="19" height="19" viewBox="0 0 16 16" fill="#0f172a" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </div>
+          <div class="ct">
+            <b>GitHub</b>
+            <span>cyanheee/xxmu-helper</span>
+          </div>
+          <div class="arr">↗</div>
+        </a>
+        <div class="clink" id="grpCard" role="button" tabindex="0" aria-label="复制群号">
+          <div class="ci">👥</div>
+          <div class="ct">
+            <b>更新群</b>
+            <span id="grpNum">1097668324</span>
+          </div>
+          <div class="arr">⧉</div>
+        </div>
+        <a class="clink" href="mailto:572833261@qq.com">
+          <div class="ci">✉️</div>
+          <div class="ct">
+            <b>邮箱</b>
+            <span>572833261@qq.com</span>
+          </div>
+          <div class="arr">↗</div>
+        </a>
       </div>
-      <div class="num" id="qqNum" title="点一下复制">1097668324</div>
     </div>
   </section>
 
   <footer>
-    <div class="links">
-      <a href="/v1/apk">直接下载 APK</a>
-      <a href="/v1/config">接口状态</a>
+    <div class="fl">
+      <a href="/v1/apk">直接下载安装包</a>
+      <a href="https://github.com/cyanheee/xxmu-helper">源码（AGPL-3.0）</a>
       <a href="#how">安装说明</a>
+      <a href="/v1/config">接口状态</a>
     </div>
-    <div>河医大助手 · 学生自建工具，与学校官方无隶属关系。</div>
+    <div>河医大助手 · 河南医药大学学生自建工具，与学校官方无隶属关系。</div>
     <div class="disclaim">课表、成绩、选课等一切正式事务以学校官方系统为准。使用本工具前请确认你已了解这一点。</div>
   </footer>
 </div>
@@ -442,17 +536,15 @@ footer .disclaim{font-size:12px;color:#a3abbb}
 (function () {
   'use strict';
 
-  /* ============ 从 /v1/config 拉最新版本 ============
+  /* ============ 版本信息：从 /v1/config 拉，绝不写死 ============
    *
-   * 为什么不在页面里写死版本号：写死就意味着每发一版都要改官网 + 重新部署，
-   * 而漏改的后果是「官网说 1.1.16，实际已经 1.1.17」——学生照着旧说明操作，
-   * 或者以为没更新。这类「两处数字不一致」在这个项目里已经踩过（三处版本号）。
-   * 所以这里只做一件事：把服务端真实值显示出来。
+   * 写死版本号意味着每发一版都要改官网 + 重新部署，漏改的后果是
+   * 「官网说 1.1.16，实际已经 1.1.17」。这个项目在三处版本号上踩过这个坑，
+   * 官网这里不再留第四个副本。
    *
-   * 拉不到怎么办：**不做任何假显示**。版本号保持「—」，下载按钮照旧可用
-   * （/v1/apk 是同一台服务器上的固定路径，Config 挂了它通常还能响应），
-   * 并在提示里说明「暂时读不到版本信息，点下载拿到的仍是最新版」。
-   * 绝不允许「读不到就显示一个编造的版本号」。
+   * 拉不到怎么办：版本号保持「—」，下载按钮照旧可用（/v1/apk 是同一台
+   * 服务器上的固定路径），并在提示里说明「读不到版本信息，但链接仍是最新版」。
+   * 绝不编一个看起来正常的版本号。
    */
   var dlBtn = document.getElementById('dlBtn');
   var mVer = document.getElementById('mVer');
@@ -478,30 +570,33 @@ footer .disclaim{font-size:12px;color:#a3abbb}
       var l = (d && d.latest) || {};
       if (l.version) mVer.textContent = 'v' + l.version;
       if (l.size) mSize.textContent = fmtSize(l.size);
-      /* config 里没有「这个包的发布时间」，用 apk 元信息的 at（秒）。
-       * 拿不到就显示 —，不编。 */
       var at = (d && d.apk && d.apk.at) || 0;
       mDate.textContent = fmtDate(at);
     })
     .catch(function () {
-      /* 读不到就不装懂。 */
       mVer.textContent = '—';
       dlNote.className = 'note warn';
       dlNote.textContent = '暂时读不到版本信息（网络或服务端问题）。'
         + '但下面的下载链接是同一个服务上的固定地址，点它拿到的仍然是最新版。';
     });
 
-  /* ============ 复制群号 ============
-   * 三级兜底：async clipboard → execCommand → 选中让用户自己复制。
-   * 关键是**只有真成功了才提示「已复制」**——这个项目在 App 里踩过
-   * 「先 toast 成功、实际失败」的坑，这里不重复。 */
+  /* ============ 微信环境提示 ============
+   * 只标注环境，不改变下载链接。微信拦不拦是它的事，我们不能假装能绕过。
+   * 判据带 wxwork：企业微信同样拦 APK。 */
+  var WX = /micromessenger|wxwork/i.test(navigator.userAgent || '');
+  var wxTip = document.getElementById('wxTip');
+  if (WX && wxTip) wxTip.className = 'show';
+
+  /* ============ 复制（仅真成功才提示）============
+   * 三级兜底：async clipboard → execCommand → 提示手动长按。
+   * 「先 toast 成功、实际失败」这个坑在 App 里踩过，这里不重复。 */
   var toastEl = document.getElementById('toast');
   var toastTimer = null;
   function toast(msg) {
     toastEl.textContent = msg;
     toastEl.classList.add('on');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 1800);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 1900);
   }
   function legacyCopy(text) {
     try {
@@ -518,41 +613,31 @@ footer .disclaim{font-size:12px;color:#a3abbb}
       return ok;
     } catch (e) { return false; }
   }
-  var qq = document.getElementById('qqNum');
-  qq.addEventListener('click', function () {
-    var text = qq.textContent.trim();
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(function () {
-        toast('群号已复制');
-      }, function () {
-        if (legacyCopy(text)) toast('群号已复制');
-        else toast('复制失败，请长按号码手动复制');
-      });
-      return;
-    }
-    if (legacyCopy(text)) toast('群号已复制');
-    else toast('复制失败，请长按号码手动复制');
-  });
+  function bindCopy(el, numEl, label) {
+    if (!el || !numEl) return;
+    var run = function () {
+      var text = numEl.textContent.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          toast(label + '已复制');
+        }, function () {
+          if (legacyCopy(text)) toast(label + '已复制');
+          else toast('复制失败，请长按手动复制');
+        });
+        return;
+      }
+      if (legacyCopy(text)) toast(label + '已复制');
+      else toast('复制失败，请长按手动复制');
+    };
+    el.addEventListener('click', run);
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); }
+    });
+  }
+  bindCopy(document.getElementById('qqCard'), document.getElementById('qqNum'), 'QQ 号');
+  bindCopy(document.getElementById('grpCard'), document.getElementById('grpNum'), '群号');
 
-  /* ============ 微信内置浏览器检测 ============
-   *
-   * 背景：用户真机实测「微信里点下载会被拦截，但会有提示」。
-   * 微信对网页内直接下载 APK 有硬限制，它自己会弹「在浏览器中打开」，
-   * 但那一行提示对新生来说不一定看得出来是唯一出口——很多人以为「打不开」
-   * 就退出了。所以这里主动在下载卡下面补一条说明，告诉他点哪里。
-   *
-   * 判据用 UA 里的 micromessenger：微信在所有平台的内置浏览器都带它，
-   * 企业微信带 wxwork（也拦 APK，一并算进来）。
-   * 关键：**只标注环境，不改变下载链接**。/v1/apk 在微信里也照样跳，
-   * 微信自己会拦——我们不能假装能绕过它，也不去猜一个「浏览器专用链接」。
-   * 说明只有真的在微信里才显示，普通浏览器用户完全看不到。
-   */
-  var WX = /micromessenger|wxwork/i.test(navigator.userAgent || '');
-  var wxTip = document.getElementById('wxTip');
-  if (WX && wxTip) wxTip.className = 'show';
-
-  /* 下载按钮：APK 大（约 0.5 MB），点下去到开始下载会有短暂空档，
-   * 给个「正在准备…」避免用户以为没反应又连点。 */
+  /* 下载按钮：点下去到开始下载有短暂空档，给个反馈避免连点。 */
   dlBtn.addEventListener('click', function () {
     dlBtn.setAttribute('disabled', 'disabled');
     toast(WX ? '微信会拦截下载，请按下方说明操作' : '正在准备下载…');
