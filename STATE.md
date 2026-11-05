@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 09:01
+> 生成时间：2026-11-05 09:08
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -30,45 +30,32 @@
 
 ## 3. 线上现在发的是哪一版
 
-探测入口：`https://xxmu-auth.pages.dev`（另一个是 `https://www.xxmuhelper.top`）
-
-| 字段 | 值 |
-|---|---|
-| latest.version | **1.1.17** |
-| latest.code | 1117 |
-| latest.size | 558650 |
-| latest.sha256 | `e75cfc7c4ac94de3` |
-| latest.url | https://xxmu-auth.pages.dev/v1/apk |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.17.apk |
-| min.code（强制淘汰线） | 0 |
-| enforceVer | True |
-| updPolicy | nag |
-| qq | 1097668324 |
-| maxDev | 3 |
-
-> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
-
-> 本地已到 **1.1.22**，线上还是 **1.1.17** —— 新版本**还没发**。
-> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
+（本次用了 `--no-net`，未探测线上。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `042a8ee` |
+| 分支 | main @ `1aca16b` |
 | origin/main | `f921482` |
-| 领先远程 | 7 个提交 |
-| 未提交改动 | 0 个文件 |
+| 领先远程 | 8 个提交 |
+| 未提交改动 | 1 个文件 |
 
 最近提交：
 
 ```
+1aca16b chore: STATE 重新生成（推送后）
 042a8ee fix(publish): --no-publish 不再留下「blob 新、cfg 旧」的坏包状态
 e6a5670 chore: STATE.md 重新生成 + v1.1.22 发版说明
 b212d2e chore: 重新生成 STATE.md
 5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
 5e46332 refactor(tools): push_via_api 的收尾抽成 finish()，两条推送路径共用
-2cc4610 fix(tools): push_via_api 推送后自己对齐 origin/main，不再让人手动 reset --hard
+```
+
+未提交：
+
+```
+M STATE.md
 ```
 
 ## 5. 常用命令（复制即用）
