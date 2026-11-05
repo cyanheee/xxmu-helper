@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 09:00
+> 生成时间：2026-11-05 09:01
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -55,30 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `e6a5670` |
+| 分支 | main @ `042a8ee` |
 | origin/main | `f921482` |
-| 领先远程 | 6 个提交 |
-| 未提交改动 | 5 个文件 |
+| 领先远程 | 7 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+042a8ee fix(publish): --no-publish 不再留下「blob 新、cfg 旧」的坏包状态
 e6a5670 chore: STATE.md 重新生成 + v1.1.22 发版说明
 b212d2e chore: 重新生成 STATE.md
 5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
 5e46332 refactor(tools): push_via_api 的收尾抽成 finish()，两条推送路径共用
 2cc4610 fix(tools): push_via_api 推送后自己对齐 origin/main，不再让人手动 reset --hard
-7c01651 feat(learn): 学习页新增「我的待办」（纯本地）+ 交接文档拆成三层
-```
-
-未提交：
-
-```
-M STATE.md
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/publish_apk.py
- M tools/state.py
 ```
 
 ## 5. 常用命令（复制即用）
