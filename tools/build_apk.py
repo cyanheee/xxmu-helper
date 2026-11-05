@@ -197,6 +197,23 @@ def main():
     shutil.copyfile(out, final)
     print("[OK] 成品 -> %s" % final)
 
+    # 8b. 顺手送到用户真正会看的地方（桌面\xxmuhelper\）
+    # 为什么不放在「复制到 apk/ 就完事」：用户报过「我咋没看见出包在哪」，
+    # 而「桌面」有两个 —— DSH 工作目录 D:\dsh\DSH Desktop 名字里带 Desktop
+    # 但不是桌面，资源管理器里的桌面是 C:\Users\<user>\Desktop。
+    # 与其靠人记，不如每次出包自动送过去并校验（deliver.py 会逐字节比对）。
+    try:
+        import subprocess as _sp
+        r = _sp.run([sys.executable, "-X", "utf8",
+                     os.path.join(ROOT, "tools", "deliver.py")],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace")
+        for line in (r.stdout or "").strip().splitlines():
+            print("    " + line)
+        if r.returncode != 0:
+            print("    !! 送桌面失败（不影响 apk/ 里的成品），手动跑 python tools/deliver.py")
+    except Exception as e:                                   # noqa: BLE001
+        print("    !! 送桌面时出错：%s（不影响 apk/ 里的成品）" % type(e).__name__)
+
     # 9. 校验
     r = run(["java", "-jar", SIGNER_JAR, "verify", "--print-certs", out], "apksigner verify")
     for line in r.stdout.splitlines()[:2]:

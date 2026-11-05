@@ -159,6 +159,21 @@ def ws_text(txt, maxlen=90):
     return txt[:maxlen].replace('\n', ' / ')
 
 
+def target_dir_hint():
+    """交付落点（桌面\\xxmuhelper）。问 Windows 要真实桌面路径，不猜。"""
+    try:
+        import winreg                                       # noqa: PLC0415
+        k = winreg.OpenKey(
+            winreg.HKEY_CURRENT_USER,
+            r'Software\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders')
+        v, _ = winreg.QueryValueEx(k, 'Desktop')
+        if v and os.path.isdir(v):
+            return os.path.join(v, 'xxmuhelper')
+    except Exception:                                       # noqa: BLE001
+        pass
+    return os.path.join(os.path.expanduser('~'), 'Desktop', 'xxmuhelper')
+
+
 # ---------------------------------------------------------------- 待办拾取
 
 def todo_of_project():
@@ -345,13 +360,19 @@ def main():
     w('')
     w('node tools/check_web.js                 # 静态体检（版本三处一致 / assets 同步 / 各版锚点）')
     w('node tools/test_mytodo.js               # 以及 tools/test_*.js 全套离线测试')
-    w('python tools/build_apk.py               # 出包（自动同步 web/ -> assets/）')
+    w('python tools/build_apk.py               # 出包（自动同步 assets + 自动送到桌面 xxmuhelper\\）')
+    w('python tools/deliver.py                 # 单独把最新包和本文件送到 桌面\\xxmuhelper\\（逐字节校验）')
     w('python tools/verify_apk.py              # 出包后五件套校验')
     w('python tools/bump_ver.py 1.1.22 1122    # 版本号三处同改')
     w('python tools/publish_apk.py --no-publish  # 只上传不通知（默认就该用这个）')
     w('python tools/publish_apk.py             # 真发布：切 cfg.latest，学生一开就弹更新')
     w('python tools/state.py                   # 重新生成本文件')
     w('```')
+    w('')
+    w('**交付落点只有一处**：`%s`。' % target_dir_hint())
+    w('注：`D:\\dsh\\DSH Desktop` 是 DSH 的工作目录，名字带 Desktop 但它**不是桌面**；')
+    w('资源管理器里的桌面是 `C:\\Users\\<用户>\\Desktop`。以前两个「桌面」都放过，')
+    w('用户的原话是「我咋没看见出包在哪」—— 所以现在只有一处，由 `deliver.py` 送并校验。')
     w('')
     w('工具清单与每套测试覆盖什么，见 HANDOFF.md 第 7 节与「离线测试一览」。')
     w('')

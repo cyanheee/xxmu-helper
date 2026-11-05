@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 09:10
+> 生成时间：2026-11-05 09:13
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -21,8 +21,8 @@
 |---|---|
 | 文件 | `apk/xxmu-helper-v1.1.22.apk` |
 | 大小 | 571000 字节 |
-| SHA-256 | `2bd6e29c816fbbb9c3501b4f9d73aa378cf5ed2525c6064955ab54fcd880f4ee` |
-| 出包时间 | 2026-11-05 09:09 |
+| SHA-256 | `b5b8a1a19ed0f658594c9854f973100d8e02a3a9b0fad9b303f41753fc0e4188` |
+| 出包时间 | 2026-11-05 09:11 |
 | 包内版本（aapt2） | 1.1.22 / 1122 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
@@ -55,26 +55,30 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `1aca16b` |
+| 分支 | main @ `afd9489` |
 | origin/main | `f921482` |
-| 领先远程 | 8 个提交 |
-| 未提交改动 | 1 个文件 |
+| 领先远程 | 9 个提交 |
+| 未提交改动 | 5 个文件 |
 
 最近提交：
 
 ```
+afd9489 chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
 1aca16b chore: STATE 重新生成（推送后）
 042a8ee fix(publish): --no-publish 不再留下「blob 新、cfg 旧」的坏包状态
 e6a5670 chore: STATE.md 重新生成 + v1.1.22 发版说明
 b212d2e chore: 重新生成 STATE.md
 5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
-5e46332 refactor(tools): push_via_api 的收尾抽成 finish()，两条推送路径共用
 ```
 
 未提交：
 
 ```
 M STATE.md
+ M docs/handoff/todo.md
+ M tools/build_apk.py
+ M tools/state.py
+?? tools/deliver.py
 ```
 
 ## 5. 常用命令（复制即用）
@@ -84,13 +88,19 @@ $env:Path += ';C:\Program Files\Git\cmd;C:\Program Files\nodejs'   # git / node 
 
 node tools/check_web.js                 # 静态体检（版本三处一致 / assets 同步 / 各版锚点）
 node tools/test_mytodo.js               # 以及 tools/test_*.js 全套离线测试
-python tools/build_apk.py               # 出包（自动同步 web/ -> assets/）
+python tools/build_apk.py               # 出包（自动同步 assets + 自动送到桌面 xxmuhelper\）
+python tools/deliver.py                 # 单独把最新包和本文件送到 桌面\xxmuhelper\（逐字节校验）
 python tools/verify_apk.py              # 出包后五件套校验
 python tools/bump_ver.py 1.1.22 1122    # 版本号三处同改
 python tools/publish_apk.py --no-publish  # 只上传不通知（默认就该用这个）
 python tools/publish_apk.py             # 真发布：切 cfg.latest，学生一开就弹更新
 python tools/state.py                   # 重新生成本文件
 ```
+
+**交付落点只有一处**：`C:\Users\Administrator\Desktop\xxmuhelper`。
+注：`D:\dsh\DSH Desktop` 是 DSH 的工作目录，名字带 Desktop 但它**不是桌面**；
+资源管理器里的桌面是 `C:\Users\<用户>\Desktop`。以前两个「桌面」都放过，
+用户的原话是「我咋没看见出包在哪」—— 所以现在只有一处，由 `deliver.py` 送并校验。
 
 工具清单与每套测试覆盖什么，见 HANDOFF.md 第 7 节与「离线测试一览」。
 

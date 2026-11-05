@@ -149,6 +149,23 @@
       表现是服务端回「没有合法学号」，看起来像接口坏了。
       **任何带双引号的 JSON 都先 `[IO.File]::WriteAllText` 落成无 BOM 文件，
       再 `--data-binary "@文件"`。**
+- [x] **交付落点只有一处：`C:\Users\Administrator\Desktop\xxmuhelper\`**（v1.1.22，用户点名要求）。
+      来由：用户报过「我咋没看见出包在哪」，根因是**「桌面」有两个** ——
+      `D:\dsh\DSH Desktop` 是 DSH 工作目录、名字带 Desktop 但它不是桌面；
+      资源管理器里的桌面是 `C:\Users\Administrator\Desktop`。
+      我一直在往错的那个放，还在真桌面散着 17 个 APK。
+      现在：项目本体 `xxmuhelper\xxmu-app\`，最新包与状态文档放文件夹根，
+      历史包进 `xxmuhelper\旧版本\`，参考目录 `_hyt`/`_pg` 也一并搬进来。
+      **新增 `tools/deliver.py`**：问 Windows 注册表要真实桌面路径 → 复制 → **逐字节 hash 校验**。
+      `build_apk.py` 出完包自动调它，所以「送到哪」不再靠人记。
+- [x] **`test_grab.js` 需要先跑 `tools/test_grab.cmd` 生成 `build_test/grab.js`**。
+      新环境/清理过 `build_test/` 之后直接 `node tools/test_grab.js` 会报 `fs` 读文件失败 ——
+      那不是测试坏了，是中间产物没先生成。（v1.1.22 搬目录时误判过一次。）
+- [x] **重复出包 SHA 会变，但字节数相同**（v1.1.22 实测）：同一份源码在新位置重出，
+      仍是 571000 字节、同样的 `aapt2 dump badging` 版本号，但 SHA-256 从
+      `33E4D744` 变成 `2BD6E29C`。原因是 zip 时间戳与签名块带时间。
+      **所以「SHA 不同」不能直接判成「内容不同」**，要判内容得比 assets 逐字节 + badging。
+      两份都留在 `旧版本\`（`河医大助手-v1.1.22-迁移前构建.apk`）做留证。
 - [x] **`--no-publish` 会留下「blob 新、cfg 旧」的坏包状态**（v1.1.22，我自己踩的）。
       它不切 `cfg.latest`，但确实换了 `apk:blob`，而客户端下载后要拿
       `cfg.latest.sha256` 校验 → 学生点下载拿到新字节、校验失败、装不上且无提示。
