@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 09:08
+> 生成时间：2026-11-05 09:10
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -21,8 +21,8 @@
 |---|---|
 | 文件 | `apk/xxmu-helper-v1.1.22.apk` |
 | 大小 | 571000 字节 |
-| SHA-256 | `33e4d7445d649259abefffb73e67e544c15a5a0f0f8f2796a91262d4705d999b` |
-| 出包时间 | 2026-11-05 08:46 |
+| SHA-256 | `2bd6e29c816fbbb9c3501b4f9d73aa378cf5ed2525c6064955ab54fcd880f4ee` |
+| 出包时间 | 2026-11-05 09:09 |
 | 包内版本（aapt2） | 1.1.22 / 1122 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
@@ -30,7 +30,26 @@
 
 ## 3. 线上现在发的是哪一版
 
-（本次用了 `--no-net`，未探测线上。）
+探测入口：`https://xxmu-auth.pages.dev`（另一个是 `https://www.xxmuhelper.top`）
+
+| 字段 | 值 |
+|---|---|
+| latest.version | **1.1.17** |
+| latest.code | 1117 |
+| latest.size | 558650 |
+| latest.sha256 | `e75cfc7c4ac94de3` |
+| latest.url | https://xxmu-auth.pages.dev/v1/apk |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.17.apk |
+| min.code（强制淘汰线） | 0 |
+| enforceVer | True |
+| updPolicy | nag |
+| qq | 1097668324 |
+| maxDev | 3 |
+
+> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
+
+> 本地已到 **1.1.22**，线上还是 **1.1.17** —— 新版本**还没发**。
+> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
