@@ -271,10 +271,40 @@ def main():
 
     # ---- 7. 回读确认 ----
     back = call(tok, 'GET', '/repos/%s/git/refs/heads/main' % REPO)
-    print('回读远程 main：%s' % back['object']['sha'][:7])
-    print('\n注意：远程 sha（%s）与本地 sha（%s）不同——API 造的提交 committer 时间戳不同。'
-          % (back['object']['sha'][:7], local_sha[:7]))
-    print('等 github.com 恢复后执行：git fetch && git reset --hard origin/main')
+    remote_new = back['object']['sha']
+    print('回读远程 main：%s' % remote_new[:7])
+
+    # ---- 8. 把远程跟踪引用对齐到真实 sha ----
+    # 这一步是血的教训：以前这里只打印一句「等 github.com 恢复后
+    # git fetch && git reset --hard origin/main」，但 github.com 还连不上的时候
+    # fetch 会失败、refs/remotes/origin/main 仍是**旧** sha，于是
+    # `reset --hard origin/main` 直接把本地这次提交连同未提交的文档改动一起
+    # 退回到上一个提交 —— 内容明明已经推上去了，本地反而丢了一份。
+    # 现在直接把远程跟踪引用写到真实 sha：本地不需要网络也能知道远程在哪。
+    r = subprocess.run([GIT, 'update-ref', 'refs/remotes/origin/main', remote_new],
+                       cwd=ROOT, capture_output=True, text=True)
+    if r.returncode == 0:
+        print('已同步本地 origin/main 引用 -> %s' % remote_new[:7])
+    else:
+        print('（更新本地 origin/main 失败：%s）' % (r.stderr or '').strip()[:120])
+
+    # ---- 9. 用 tree 比对告诉人「内容其实一样」 ----
+    # 远程 sha 与本地 sha 必然不同（API 造的提交 committer 时间戳不一样），
+    # 但**内容**一样。只看 sha 会以为「没推上去」或「落后了」，所以这里
+    # 直接比 tree —— 判据要落在「内容」上，不是落在「提交号」上。
+    d = subprocess.run([GIT, 'diff', '--stat', remote_new, local_sha],
+                       cwd=ROOT, capture_output=True, text=True)
+    if d.returncode == 0 and not d.stdout.strip():
+        print('本地与远程**内容一致**（提交号不同是正常的，不必 reset）')
+    else:
+        print('本地与远程仍有内容差异：')
+        print((d.stdout or d.stderr).strip()[:800])
+        print('\n用 git fetch && git diff origin/main HEAD 看具体差在哪；')
+        print('**不要**在 fetch 没成功的时候 reset --hard。')
+
+    print('\ngithub.com 恢复后执行这一条即可让两边提交号也统一：')
+    print('  git fetch origin && git reset --soft origin/main')
+    print('（一定是 --soft：--hard 会把你工作区里还没提交的改动一起抹掉。）')
     return 0
 
 
