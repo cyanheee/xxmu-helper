@@ -564,6 +564,37 @@ console.log('\nv1.1.16 checkpoints:');
 
 const water = read('web/water.js');
 const appBare = stripComments(app);
+
+/* ---- v1.1.21：我们并不知道 amount 的单位，界面不许写死「毫升」---- */
+/* 用户实机：接约 250ml，界面显示「已出 0」，结算后账单是 32。
+ * 三个数对不上。查官方 h5，`amount` 只被拿去做 `> 0` 判断、从不显示，
+ * 所以**没有任何可参照的单位来源**。猜一个写死在界面上比不写更糟：
+ * 它会让人以为「到了 200ml」，而实际停在哪并不确定。
+ * 这条锚点守两件事：
+ *   ① 界面文案不得把 amount 当毫升（不许出现「毫升」「ml」与目标值拼接）；
+ *   ② 必须保留「单位以账单为准」这句免责，以及原始回报的展示。 */
+const appTextBare = stripComments(app);
+const claimsMl = /已出\s*'?\s*\+\s*s\.amount\s*\+\s*'?\s*(ml|毫升)/.test(appTextBare)
+  || /本次\s*'?\s*\+\s*\(r\.amount[^)]*\)\s*\+\s*'?\s*(ml|毫升)/.test(appTextBare);
+console.log('  界面不把 amount 当毫升         =', !claimsMl);
+if (claimsMl) fail('界面又把 amount 直接拼成「毫升」了 —— 单位未经证实，必须写「以账单为准」');
+const hasUnitDisclaimer = appTextBare.indexOf('单位以胖乖账单为准') >= 0
+  || appTextBare.indexOf('单位以账单为准') >= 0;
+console.log('  保留「单位以账单为准」说明      =', hasUnitDisclaimer);
+if (!hasUnitDisclaimer) fail('放水结束/说明里要写明「单位以胖乖账单为准」，不能让人以为是毫升');
+
+/* 到量后必须继续盯一段，把停阀后结算的用量取回来。
+ * 否则 resolve 时 r.amount 还是停止前的旧值，界面和账单对不上。 */
+has(water, 'const SETTLE_GAP = 5000;', 'water.js 停止后仍有观察窗口');
+const settleGate = /const settlePending = stopSent && settleUntil && Date\.now\(\) < settleUntil/.test(water);
+console.log('  status 3/5 先到也不提前收工     =', settleGate);
+if (!settleGate) fail('watchVolume 必须在发停止后继续盯 SETTLE_GAP，不能一看到 status 3/5 就 resolve');
+
+/* 用量只增不减：平台偶尔回旧的 0，不能把界面数字打回去 */
+const monotonic = /if \(s\.amount > lastAmount\) lastAmount = s\.amount/.test(water);
+console.log('  用量单调递增（不回退）          =', monotonic);
+if (!monotonic) fail('watchVolume 要保证 amount 不回退（平台可能回旧的 0）');
+
 const waterBare = stripComments(water);
 
 /* ① 结算的界面函数必须彻底消失（剥注释后 0 命中）。 */

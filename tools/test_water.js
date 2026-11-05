@@ -144,9 +144,12 @@ function make(routes, devs) {
 
   console.log('\n[2] 定量放水：一直没出水要有提示，但不能判失败');
   {
-    /* 前 20 次 amount 都是 0，到第 21 次开始出水。 */
+    /* ZERO_WARN_AT 在 water.js 里是 25（v1.1.21 从 20 提到 25，
+     * 因为实测平台回报用量本身有延迟，20 秒就提醒太早）。
+     * 这里构造「前 26 次都是 0，第 27 次开始出水」——必须真的跨过阈值，
+     * 否则测的就不是「提示会不会触发」，而是「样本没到阈值所以不触发」。 */
     const seq = [];
-    for (let i = 0; i < 20; i++) seq.push({ status: 4, amount: 0 });
+    for (let i = 0; i < 26; i++) seq.push({ status: 4, amount: 0 });
     seq.push({ status: 2, amount: 600 });
     seq.push({ status: 3, amount: 605 });
     const m = make({ 'goods/shower/sync': seq, 'goods/endWater': [{}] });

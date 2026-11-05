@@ -653,21 +653,42 @@ const WATER = (() => {
    */
   function watchVolume(skuId, targetMl, hooks) {
     const h = hooks || {};
-    const tgt = Math.max(50, parseInt(targetMl, 10) || 0);
-    /* 上限：按 1 秒一次算，600 次 = 10 分钟。饮水机接满一桶也用不了这么久，
-     * 主要是防「用户走开了、机器还在流」时这个循环永远转下去耗电耗流量。 */
-    const MAX = 600;
-    /* 前 20 秒 amount 一直是 0 就提醒一次「是不是没在机器上按」。
+    const tgt = Math.max(20, parseInt(targetMl, 10) || 0);
+    /* 上限：按 0.8 秒一次算，900 次 ≈ 12 分钟。
+     * 饮水机接满一桶也用不了这么久，主要是防「用户走开了、机器还在流」
+     * 时这个循环永远转下去耗电耗流量。 */
+    const MAX = 900;
+    /* 轮询间隔（v1.1.21 从 1000ms 收紧到 800ms）。
+     *
+     * 用户实测：接热水放了 250ml，界面还停在「已出 0」。原因不是取不到数，
+     * 是**平台侧的 amount 回报本身滞后**（机器走串口/2G，用量要攒一批才上报），
+     * 1 秒一次在流速快的时候只能采到几次样，中间大段是同一个旧值。
+     * 收紧到 800ms 只是减少漏采，真正的修法见下面「到量后继续盯」。 */
+    const GAP = 800;
+    /* 到量发出停止后，还要再盯这么久才收工。
+     *
+     * 为什么必须有：endWater 只是把命令下发出去，机器停阀要几秒，
+     * 而**最终用量是停阀之后才结算出来的**。原来发完停止就等 status 3/5，
+     * 一旦 3/5 先到就立刻 resolve，`r.amount` 还是停止前那个旧值
+     * —— 界面报「本次 250」，账单却是另一个数，用户对不上。
+     * 现在多盯 5 秒，把停阀后刷新的 amount 取回来。 */
+    const SETTLE_GAP = 5000;
+    /* 前 25 秒 amount 一直是 0 就提醒一次「是不是没在机器上按」。
      * 不直接判失败：有人就是先解锁、过一会儿才走过去按。 */
-    const ZERO_WARN_AT = 20;
+    const ZERO_WARN_AT = 25;
     let n = 0;
     let stopSent = false;
     let zeroWarned = false;
+    let settleUntil = 0;      // 发停止后的观察截止时间戳
+    let lastAmount = 0;
 
     return new Promise((resolve) => {
       const tick = () => {
         n++;
         syncWater(skuId).then(s => {
+          /* 用量只会涨不会跌；平台偶尔回一个旧的 0，不要让它把界面打回去。 */
+          if (s.amount > lastAmount) lastAmount = s.amount;
+          s.amount = lastAmount;
           if (h.onTick) h.onTick(n, s, tgt);
 
           if (!zeroWarned && s.amount === 0 && n >= ZERO_WARN_AT && !stopSent) {
@@ -675,13 +696,17 @@ const WATER = (() => {
             if (h.onZero) h.onZero();
           }
 
-          /* 已经停了（3/5 完成、6 故障）→ 收工。可能是我们发的 stop 生效了，
-           * 也可能是机器到自己的上限自己停了。两种情况都不用再发停止。 */
-          if (s.status === 3 || s.status === 5) {
+          /* 机器已停（3/5 完成、6 故障）。
+           * 若我们发过停止、且还在观察窗口内，继续盯到窗口结束，
+           * 把停阀后结算出来的最终用量取回来再收工。 */
+          const finished = (s.status === 3 || s.status === 5);
+          const settlePending = stopSent && settleUntil && Date.now() < settleUntil;
+
+          if (finished && !settlePending) {
             resolve({ done: true, status: s.status, amount: s.amount, tries: n, stoppedByUs: stopSent });
             return;
           }
-          if (s.status === 6) {
+          if (s.status === 6 && !settlePending) {
             resolve({ done: true, failed: true, status: 6, amount: s.amount, tries: n });
             return;
           }
@@ -690,11 +715,12 @@ const WATER = (() => {
            * 重复 endWater 平台会报错，也可能被当成两次消费。 */
           if (!stopSent && s.amount > 0 && s.amount >= tgt) {
             stopSent = true;
+            settleUntil = Date.now() + SETTLE_GAP;
             if (h.onReached) h.onReached(s);
             endWaterTarget(skuId, h.machineId).then(() => {
               /* 发完继续轮询等它真的停，不在这里 resolve —— 否则界面会
                * 显示「已停止」但机器还在流水。 */
-              if (n < MAX) setTimeout(tick, 1000);
+              if (n < MAX) setTimeout(tick, GAP);
               else resolve({ pending: true, amount: s.amount, tries: n, stoppedByUs: true });
             }).catch(e => {
               if (h.onStopError) h.onStopError(e);
@@ -707,7 +733,7 @@ const WATER = (() => {
             resolve({ pending: true, amount: s.amount, tries: n, stoppedByUs: stopSent });
             return;
           }
-          setTimeout(tick, 1000);
+          setTimeout(tick, GAP);
         }).catch(e => {
           /* 单次网络抖动继续等；连续到上限才放弃。中途不把错误抛上去，
            * 因为一次 timeout 不代表机器没在出水。 */
@@ -715,7 +741,7 @@ const WATER = (() => {
           setTimeout(tick, 1500);
         });
       };
-      setTimeout(tick, 1000);
+      setTimeout(tick, 600);
     });
   }
 

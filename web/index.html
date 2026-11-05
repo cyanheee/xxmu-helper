@@ -273,13 +273,14 @@
            因为「停」可以远程下发，「开始」不行（见下面那句说明）。 -->
       <p class="hint left tight" style="margin:0 0 6px">
         手机这边只能「解锁」，出水还要在机器出水口按一下按钮 —— 这是胖乖的设计，没有远程开阀的接口。
-        选了目标水量后，到量会自动帮你发停止命令。
+        选了目标用量后，到量会自动帮你发停止命令。
+        <b>这里的数字是平台回报的用量，单位以胖乖账单为准</b>（App 不在本地换算，免得显示一个错的「毫升」）。
       </p>
       <div class="chips" id="waterTarget">
         <button data-ml="0">不限量</button>
+        <button data-ml="100">100</button>
         <button data-ml="200">200</button>
         <button data-ml="350">350</button>
-        <button data-ml="500">500</button>
       </div>
 
       <div id="waterDevList"></div>
@@ -713,7 +714,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.17</div>
+      <div class="about-ver" id="aboutVer">v1.1.21</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 

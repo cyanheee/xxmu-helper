@@ -3828,8 +3828,18 @@ const CampusUI = (() => {
       const box = document.getElementById('sh-body');
 
       if (target > 0) {
-        /* 定量放水：盯 amount，到量自动发停止。 */
-        const tgtLine = el('p', 'hint', '目标水量 ' + target + '，正在等出水…');
+        /* 定量放水：盯 amount，到量自动发停止。
+         *
+         * v1.1.21：面板上不再写死「毫升」。
+         *
+         * 用户实机反馈：接了约 250ml，界面显示「已出 0」，结算后账单是 32。
+         * 三个数对不上，说明我们**并不真的知道 amount 的单位**——
+         * 官方 h5 里 amount 只被拿去做 `> 0` 判断，从来不显示，无从参照。
+         * 猜一个单位写死在界面上，比不写更糟：它会让人以为「到了 200ml」，
+         * 而实际停在哪里并不确定。
+         * 所以这里：①数字照常显示并驱动到量停止；②单位处写「单位以账单为准」；
+         * ③结束语里给出平台回报的原始数值，让用户能和账单对照。 */
+        const tgtLine = el('p', 'hint', '目标 ' + target + '，正在等出水…');
         box.appendChild(tgtLine);
 
         const stopBtn = el('button', 'btn', '停止');
@@ -3837,23 +3847,27 @@ const CampusUI = (() => {
         box.appendChild(stopBtn);
 
         box.appendChild(el('p', 'hint',
-          '到 ' + target + ' 会自动发停止命令。注意：到量到真正停阀有几秒延迟，'
-          + '实际会多流一点；中途断网就盯不住了，机器会流到自己的上限才停。'));
+          '到 ' + target + ' 会自动发停止命令。注意三点：'
+          + '①这个数字是平台回报的用量，单位以胖乖账单为准（我们不在本地换算）；'
+          + '②到量到真正停阀有几秒延迟，实际会多流一点；'
+          + '③中途断网就盯不住了，机器会流到自己的上限才停。'));
 
         WATER.watchVolume(usedFn.id, target, {
           machineId: dev.id,
           onTick: (n, s, t) => {
+            tgtLine.className = 'hint';
             tgtLine.textContent = s.amount > 0
               ? ('已出 ' + s.amount + ' / ' + t)
-              : ('已出 0 / ' + t + '，正在等出水…');
+              : ('已出 0 / ' + t + '，正在等出水…（平台回报有延迟，按了之后稍等几秒）');
           },
           onZero: () => {
             tgtLine.className = 'hint warn';
-            tgtLine.textContent = '还没检测到出水。记得去机器出水口按一下按钮 —— 手机这边只能解锁。';
+            tgtLine.textContent = '还没检测到出水。记得去机器出水口按一下按钮 —— 手机这边只能解锁；'
+              + '按了之后平台要几秒才把用量报上来。';
           },
           onReached: (s) => {
             tgtLine.className = 'hint ok';
-            tgtLine.textContent = '已到 ' + s.amount + '，正在发停止命令…';
+            tgtLine.textContent = '已到 ' + s.amount + '，正在发停止命令，等机器停阀…';
           },
           onStopError: (e) => {
             tgtLine.className = 'hint warn';
@@ -3864,8 +3878,37 @@ const CampusUI = (() => {
           renderDevs();
           const done = el('p', 'hint ok');
           if (r && r.done && !r.failed) {
-            done.textContent = '放水结束，本次 ' + (r.amount || 0)
-              + '。费用记在胖乖生活的账单里，去官方 App 付款。';
+            done.textContent = '放水结束。平台最终回报用量 ' + (r.amount || 0)
+              + '（单位以胖乖账单为准）。';
+            /* 用量对不上时需要一个能自查的出口。
+             * 用户报过「界面说到 200 了，账单却是 32」——两者口径不同，
+             * 但界面上不给出原始值，他只能凭记忆描述，我没法判断是
+             * 单位不同、还是回报滞后取到了旧值。
+             * 这里把平台原始回报贴出来，复制给开发者就能一眼判断。 */
+            const raw = el('p', 'hint');
+            raw.style.opacity = '.75';
+            raw.textContent = '（原始回报：amount=' + (r.amount == null ? 'null' : r.amount)
+              + '，status=' + (r.status == null ? '?' : r.status)
+              + '，轮询 ' + (r.tries || 0) + ' 次，'
+              + (r.stoppedByUs ? '由本机发停止' : '未发停止') + '）';
+            const cp = el('button', 'btn ghost', '复制这次的数据');
+            cp.onclick = () => {
+              const txt = 'amount=' + (r.amount == null ? 'null' : r.amount)
+                + ' status=' + (r.status == null ? '?' : r.status)
+                + ' tries=' + (r.tries || 0)
+                + ' target=' + target
+                + ' stoppedByUs=' + (r.stoppedByUs ? 1 : 0)
+                + ' machine=' + (dev.name || dev.id)
+                + ' sku=' + usedFn.id;
+              copyText(txt, '已复制，发到群里就能定位');
+            };
+            box.appendChild(done);
+            box.appendChild(raw);
+            box.appendChild(cp);
+            const pay = el('p', 'hint');
+            pay.textContent = '费用记在胖乖生活账单里，去官方 App 付款。';
+            box.appendChild(pay);
+            return;
           } else if (r && r.failed) {
             done.className = 'hint warn';
             done.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
