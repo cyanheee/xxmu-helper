@@ -136,41 +136,73 @@ def reattach_to_remote(tok, remote_sha, local_sha):
          {'sha': commit['sha'], 'force': False})
     back = call(tok, 'GET', '/repos/%s/git/refs/heads/main' % REPO)
     print('  已更新远程 main -> %s（回读一致）' % back['object']['sha'][:7])
-    finish(back['object']['sha'], local_sha)
+    finish(tok, back['object']['sha'], local_sha)
     return True
 
 
-def finish(remote_new, local_sha):
-    """推送成功后的收尾：对齐本地远程跟踪引用 + 用 tree 判断内容是否一致。
+def finish(tok, remote_new, local_sha):
+    """推送成功后的收尾：把本地远程跟踪引用对齐，并用**内容**证明两边一致。
 
     这几步以前是一句打印「等 github.com 恢复后 git fetch && git reset --hard
-    origin/main」，而这句话本身是个陷阱：github.com 还连不上的时候 fetch 会失败、
+    origin/main」，而这句话本身是个陷阱：github.com 连不上的时候 fetch 会失败、
     refs/remotes/origin/main 仍是**旧** sha，于是 reset --hard 会把刚推上去的
     提交连同工作区未提交的改动一起退回上一个提交 —— 内容已经在远程了，
     本地反而丢一份。这一轮真栽了一次，所以收尾改成脚本自己做。
+
+    两个坑（第一版就踩了）：
+      ① 远程 sha 是 API 造出来的，**本地根本没有这个 commit 对象**，
+         所以 `git update-ref` / `git diff <remote>` 都会报
+         「not a valid object」——不能先想当然地更新引用。
+      ② 因此比对必须走 API 的 tree（拿 blob sha 列表），而不是本地 git diff。
+         判据落在「每个文件的内容 hash」上，而不是提交号上。
     """
     print('已更新远程 main -> %s' % remote_new[:7])
 
-    r = subprocess.run([GIT, 'update-ref', 'refs/remotes/origin/main', remote_new],
-                       cwd=ROOT, capture_output=True, text=True)
-    if r.returncode == 0:
-        print('已同步本地 origin/main 引用 -> %s' % remote_new[:7])
-    else:
-        print('（更新本地 origin/main 失败：%s）' % (r.stderr or '').strip()[:120])
+    # 远程的 blob 清单（走 API，不依赖本地有没有这个 commit）
+    try:
+        rt = call(tok, 'GET', '/repos/%s/git/trees/%s?recursive=1' % (REPO, remote_new))
+        rem = {e['path']: e['sha'] for e in rt['tree'] if e['type'] == 'blob'}
+    except SystemExit:
+        print('（读不到远程 tree，跳过内容比对）')
+        return
+    loc = {}
+    out = subprocess.run([GIT, 'ls-tree', '-r', 'HEAD'], cwd=ROOT,
+                         capture_output=True, text=True).stdout
+    for line in out.split('\n'):
+        if '\t' not in line:
+            continue
+        meta, path = line.split('\t', 1)
+        loc[path] = meta.split()[2]
 
-    # 远程 sha 与本地 sha 必然不同（API 造的提交 committer 时间戳不一样），
-    # 但**内容**应当一样。只看 sha 会误判成「没推上去」，所以判据落在 tree 上。
-    d = subprocess.run([GIT, 'diff', '--stat', remote_new, local_sha],
-                       cwd=ROOT, capture_output=True, text=True)
-    if d.returncode == 0 and not d.stdout.strip():
-        print('本地与远程**内容一致**（提交号不同是正常的，不必 reset）')
-    else:
-        print('本地与远程仍有内容差异：')
-        print((d.stdout or d.stderr).strip()[:800])
-        print('用 git fetch && git diff origin/main HEAD 看具体差在哪；')
-        print('**不要**在 fetch 没成功的时候 reset --hard。')
+    only_remote = sorted(set(rem) - set(loc))
+    only_local = sorted(set(loc) - set(rem))
+    changed = [p for p in (set(rem) & set(loc)) if rem[p] != loc[p]]
 
-    print('\n想让两边提交号也统一（可选）：')
+    if not (only_remote or only_local or changed):
+        print('本地与远程**内容完全一致**（%d 个文件，提交号不同是正常的，不必 reset）'
+              % len(rem))
+    else:
+        print('本地与远程内容仍有差异：')
+        if only_remote:
+            print('  只在远程：%s' % '、'.join(only_remote[:5]))
+        if only_local:
+            print('  只在本地：%s' % '、'.join(only_local[:5]))
+        if changed:
+            print('  内容不同：%s' % '、'.join(sorted(changed)[:5]))
+        print('  这些是你本地还没推上去的改动，或者远程被人改过 —— 先查清楚再动。')
+
+    # 只有本地真的有这个 commit 对象时才更新引用（否则 update-ref 会失败）
+    has_obj = subprocess.run([GIT, 'cat-file', '-e', remote_new], cwd=ROOT).returncode == 0
+    if has_obj:
+        r = subprocess.run([GIT, 'update-ref', 'refs/remotes/origin/main', remote_new],
+                           cwd=ROOT, capture_output=True, text=True)
+        if r.returncode == 0:
+            print('已同步本地 origin/main 引用 -> %s' % remote_new[:7])
+    else:
+        print('（远程提交 %s 本地还没有对象，等 github.com 恢复后 fetch 就会补齐；'
+              '在此之前**别**用 reset --hard。）' % remote_new[:7])
+
+    print('\n想让两边提交号也统一（可选，等 github.com 能连上再执行）：')
     print('  git fetch origin && git reset --soft origin/main')
     print('（一定用 --soft：--hard 会把工作区里还没提交的改动一起抹掉。）')
 
@@ -311,7 +343,7 @@ def main():
 
     # ---- 8. 收尾：对齐 origin/main 引用 + 用 tree 判断内容是否一致 ----
     # （为什么不再打印 reset --hard：见 finish() 的注释。）
-    finish(remote_new, local_sha)
+    finish(tok, remote_new, local_sha)
     return 0
 
 
