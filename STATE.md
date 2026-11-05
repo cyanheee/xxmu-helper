@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 08:39
+> 生成时间：2026-11-05 08:51
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.21** |
-| AndroidManifest versionCode | **1121** |
-| web/about.js APP_VERSION | 1.1.21 |
-| web/index.html #aboutVer | 1.1.21 |
+| AndroidManifest versionName | **1.1.22** |
+| AndroidManifest versionCode | **1122** |
+| web/about.js APP_VERSION | 1.1.22 |
+| web/index.html #aboutVer | 1.1.22 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.21.apk` |
-| 大小 | 562746 字节 |
-| SHA-256 | `d290b306753ceea98709026862bdf9ebc7f251bf36dc59fbdbeaa8a4253d3b42` |
-| 出包时间 | 2026-11-05 07:58 |
-| 包内版本（aapt2） | 1.1.21 / 1121 |
+| 文件 | `apk/xxmu-helper-v1.1.22.apk` |
+| 大小 | 571000 字节 |
+| SHA-256 | `33e4d7445d649259abefffb73e67e544c15a5a0f0f8f2796a91262d4705d999b` |
+| 出包时间 | 2026-11-05 08:46 |
+| 包内版本（aapt2） | 1.1.22 / 1122 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -48,36 +48,27 @@
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.21**，线上还是 **1.1.17** —— 新版本**还没发**。
+> 本地已到 **1.1.22**，线上还是 **1.1.17** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `f921482` |
+| 分支 | main @ `5d306ee` |
 | origin/main | `f921482` |
-| 与远程内容 | **一致**（没推的东西） |
-| 未提交改动 | 4 个文件 |
+| 领先远程 | 4 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
+5e46332 refactor(tools): push_via_api 的收尾抽成 finish()，两条推送路径共用
+2cc4610 fix(tools): push_via_api 推送后自己对齐 origin/main，不再让人手动 reset --hard
+7c01651 feat(learn): 学习页新增「我的待办」（纯本地）+ 交接文档拆成三层
 f921482 fix(tools): push_via_api 支持远程分叉时以远程提交为父提交
 4a03bb7 docs: 加入 HENUBox 对比分析
-b409d86 fix(water): amount 单位未经证实，界面不再谎称毫升；停止后多盯 5 秒取最终用量
-363aa76 chore: 密钥扫描器识别 GitHub Token 文件名
-cc18661 feat(web): 官网改版 + 界面示意图 + 联系方式；新增一键发版脚本
-64c7c00 docs: README 改为简体中文 + English 双语版
-```
-
-未提交：
-
-```
-M HANDOFF.md
-?? STATE.md
-?? docs/handoff/
-?? tools/state.py
 ```
 
 ## 5. 常用命令（复制即用）
