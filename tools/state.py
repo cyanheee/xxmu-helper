@@ -162,19 +162,42 @@ def ws_text(txt, maxlen=90):
 # ---------------------------------------------------------------- 待办拾取
 
 def todo_of_project():
-    """从 docs/handoff/todo.md 抓未完成的待办（`- [ ]` 开头的行）。"""
+    """从 docs/handoff/todo.md 抓未完成的待办（`- [ ]` 开头的行）。
+
+    只取 `- [ ]`：`- [x]` 是「已经查清、不用再怀疑」的结论库，
+    把它们也列进状态页，等于让「还差什么」看起来永远有一大堆。
+    `## ` 开头作为分组标题带出去（用 @@ 前缀标记，好和条目区分）。
+    """
     p = os.path.join(ROOT, 'docs/handoff/todo.md')
     if not os.path.exists(p):
         return []
-    lines = io.open(p, encoding='utf-8').read().split('\n')
     out = []
-    for l in lines:
+    for l in io.open(p, encoding='utf-8').read().split('\n'):
         s = l.strip()
-        if s.startswith('- [ ]'):
+        if s.startswith('## '):
+            title = s[3:].strip()
+            # 结论库那一节整节跳过 —— 它写着 [x]，但标题本身不该出现在待办里
+            out.append('@@' + title)
+        elif s.startswith('### '):
+            out.append('@@ ' + s[4:].strip())
+        elif s.startswith('- [ ]'):
+            # 待办条目常常是多行（下面挂着解释）。这里只取第一行当提纲，
+            # 完整内容在 todo.md 里 —— 状态页要保持一屏能读完。
             out.append(s[5:].strip())
-        elif s.startswith('## '):
-            out.append('@@' + s[3:].strip())
-    return out
+    # 有标题但下面没有未勾条目的，去掉那个空标题
+    cleaned = []
+    for i, t in enumerate(out):
+        if t.startswith('@@'):
+            has_item = False
+            for nxt in out[i + 1:]:
+                if nxt.startswith('@@'):
+                    break
+                has_item = True
+                break
+            if not has_item:
+                continue
+        cleaned.append(t)
+    return cleaned
 
 
 # ---------------------------------------------------------------- 主流程
@@ -341,7 +364,10 @@ def main():
         w('（docs/handoff/todo.md 里没有未勾选的条目。）')
     else:
         for t in todos:
-            w(('### %s' % t[2:]) if t.startswith('@@') else ('- [ ] %s' % t))
+            if t.startswith('@@'):
+                w(('\n### %s' % t[2:].strip()))
+            else:
+                w('- [ ] %s' % t)
     w('')
 
     body = '\n'.join(L).rstrip('\n') + '\n'

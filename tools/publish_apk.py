@@ -123,6 +123,26 @@ def latest_apk():
     return max(cands, key=os.path.getmtime)
 
 
+def find_apk_by_sha(sha):
+    """在 apk/ 里按 sha256 找到某个包 —— 用来把 apk:blob 恢复成与 cfg.latest 一致。
+
+    为什么按 sha 而不是按文件名：v1.1.16 与 v1.1.17 字节数完全相同（558650），
+    文件名也可能被改过；只有内容 hash 能唯一确定「cfg 声明的到底是哪一份」。
+    """
+    if not os.path.isdir(APK_DIR):
+        return None
+    for f in sorted(os.listdir(APK_DIR)):
+        if not f.endswith('.apk'):
+            continue
+        p = os.path.join(APK_DIR, f)
+        try:
+            if hashlib.sha256(open(p, 'rb').read()).hexdigest() == sha:
+                return p
+        except OSError:
+            continue
+    return None
+
+
 def manifest_ver(apk_path):
     """从 **APK 自身** 读出真实版本号。
 
@@ -239,9 +259,50 @@ def main():
         sys.exit('读到的 cfg 不是文本，中止（不敢覆盖）')
     cfg = json.loads(raw_cfg)
     old = dict(cfg.get('latest') or {})
+
     if args.no_publish:
-        print('[4/4] --no-publish：cfg 未改动，latest 仍是 %s/%s'
-              % (old.get('version'), old.get('code')))
+        # ---- --no-publish 的正确语义 ----
+        # 这个参数的本意是「存着但不通知学生」。但它**已经把 apk:blob 换成新包了**，
+        # 而 /v1/apk 下载的正是这个 blob、cfg.latest 里却还是旧版本号和旧 sha256。
+        # v1.1.9 起客户端下载完会拿 cfg.latest.sha256 校验，于是：
+        #   学生点「去下载」→ 拿到新字节 → 校验失败 → 装不上，而且没有任何提示。
+        # （2026-11-05 我这么干了一次，虽然当时线上没有待更新的提示，
+        #   学生只有手动点下载才会遇到，但这仍是实打实的坏包。）
+        #
+        # 两种自洽的做法，二选一，不再允许「blob 新、cfg 旧」这种中间态：
+        #   A. blob 和 cfg 一起切（等于发布）—— 但那不是 --no-publish 的意思；
+        #   B. blob 保持原样不动 —— 新包只在本地 apk/ 里躺着，要发的时候再发。
+        # 选 B：先把 blob 恢复成 cfg.latest 声明的那一份。
+        want = old.get('sha256') or ''
+        if want and want != sha:
+            print('[4/4] --no-publish 且新旧包的 sha256 不同：')
+            print('      如果把新包留在 apk:blob，学生会下到它、再用 cfg.latest.sha256')
+            print('      校验失败而装不上。所以把 blob 恢复成 cfg.latest 声明的那一份。')
+            cur = kv_get(token, 'apk:blob', raw=True)
+            if cur is not None and hashlib.sha256(cur).hexdigest() == want:
+                print('      当前 blob 已经是 cfg.latest 的那份，无需改动')
+            else:
+                src = find_apk_by_sha(want)
+                if not src:
+                    sys.exit('本地 apk/ 里找不到 sha256=%s 的包，无法把 blob 恢复成一致状态。\n'
+                             '  要么把那个包找回来重跑，要么这次不要传新包（用 --no-publish 前先确认）。'
+                             % want[:16])
+                by = open(src, 'rb').read()
+                kv_put(token, 'apk:blob', by, 'application/octet-stream')
+                meta2 = dict(json.loads(kv_get(token, 'apk:meta') or '{}'))
+                meta2.update({
+                    'name': os.path.basename(src),
+                    'size': len(by),
+                    'sha256': hashlib.sha256(by).hexdigest(),
+                })
+                kv_put(token, 'apk:meta', json.dumps(meta2, ensure_ascii=False).encode('utf-8'),
+                       'application/json; charset=utf-8')
+                print('      已把 apk:blob / apk:meta 恢复为 %s（%d 字节）'
+                      % (os.path.basename(src), len(by)))
+        print('[4/4] --no-publish：cfg 未改动，latest 仍是 %s/%s（%s 字节）'
+              % (old.get('version'), old.get('code'), old.get('size')))
+        print('\n新包已留在本地 %s，要发的时候不带 --no-publish 重跑一次。'
+              % os.path.relpath(apk, ROOT))
         return 0
 
     latest = dict(old)
