@@ -55,20 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `5d306ee` |
+| 分支 | main @ `b212d2e` |
 | origin/main | `f921482` |
-| 领先远程 | 4 个提交 |
+| 领先远程 | 5 个提交 |
 | 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+b212d2e chore: 重新生成 STATE.md
 5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
 5e46332 refactor(tools): push_via_api 的收尾抽成 finish()，两条推送路径共用
 2cc4610 fix(tools): push_via_api 推送后自己对齐 origin/main，不再让人手动 reset --hard
 7c01651 feat(learn): 学习页新增「我的待办」（纯本地）+ 交接文档拆成三层
 f921482 fix(tools): push_via_api 支持远程分叉时以远程提交为父提交
-4a03bb7 docs: 加入 HENUBox 对比分析
 ```
 
 ## 5. 常用命令（复制即用）
