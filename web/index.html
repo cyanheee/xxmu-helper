@@ -215,7 +215,21 @@
       <button data-filter="exam">考试</button>
     </div>
 
+    <!-- v1.1.22：我的待办 —— 学习通里没有的那些事。
+         独立成一张卡，不和上面的作业列表混排：混在一起之后
+         用户分不清「这条是学习通说的」还是「我自己记的」。
+         位置放在作业列表**下面**：学习通那批是有截止时间、会自己冒出来的，
+         先给它们；自建待办没有截止压力，排在后面不抢首屏。 -->
     <div id="hwlist"></div>
+
+    <div class="card" id="myTodoCard">
+      <div class="card-title">
+        <span class="dot"></span>我的待办
+        <span class="mtd-cnt" id="myTodoCount"></span>
+      </div>
+      <div id="myTodoList"></div>
+      <button id="myTodoAdd" class="btn soft">+ 加一条</button>
+    </div>
   </section>
 
   <!-- ================= WIKI ================= -->
@@ -714,7 +728,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.21</div>
+      <div class="about-ver" id="aboutVer">v1.1.22</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
@@ -942,6 +956,7 @@
 <script src="disc.js"></script>
 <script src="tut.js"></script>
 <script src="water.js"></script>
+<script src="mytodo.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -839,6 +839,49 @@ const honestShot = site.indexOf('示意图') >= 0;
 console.log('  图片标注为「示意图」              =', honestShot);
 if (!honestShot) fail('界面图是代码绘制的示意图，页面必须如实标注，不能写成真机截图');
 
+// ---- v1.1.22：我的待办（自建，纯本地） ----
+/* 这一批的失败方式同样是静默的：脏数据把整份清空、读失败显示成「你没有待办」、
+ * 日期只校验格式不校验真实性。三条都在 tools/test_mytodo.js 里有行为断言，
+ * 这里再加静态锚点，防止以后「顺手简化」把它们改回去。 */
+console.log('\nv1.1.22 checkpoints:');
+
+const mytodo = read('web/mytodo.js');
+has(mytodo, 'function safeDue(', 'mytodo 日期真实性校验');
+/* 反向断言：不许再出现「只靠正则就认日期」的写法。
+ * 这正是 test_mytodo 的 [2] 组抓出来的那个洞（2026-13-45 能存进去）。 */
+const looseDue = /due:\s*\/\^\\d\{4\}-\\d\{2\}-\\d\{2\}\$\/\.test/.test(mytodo);
+console.log('  没有「只验格式」的日期校验      =', !looseDue);
+if (looseDue) fail('mytodo.js 又用纯正则验日期了（2026-13-45 会存进去，排序会 NaN）');
+has(mytodo, 'LAST_ERR', 'mytodo 读失败原因');
+has(mytodo, 'function readErr()', 'mytodo readErr 导出');
+/* 脏数据只丢单条：norm 返回 null 时 continue，不 return [] */
+const dropAll = /for \(const x of arr\) \{\s*const n = norm\(x\);\s*if \(!n\) return \[\];/.test(mytodo);
+console.log('  脏记录不会清空整份              =', !dropAll);
+if (dropAll) fail('mytodo.js 里一条脏记录就 return []，会把用户记的东西全丢掉');
+
+has(idx, 'id="myTodoCard"', 'index.html 待办卡');
+has(idx, 'id="myTodoAdd"', 'index.html 加一条按钮');
+has(idx, 'id="myTodoList"', 'index.html 待办列表容器');
+has(idx, 'id="myTodoCount"', 'index.html 待办计数');
+has(idx, 'src="mytodo.js"', 'index.html 引入 mytodo.js');
+/* 顺序：mytodo.js 必须在 app.js 之前 —— app.js 末尾 init 时要用它。 */
+const iTodo = idx.indexOf('src="mytodo.js"');
+const iApp = idx.indexOf('src="app.js"');
+console.log('  mytodo.js 排在 app.js 之前      =', iTodo > 0 && iApp > 0 && iTodo < iApp);
+if (!(iTodo > 0 && iApp > 0 && iTodo < iApp)) fail('mytodo.js 必须写在 app.js 前面（app.js 末尾会调 MYTODO.init）');
+has(app, "if (typeof MYTODO !== 'undefined') MYTODO.init();", 'app.js 初始化 MYTODO');
+/* 待办卡必须排在作业列表**下面**：学习通那批有截止时间，先给它。
+ * 位置关系写死成断言，否则以后挪上去也没人发现。 */
+const iHw = idx.indexOf('id="hwlist"');
+const iCard = idx.indexOf('id="myTodoCard"');
+console.log('  待办卡排在作业列表之后          =', iHw > 0 && iCard > iHw);
+if (!(iHw > 0 && iCard > iHw)) fail('待办卡要排在 #hwlist 之后（学习通的作业有截止时间，先给它们）');
+/* styles：三态视觉必须能区分（未完成 / 已完成删除线 / 过期红） */
+const cssTxt = read('web/app.css');
+has(cssTxt, '.mtd.done .mtd-text', '已完成有删除线样式');
+has(cssTxt, '.mtd-due.red', '过期日期有红色样式');
+has(cssTxt, '.mtd-cb.on', '勾选态有样式');
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

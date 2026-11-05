@@ -256,6 +256,37 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .hwleft.gray{color:var(--mute);font-weight:500}
 .hwdate{color:#a6aebd;font-variant-numeric:tabular-nums}
 
+/* ---------------- 我的待办（v1.1.22） ----------------
+ * 和学习通的作业卡片刻意长得**不一样**：那里左侧有一条粗色条（表示状态色），
+ * 这里没有色条，只有一个圆形勾选框。两个来源的视觉语言必须能一眼区分，
+ * 否则用户会以为「没勾的那个也是学习通给的」。
+ * 尺寸沿用同一套变量（--radius-sm / --shadow / --line），不引入新配色。 */
+.mtd-cnt{margin-left:auto;font-size:11.5px;color:var(--mute);font-weight:400}
+.mtd{display:flex;align-items:flex-start;gap:10px;padding:9px 2px;
+  border-bottom:1px solid var(--line)}
+.mtd:last-of-type{border-bottom:0}
+.mtd-cb{flex:0 0 auto;width:21px;height:21px;margin-top:1px;padding:0;
+  border:1.6px solid #c6cedd;border-radius:50%;background:var(--surface);
+  color:#fff;font-size:12px;line-height:1;display:flex;align-items:center;
+  justify-content:center;transition:background .14s,border-color .14s}
+.mtd-cb:active{transform:scale(.9)}
+.mtd-cb.on{background:var(--ok);border-color:var(--ok)}
+.mtd-main{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
+.mtd-text{font-size:13.5px;line-height:1.45;color:var(--fg);word-break:break-word}
+.mtd.done .mtd-text{color:var(--mute);text-decoration:line-through}
+.mtd-meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11.5px;align-items:baseline}
+.mtd-due{color:var(--mute);font-weight:600}
+.mtd-due.orange{color:var(--warn)}
+.mtd-due.red{color:var(--danger)}
+.mtd.done .mtd-due{font-weight:400;color:#b6bdc9}
+.mtd-del{flex:0 0 auto;border:0;background:none;color:#c8cedb;font-size:13px;
+  padding:2px 2px 2px 6px;line-height:1}
+.mtd-del:active{color:var(--danger)}
+/* 二次点击确认：第一次点变成「再点」，宽度会变，所以给个最小宽度免得行跳动 */
+.mtd-del.arm{color:var(--danger);font-size:11px;min-width:34px;text-align:right}
+#myTodoCard .btn.soft{margin-top:6px}
+#myTodoCard .empty{padding:8px 0 4px}
+
 /* ---------------- 分段切换 / 胶囊 ---------------- */
 .seg{display:flex;background:#eaedf4;border-radius:12px;padding:3px;margin:4px 0 10px}
 .seg button{flex:1;border:0;background:none;border-radius:9px;padding:8px 0;

@@ -4654,6 +4654,7 @@ CampusUI.init();
 CampusUI.refresh();
 AdminUI.init();
 CxUI.init();
+if (typeof MYTODO !== 'undefined') MYTODO.init();
 Onboard.init();
 if (typeof Disc !== 'undefined') Disc.init();
 if (typeof Tut !== 'undefined') Tut.init();

@@ -130,7 +130,6 @@ def walk(bases):
 
 
 def load_gitignore():
-    """把 .gitignore 里的前缀读出来，用来判断「构建产物是否已被忽略」。"""
     p = os.path.join(ROOT, '.gitignore')
     pats = []
     try:
@@ -183,7 +182,7 @@ def main():
     a = ap.parse_args()
 
     bases = a.path or [ROOT]
-    block, ignore, warn = [], [], []
+    block, ignore, warn, shielded = [], [], [], []
     gi = load_gitignore()
     scanned = 0
 
@@ -191,15 +190,34 @@ def main():
         rel = os.path.relpath(f, ROOT).replace('\\', '/')
         ext = os.path.splitext(f)[1].lower()
 
+        # 判据修正（v1.1.22）：BLOCK 的本意是「这东西会进仓库」，不是
+        # 「这东西存在于磁盘上」。以前只要路径命中就报 BLOCK，于是
+        # 本地留着调试快照（build_html/）、签名密钥、DEPLOY-OUT.txt
+        # 这些**已经被 .gitignore 挡住**的文件也会刷出 439 条 ——
+        # 都是误报，跑几次就没人看了，等于这个脚本失效。
+        # 现在分两档：.gitignore 已覆盖 -> shielded（跳过内容扫描）；
+        # 没覆盖 -> 才是真的 BLOCK，那才是会泄密的那一条。
+        protected = covered_by_gitignore(rel, gi)
+        hit_block = None
         for pat, why in BLOCK_PATHS:
             if re.search(pat, rel):
-                block.append((rel, 0, why, ''))
+                hit_block = why
                 break
+        if hit_block:
+            if protected:
+                shielded.append((rel, 0, hit_block, ''))
+            else:
+                block.append((rel, 0, hit_block + '（.gitignore 未覆盖！）', ''))
         for pat, why in BUILD_PATHS:
             if re.search(pat, rel):
-                if not covered_by_gitignore(rel, gi):
+                if not protected:
                     ignore.append((rel, 0, why + '（.gitignore 未覆盖！）', ''))
                 break
+
+        # .gitignore 已经挡住的文件不会再进仓库，里面的内容也就不会泄密，
+        # 没必要再逐行扫（还会把 build_html/ 的几百个分片读一遍，很慢）。
+        if protected or hit_block:
+            continue
 
         if ext in SKIP_EXT:
             continue
@@ -254,9 +272,21 @@ def main():
             extra = '' if len(items) == 1 else '  (共 %d 处)' % len(items)
             print('  %-20s %-46s %s%s' % (name[:20], loc[:46], ev, extra))
 
-    dump('BLOCK 必须确认', block)
+    dump('BLOCK 必须确认（会进仓库的）', block)
     dump('IGNORE 构建产物', ignore)
     dump('WARN 疑似示例值', warn)
+
+    # 被 .gitignore 挡住的敏感文件：不算问题，但要说出来，
+    # 否则「扫描说干净」和「磁盘上躺着 6 个密钥文件」看起来矛盾。
+    if shielded and not a.quiet:
+        by_name = {}
+        for rel, _ln, name, _ev in shielded:
+            by_name.setdefault(name, []).append(rel)
+        print('\n【已挡住】%d 个敏感文件在磁盘上，但 .gitignore 覆盖了，不会进仓库：'
+              % len(shielded))
+        for name, items in by_name.items():
+            print('  %-22s %s%s' % (name[:22], items[0][:46],
+                                    '' if len(items) == 1 else '  (共 %d 处)' % len(items)))
 
     print('\n' + '=' * 68)
     if block:
