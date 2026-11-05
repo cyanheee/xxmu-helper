@@ -2324,9 +2324,8 @@ const AdminUI = (() => {
       tg.onclick = () => toggleRow(r);
       row.appendChild(tg);
       const btn = el('button', 'adm-cp', '详情');
-      /* 把行元素一起传下去：收起详情时要滚回这一行，
-       * 否则用户在长名单里点了第 8 个人，收起来以后还得自己找回位置。 */
-      btn.onclick = () => showDetail(r.id, row);
+      /* v1.1.23：弹 #sheet 半框，不传行元素了（名单不动，无需记来源行）。 */
+      btn.onclick = () => showDetail(r.id);
       row.appendChild(btn);
       box.appendChild(row);
     });
@@ -2334,29 +2333,22 @@ const AdminUI = (() => {
     try { box.scrollTop = keepTop; } catch (e) {}
   }
 
-  /* 详情卡排在名单卡下面，而名单卡自己就占满一屏（#admList 有 max-height:46vh，
-   * 上面还有搜索框和筛选条，下面还有「刷新名单」）。
-   * v1.1.13 及以前这里只把 display 从 none 改成 block —— 卡片确实出现了，
-   * 但落在视口外面，用户看到的就是「点了详情没有任何反应」。
-   * 和课表那个「提示排在 14 行网格下面」是同一类错：内容在，位置不可见。 */
-  let DETAIL_FROM = null;
+  /* v1.1.23：详情从内嵌卡片改成 #sheet 半屏弹窗。
+   * 起因是用户原话「点详情能不能弹一个半框页面显示，而不是加载在上面」——
+   * v1.1.14 那块卡排在名单卡上面，点开后名单被顶到下面一整屏，
+   * 看完还得点「收起」。改用全局 #sheet（和考试详情/作业详情同一个组件）：
+   * 打开只是给 #sheet 加 .on，名单的滚动位置一点都不动，
+   * 关掉（右上角「关闭」/点遮罩）直接回原样，不用再 scrollIntoView 找行。 */
+  let DETAIL_OPEN = false;
 
-  function showDetail(id, fromRow) {
-    const card = $('admDetailCard');
-    const body = $('admDetailBody');
-    if (!card || !body) return;
-    if (fromRow) DETAIL_FROM = fromRow;
-    const firstOpen = card.style.display === 'none';
-    card.style.display = 'block';
-    if ($('admDetailId')) $('admDetailId').textContent = id;
+  function showDetail(id) {
+    const body = $('sh-body');
+    const name = $('sh-name');
+    if (!body || !name) return;
+    DETAIL_OPEN = true;
+    name.textContent = '详情 · ' + id;
     body.innerHTML = '<p class="hint">读取中…</p>';
-    /* 滚到卡片顶部。用 rAF 等一帧：display 刚改完时布局还没算，
-     * 立刻 scrollIntoView 有些机型会滚到旧位置。 */
-    if (firstOpen) {
-      requestAnimationFrame(() => {
-        try { card.scrollIntoView({ behavior: 'smooth', block: 'start' }); } catch (e) { card.scrollIntoView(); }
-      });
-    }
+    document.getElementById('sheet').classList.add('on');
 
     AUTH.Admin.state([id]).then(res => {
       if (!res || !res.ok || !res.rows || !res.rows.length) {
@@ -3250,13 +3242,11 @@ const AdminUI = (() => {
     on('admAuditBtn', loadAudit);
     on('admAddBtn', addAdmin);
     on('admDetailClose', () => {
-      const c = $('admDetailCard');
-      if (c) c.style.display = 'none';
-      /* 收起后回到刚才点「详情」的那一行，不用在长名单里重新找。 */
-      if (DETAIL_FROM) {
-        try { DETAIL_FROM.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
-        DETAIL_FROM = null;
-      }
+      /* v1.1.23：详情改到 #sheet 后没有独立「收起」按钮了（右上角「关闭」
+       * 和点遮罩都走 sheet 自己的 closeSheet），这里保留兼容钩子。
+       * 名单的滚动位置本来就一动没动，不需要再滚回去。 */
+      const sh = document.getElementById('sheet');
+      if (sh && DETAIL_OPEN) { sh.classList.remove('on'); DETAIL_OPEN = false; }
     });
     on('revPhotoRefresh', loadRevPhotos);
     on('revFbRefresh', loadRevFb);

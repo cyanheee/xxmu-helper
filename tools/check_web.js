@@ -434,34 +434,29 @@ const cReOrderFree = syncJs.indexOf('(?=[^>]*padding-bottom:\\s*5px)(?=[^>]*clea
 console.log('  课程块正则顺序无关            =', cReOrderFree);
 if (!cReOrderFree) fail('sync.js 的课程块正则要用两个前瞻断言（padding-bottom 与 clear 各一个），串联写法换个属性顺序就失配');
 
-// ---- v1.1.14：详情卡点了没反应 ----
-/* 详情卡排在名单卡下面，名单卡自己就占满一屏（#admList 有 max-height:46vh，
- * 上面还有搜索框和筛选条）。v1.1.13 及以前只把 display 从 none 改成 block，
- * 卡片出现了但落在视口外面 —— 用户看到的是「点详情没有任何反应」。
- * 和课表那个「提示排在 14 行网格下面」是同一类错：内容在，位置不可见。
- * 所以这一批守两件事：①打开时必须主动滚到卡片；②收起时要能回到刚才那一行。 */
-console.log('\nv1.1.14 checkpoints:');
-has(app, 'function showDetail(id, fromRow)', 'app.js showDetail 接收来源行');
-has(app, 'let DETAIL_FROM = null', 'app.js DETAIL_FROM 记来源行');
-has(app, 'showDetail(r.id, row)', 'app.js 详情按钮把行传下去');
-has(app, "card.scrollIntoView({ behavior: 'smooth', block: 'start' })", 'app.js 打开详情后滚到卡片');
-has(app, 'DETAIL_FROM.scrollIntoView', 'app.js 收起详情后滚回原行');
+// ---- v1.1.23：详情改成 #sheet 半屏弹窗（用户要求） ----
+/* v1.1.14 那版是「内嵌卡片 + scrollIntoView」，用户看了真实效果说
+ * 「点详情能不能弹一个半框页面显示，而不是加载在上面」——卡片把名单
+ * 顶出一整屏的体验不对。现在详情走全局 #sheet（和考试/作业详情同一组件）：
+ * 打开只加 .on，名单滚动位置不动；关闭走 sheet 自己的 closeSheet。
+ * 这一批守的是「别再退回内嵌卡片」：①不能再出现 admDetailCard；
+ * ②showDetail 必须写 sh-name/sh-body 并给 #sheet 加 on。 */
+console.log('\nv1.1.23 checkpoints:');
+const noCard = idx.indexOf('admDetailCard') < 0;
+console.log('  不再有内嵌详情卡              =', noCard);
+if (!noCard) fail('index.html 里还留着 #admDetailCard —— 详情已改成 #sheet，不要退回内嵌卡片');
 
-/* 这条是硬约束：只改 display 不滚动，等于没修。 */
-const detailScrolls = app.indexOf("card.style.display = 'block'") >= 0
-  && app.indexOf('card.scrollIntoView') > app.indexOf('function showDetail(id, fromRow)')
-  && app.indexOf('card.scrollIntoView') - app.indexOf('function showDetail(id, fromRow)') < 1200;
-console.log('  详情卡打开后主动滚动          =', detailScrolls);
-if (!detailScrolls) fail('showDetail 里改完 display 必须紧跟着 scrollIntoView，否则卡片落在视口外面');
-
-/* 位置硬约束：详情卡必须排在名单卡【上面】。
- * 排下面时哪怕加了 scrollIntoView 也还有个坑 —— 名单卡自己 max-height:46vh，
- * 详情卡被推到很远，滚动距离大、手感是「页面猛地跳一下」。 */
-const dCardPos = idx.indexOf('id="admDetailCard"');
-const lCardPos = idx.indexOf('id="admListCnt"');
-const detailBeforeList = dCardPos >= 0 && lCardPos >= 0 && dCardPos < lCardPos;
-console.log('  详情卡排在名单卡之前          =', detailBeforeList);
-if (!detailBeforeList) fail('index.html 的 #admDetailCard 必须排在名单卡之前（排在下面会落在视口外）');
+has(app, 'function showDetail(id)', 'app.js showDetail 改为 sheet 版签名');
+has(app, "name.textContent = '详情 · ' + id", 'app.js 详情标题写进 sh-name');
+has(app, "document.getElementById('sheet').classList.add('on');", 'app.js 打开详情弹 #sheet');
+const detailWritesBody = app.indexOf("const body = $('sh-body');") > 0
+  && app.indexOf('function showDetail(id)') > 0
+  && app.indexOf("const body = $('sh-body');") - app.indexOf('function showDetail(id)') < 600;
+console.log('  详情内容写进 sh-body           =', detailWritesBody);
+if (!detailWritesBody) fail('showDetail 开头必须把 body 指到 #sh-body（sheet 版详情）');
+const noInline = app.indexOf('admDetailCard') < 0 && app.indexOf('admDetailBody') < 0;
+console.log('  app.js 不再引用详情卡          =', noInline);
+if (!noInline) fail('app.js 里还有 admDetailCard/admDetailBody 引用，详情已改走 #sheet');
 
 // ---- v1.1.15：静默失败与资源泄漏（两轮审计剩下的「轻微」项里真会咬人的那批） ----
 /* 这一批的共同点是「出错时界面不说、运行久了才炸」，所以更要静态锚点：

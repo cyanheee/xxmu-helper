@@ -488,15 +488,12 @@
 
       <!-- ========== 名单 ========== -->
       <div class="adm-pane" id="admP-list" style="display:none">
-        <!-- 详情卡故意排在名单卡【上面】：名单卡自己就占满一屏
-             （#admList 有 max-height:46vh，上面还有搜索框和筛选条，下面还有刷新按钮），
-             排在下面时点「详情」卡片确实出现了，但落在视口外面，
-             用户看到的就是「点了没有任何反应」。 -->
-        <div class="card" id="admDetailCard" style="display:none">
-          <div class="card-title"><span class="dot"></span>详情 <span id="admDetailId" class="adm-cnt"></span></div>
-          <div id="admDetailBody"></div>
-          <button id="admDetailClose" class="btn ghost">收起</button>
-        </div>
+        <!-- v1.1.23：详情不再用内嵌卡片（v1.1.14 的方案）。
+             用户原话「点详情能不能弹一个半框页面显示，而不是加载在上面」——
+             顶部那块卡把名单往下顶出一屏，点完还得自己收。
+             改用全局 #sheet 半框（index.html 底部，.sh-box 结构）：
+             showDetail 把标题/内容写进 sh-name / sh-body，收起只是去掉 .on，
+             名单一行都不动。 -->
 
         <div class="card">
           <div class="card-title"><span class="dot"></span>使用名单 <span id="admListCnt" class="adm-cnt"></span></div>
@@ -728,7 +725,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.22</div>
+      <div class="about-ver" id="aboutVer">v1.1.23</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
