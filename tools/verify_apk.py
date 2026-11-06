@@ -89,6 +89,14 @@ NEW_JS_SYMBOLS = {
                           "\\d{6,20}"],
     "assets/app.js": ["kbMismatchAck", "kbMismatchToastShown", "APKDL",
                       "__onApkProgress", "重试下载",
+                      # v1.1.45 管理名单
+                      "function listNewFirst(a, b)", "function looksOddId(id)",
+                      "格式异常（手填）", "LIST.slice().sort(listNewFirst)",
+                      # v1.1.46 检查更新提速
+                      "function checkUpdateOnFirstPaint()",
+                      "requestAnimationFrame(() => window.requestAnimationFrame(fire))",
+                      # v1.1.47 下载 URL 跟着双入口回退走
+                      "AUTH.localizeUrl(rawUrl)",
                       # v1.1.5 作业状态：这一批全是「静默失败」型 bug ——
                       # 解析不到就 status=''，然后被当成「已完成」，不报错不报警。
                       "isDoneStatus", "status_known",
@@ -152,7 +160,9 @@ NEW_JS_SYMBOLS = {
                        # v1.1.7 留言带上 fp，限流不再按 IP（全校共享额度）
                        "fp: f",
                        # v1.1.8 服务器拒绝分档：别把「限流」当成「你被封了」
-                       "const HARD =", "const KEEP =", "photoRaw"],
+                       "const HARD =", "const KEEP =", "photoRaw",
+                       # v1.1.47 双入口回退时下载 URL 归一
+                       "function localizeUrl(url)", "localizeUrl,"],
     "assets/sync.js": ["showable", "bad_weeks",
                        # v1.1.13 解析器两个洞 + 诊断留样
                        "k(\\d)(\\d{1,2})",
@@ -181,7 +191,9 @@ NEW_JS_SYMBOLS = {
                            "Host.openSmsDraft"],
     "assets/app.css": [".rm-mode{", ".rm-mode.on{",
                        # v1.1.42 教程裁切层
-                       ".tut-view{"],
+                       ".tut-view{",
+                       # v1.1.45 名单排序/异常标记
+                       ".adm-odd{", ".adm-at{", ".adm-id-wrap{"],
 }
 
 ok = True

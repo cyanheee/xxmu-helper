@@ -1415,6 +1415,68 @@ if (!fs.existsSync(path.join(root, 'server', 'pages', 'dist', '_headers')))
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
 }
 
+// ---- v1.1.45：管理名单按收录时间从新到老 + 异常学号标记 ----
+console.log('\nv1.1.45 checkpoints（名单排序）:');
+has(worker, 'if (a.at !== b.at) return b.at - a.at', '后端按 at 降序（不是 id 字典序）');
+has(worker, 'return a.id.localeCompare(b.id)', '同 at 按 id 稳定排序');
+has(app, 'function listNewFirst(a, b)', '前端有同款排序函数');
+has(app, 'LIST.slice().sort(listNewFirst)', 'renderList 真的用它排了');
+has(app, 'function looksOddId(id)', '有异常形状判据（只标不拦）');
+has(app, "'adm-odd', '格式异常（手填）'", '异常号在行里标出来');
+has(app, "'adm-at'", '行里显示收录时间');
+has(worker, "return bad('学号格式不对')", '激活判据没被改成拦异常号');
+if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
+  fail('后端名单又退回按学号字典序（12026 会重新霸占第一）');
+}
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_admin_list.js')], { encoding: 'utf8' });
+  console.log('  名单排序行为测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('名单排序行为测试未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
+}
+
+// ---- v1.1.46：更新检查提速 + 发版说明学生视角 ----
+console.log('\nv1.1.46 checkpoints（检查更新 / 说明文案）:');
+has(app, 'function checkUpdateOnFirstPaint()', '启动检查改成立即执行（双 rAF）');
+has(app, 'window.requestAnimationFrame(() => window.requestAnimationFrame(fire))',
+  '用双 rAF 等首屏画完再发，不抢渲染');
+if (/setTimeout\(\(\) => UpdateUI\.check\(true\), 1500\)/.test(app)) {
+  fail('还在固定白等 1500ms 才查更新（用户报「打开好久才弹」的主因）');
+}
+has(app, 'UpdateUI.check(true)', '仍是非阻塞的静默检查');
+has(app, "updNotes').textContent = la.notes", '更新弹窗只显示 latest.notes');
+has(app, "ntcBody').textContent = String(cfg.notice || '')", '公告只读 cfg.notice（与更新说明分离）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'check_notes.js')], { encoding: 'utf8' });
+  console.log('  发版说明学生视角检查  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('发版说明里还有管理员/内部视角的话：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
+// ---- v1.1.47：下载 URL 跟着双入口回退走（v1.1.17 事故没补完的最后一处） ----
+console.log('\nv1.1.47 checkpoints（更新下载入口归一）:');
+has(auth, 'function localizeUrl(url)', 'auth.js 有统一入口归一函数');
+has(auth, 'localizeUrl,', '归一函数真的导出到 AUTH（app.js 才调得到）');
+has(auth, 'if (rest.indexOf(\'/v1/\') !== 0) return s', '只归一 /v1/ 接口，不碰外链与官网静态资源');
+has(auth, 'tail.charAt(0) === \'/\' || tail.charAt(0) === \'?\' || tail.charAt(0) === \'#\'',
+  'HOSTS 前缀比较带边界（形近域名不被当成自己人）');
+has(auth, 's.indexOf(here) === 0', '同入口时原样返回（绝大多数学生零影响）');
+has(app, 'AUTH.localizeUrl(rawUrl)', 'go() 用的是归一后的地址');
+has(app, 'url.indexOf(self) === 0', '前缀判据仍在（?v= 版本化缓存键照样命中）');
+if (/selfApkUrl\(/.test(app)) fail('app.js 里又出现第二套归一实现（逻辑只能放 auth.js 一处）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_download_host.js')], { encoding: 'utf8' });
+  console.log('  下载入口归一行为测试  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('下载入口归一未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

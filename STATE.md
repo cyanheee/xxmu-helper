@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 20:56
+> 生成时间：2026-11-06 22:11
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.43** |
-| AndroidManifest versionCode | **1143** |
-| web/about.js APP_VERSION | 1.1.43 |
-| web/index.html #aboutVer | 1.1.43 |
+| AndroidManifest versionName | **1.1.47** |
+| AndroidManifest versionCode | **1147** |
+| web/about.js APP_VERSION | 1.1.47 |
+| web/index.html #aboutVer | 1.1.47 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.43.apk` |
-| 大小 | 661744 字节 |
-| SHA-256 | `3ccccfed3591249d53f6827da077f89d1b30473da2545a4b878fff2ed21fb230` |
-| 出包时间 | 2026-11-06 19:42 |
-| 包内版本（aapt2） | 1.1.43 / 1143 |
+| 文件 | `apk/xxmu-helper-v1.1.47.apk` |
+| 大小 | 665840 字节 |
+| SHA-256 | `96cfdfb498a27665bc50a9f9223f46fce3020d85f102343f1e8cca37e3e19d2b` |
+| 出包时间 | 2026-11-06 22:06 |
+| 包内版本（aapt2） | 1.1.47 / 1147 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -46,39 +46,29 @@
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
+> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
+
+> 本地已到 **1.1.47**，线上还是 **1.1.43** —— 新版本**还没发**。
+> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `f758dad` |
+| 分支 | main @ `ff7f2b5` |
 | origin/main | `30caf86` |
-| 领先远程 | 16 个提交 |
-| 未提交改动 | 8 个文件 |
+| 领先远程 | 23 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
-f758dad docs: STATE 终态（线上 1.1.43）
-738fdee docs: 上线终态 STATE（线上 1.1.43 / 与远程内容一致）
-f526676 chore: 上线后重新生成 STATE（线上 1.1.43 / 领先 0）+ 完整 tree 对齐工具
-3b70f93 release: v1.1.43 (code 1143)
-468ed2d chore: 图标回滚备份不进公开仓库（磁盘保留）
-ac9a231 docs: 提交后重新生成 STATE（本地 1.1.43 / 线上 1.1.38）
-```
-
-未提交：
-
-```
-M docs/handoff/changelog.md
- M server/pages/dist/_worker.js
- M server/worker.js
- M tools/check_web.js
- M tools/publish_apk.py
- M tools/set_latest.py
-?? server/pages/dist/_headers
-?? tools/test_apk_cache.js
+ff7f2b5 docs: 提交后重新生成 STATE（本地 1.1.47 / 线上 1.1.43）
+8dd647e fix(update): v1.1.47 下载URL跟着双入口回退走 + 学生视角说明/教程/文档
+4e13f0b docs: 提交后重新生成 STATE（本地 1.1.46 / 线上 1.1.43）
+308abf1 perf(update): v1.1.46 检查更新去掉 1.5s 白等 + 更新说明只写学生视角（线上 notes 已热更）
+a493af8 docs: 提交后重新生成 STATE（本地 1.1.45 / 线上 1.1.43）
+6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
 ```
 
 ## 5. 常用命令（复制即用）
@@ -125,6 +115,10 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **v1.1.40 独立设置页四条（真机）**：①「我的」点设置能否进二级页…
 - [ ] **v1.1.41 课程提醒三档五条（真机）**：①学习页 → 课程提醒 → 设置…
 - [ ] **v1.1.42 教程排版四条（真机）**：①重看「我的 → 使用教程」，逐页翻到第 5 页…
+- [ ] **v1.1.45 管理名单三条（真机）**：①名单是否按收录时间从新到老…
+- [ ] **v1.1.47 下载入口归一（真机，优先级最高）**：①在一台校园网 DNS…
+- [ ] **v1.1.46 检查更新提速（真机）**：①从点图标到更新弹窗出现…
+- [ ] **等用户点头才做**：收紧学号准入（只收 11 位、20xx 年份开头）。
 
 ### 三、可以做（纯本地，不需要任何外部条件）
 - [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍…

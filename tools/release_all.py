@@ -274,6 +274,17 @@ def main():
             '改 docs/handoff/tutorial-contract.json 与 web/tut.js 后重跑')
     print('  教程契约检查通过')
 
+    # ---------- 1c. 发版说明必须只有学生视角（v1.1.46） ----------
+    # 用户原话「更新公告我说了，不要显示管理员需要注意的事项」。
+    # notes 会同时进 KV 的 cfg.latest.notes（更新弹窗）和 GitHub Release 正文，
+    # 混进「只留了本地包 / 没验到 / 截图发我 / 线上仍是」就直接发不出去。
+    step(1, total, '预检：发版说明只有学生视角')
+    ok, out = sh([node, 'tools/check_notes.js', '--file', os.path.relpath(nfp, ROOT)], check=False)
+    if not ok:
+        print(out.strip()[-800:])
+        die('发版说明里还有管理员/内部视角的话，改完 apk/vX.Y.Z.notes.txt 再发')
+    print('  发版说明学生视角检查通过')
+
     # ★ 必须在切 KV **之前**抓旧版本号：第 2 步一发布，/v1/config 就返回新版，
     #   第 4 步再读线上会得到 == apk['ver']，README 徽章就漏替换了。
     prev_ver = old_version()

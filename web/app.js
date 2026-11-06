@@ -2434,10 +2434,37 @@ const AdminUI = (() => {
     });
   }
 
+  /* v1.1.45：和后端 handleList 同一套判据（新收录从新到老）。
+   * 前端再排一次是为了兼容还没更新的服务端 / 缓存里的旧响应；
+   * at=0（老记录没时间）统一垫底，at 相同按 id 保持稳定。 */
+  function listNewFirst(a, b) {
+    const x = Number(a && a.at) || 0, y = Number(b && b.at) || 0;
+    if (x !== y) return y - x;
+    return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+  }
+  /* 学号形状判据：本校在册学号是 11 位、以 2025/2026 这类年份开头。
+   * 只用来在名单里「标出来给人看」，**不拦、不改、不删数据** —— 激活接口
+   * 只要求 6~20 位纯数字，服务端历史上就收过 12 位 1 开头的手填号，
+   * 那是真实用户填进来的，管理员需要看见它、而不是被系统悄悄吞掉。 */
+  function looksOddId(id) {
+    const s = String(id || '');
+    return s.length !== 11 || !/^20\d{2}/.test(s);
+  }
+  function fmtAt(at) {
+    const n = Number(at) || 0;
+    if (n <= 0) return '';
+    try {
+      const d = new Date(n * 1000);
+      const p = x => String(x).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+        + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    } catch (e) { return ''; }
+  }
+
   function renderList() {
     const box = $('admList');
     if (!box) return;
-    let rows = LIST;
+    let rows = LIST.slice().sort(listNewFirst);
     if (FILTER === 'granted') rows = rows.filter(r => !r.revoked);
     if (FILTER === 'revoked') rows = rows.filter(r => r.revoked);
     if (FIND) rows = rows.filter(r => r.id.indexOf(FIND) >= 0);
@@ -2457,10 +2484,18 @@ const AdminUI = (() => {
     }
     rows.forEach(r => {
       const row = el('div', 'adm-item');
-      const id = el('span', 'adm-id', r.id);
-      row.appendChild(id);
+      const idWrap = el('div', 'adm-id-wrap');
+      idWrap.appendChild(el('span', 'adm-id', r.id));
+      const when = fmtAt(r.at);
+      if (when) idWrap.appendChild(el('span', 'adm-at', when));
+      else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
+      row.appendChild(idWrap);
       const tags = el('span', 'adm-tags');
       tags.appendChild(el('span', r.revoked ? 'adm-bad' : 'adm-ok', r.revoked ? '已停用' : '正常'));
+      /* 形状异常的号只标出来，说明为什么它跟别人不一样，不做任何拦截 */
+      if (looksOddId(r.id)) {
+        tags.appendChild(el('span', 'adm-odd', '格式异常（手填）'));
+      }
       if (r.note) tags.appendChild(el('span', 'adm-note', r.note));
       row.appendChild(tags);
       /* 每行一个开关：正常→停用，已停用→解封。
@@ -4533,7 +4568,13 @@ const UpdateUI = (() => {
   }
 
   function go() {
-    const url = (cfg && cfg.latest && cfg.latest.url) || '';
+    /* 服务端写死的绝对 URL 必须对齐到「这台手机当前真正能连上的入口」（v1.1.47）。
+     * 校园网 DNS 没刷到 www 的学生，fetchAny 已经退到 pages.dev，
+     * 但 cfg.latest.url 仍是 www —— 不做这一步，下面的 isSelf 判据永远 false，
+     * 于是甩给系统浏览器打开一个解析不了的地址，App 内下载/校验/安装器全丢。 */
+    const rawUrl = (cfg && cfg.latest && cfg.latest.url) || '';
+    const url = (typeof AUTH !== 'undefined' && AUTH.localizeUrl)
+      ? AUTH.localizeUrl(rawUrl) : rawUrl;
     if (!url) {
       const q = qq();
       if (q) {
@@ -4553,7 +4594,9 @@ const UpdateUI = (() => {
 
     /* 自己托管的包（/v1/apk）走 App 内下载 + 拉起安装器：
      * 用户不用去文件管理器里再点一遍，也躲开了国产浏览器把 apk 拦成
-     * 「风险文件」的问题。别的外链（网盘、QQ 群文件）仍然交给浏览器。 */
+     * 「风险文件」的问题。别的外链（网盘、QQ 群文件）仍然交给浏览器。
+     * v1.1.47：url 已在开头经 AUTH.localizeUrl 归一到「这台手机当前能连上的
+     * 入口」，所以这里的前缀判据在回退到 pages.dev 的机器上同样成立。 */
     const self = (typeof AUTH !== 'undefined' && AUTH.BASE) ? (AUTH.BASE + '/v1/apk') : '';
     const isSelf = self && url.indexOf(self) === 0;
     if (isSelf && typeof APKDL !== 'undefined' && APKDL.canUse()) {
@@ -4817,5 +4860,25 @@ if (typeof Disc !== 'undefined') Disc.init();
 if (typeof Tut !== 'undefined') Tut.init();
 UpdateUI.init();
 Gate.init();
-// 启动后延迟拉一次版本配置：不抢首屏，也不影响课表渲染
-setTimeout(() => UpdateUI.check(true), 1500);
+/* v1.1.46：启动后立刻查版本，不再固定白等 1500ms。
+ *
+ * 用户原话「启动软件检查更新能不能快一点，现在有点慢，感觉打开了好久才弹要更新」。
+ * 实测 /v1/config 的 TTFB 是 0.8~1.4s（双跳 + 首次 TLS），而原来还要先睡
+ * 1500ms 才发请求 —— 学生感知的「好久」里有一大半是这 1.5 秒纯等待，
+ * 跟网络一点关系都没有。
+ *
+ * 现在用双 rAF：第一帧让浏览器把首屏画出来，第二帧就发请求（约 32ms）。
+ * 为什么不用 0ms：同步塞进启动段会和 load()/各模块 init 抢主线程，
+ * 首屏反而更慢；双 rAF 是「不抢首屏」和「不白等」的折中。
+ * 为什么不用 setTimeout(0)：那只是排到任务队列尾部，仍可能挤在首屏绘制前。
+ *
+ * 双保险：极老的 WebView 没有 rAF 时退回 60ms 定时器；
+ * 请求是异步桥发出的，不阻塞 JS 线程，课表同步等初始化照常并行进行。 */
+(function checkUpdateOnFirstPaint() {
+  const fire = () => { setTimeout(() => UpdateUI.check(true), 0); };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(fire));
+  } else {
+    setTimeout(fire, 60);
+  }
+})();

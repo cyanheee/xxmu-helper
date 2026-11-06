@@ -1327,7 +1327,20 @@ async function handleList(env) {
     id: e.id, at: e.at || 0, note: e.note || '',
     revoked: rev.has(e.id),
   }));
-  rows.sort((a, b) => a.id.localeCompare(b.id));
+  /* v1.1.45：名单按「新收录」从新到老（用户原话「按照新收录的学号排序，从新到老」）。
+   *
+   * 以前按 id.localeCompare 排，结果是字符串字典序：12 位、1 开头的
+   * 120261200112 永远排在最上面，看着像最新收录，其实它只是「1 最小」。
+   * idx 每条本来就带 at（第一次进来的时刻，idxApply 写入），按它降序才是
+   * 管理员想看的时间顺序。
+   *
+   * 两条兜底：①早期记录 at=0（开卡时代遗留、没有时间）——统一垫底，
+   *   再按 id 升序保持稳定，绝不因为缺字段就跳到最前面；
+   * ②at 相等时按 id 升序，避免刷新一次顺序变一次。 */
+  rows.sort((a, b) => {
+    if (a.at !== b.at) return b.at - a.at;
+    return a.id.localeCompare(b.id);
+  });
   return json({ ok: true, count: rows.length, revokedCount: rev.size, rows: rows });
 }
 
