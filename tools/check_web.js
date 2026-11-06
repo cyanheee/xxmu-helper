@@ -1311,7 +1311,24 @@ for (let i = 1; i <= 6; i++) {
   const pre = String(i).padStart(2, '0') + '_';
   if (!fs.readdirSync(iconDir).some(n => n.startsWith(pre))) fail('缺第 ' + i + ' 套图标方案目录');
 }
-
+/* v1.1.43：用户选了 F（6 号 夜空河字）。CURRENT.txt 必须存在且指向它，
+ * android/res 里 5 档密度都要在，且与 design/icons 里那份逐字节一致。
+ * 只验「文件存在」不够 —— 换了方案忘了跑 build 就会包里还是旧图标。 */
+console.log('\nv1.1.43 checkpoints（当前图标方案 F）:');
+const curIcon = fs.existsSync(path.join(iconDir, 'CURRENT.txt'))
+  ? read('design/icons/CURRENT.txt') : '';
+has(curIcon, '06_夜空河字', 'CURRENT.txt 声明当前用的是 F 号（夜空河字）');
+[['mipmap-mdpi', 48], ['mipmap-hdpi', 72], ['mipmap-xhdpi', 96],
+ ['mipmap-xxhdpi', 144], ['mipmap-xxxhdpi', 192]].forEach(pair => {
+  const rp = 'android/res/' + pair[0] + '/ic_launcher.png';
+  const sp = 'design/icons/06_夜空河字/launcher-' + pair[1] + '.png';
+  if (!fs.existsSync(path.join(root, rp))) { fail('缺 ' + rp); return; }
+  const a = fs.readFileSync(path.join(root, rp));
+  const b = fs.readFileSync(path.join(root, sp));
+  if (Buffer.compare(a, b) !== 0) fail(rp + ' 与 F 号源图不一致（换完方案没同步？）');
+});
+console.log('  5 档密度与 F 号源图逐字节一致 = true');
+has(read('tools/verify_apk.py'), 'def check_launcher(apk)', 'verify_apk 有图标逐像素校验');
 // ---- v1.1.41：课程提醒方式三档（响铃 / 静默 / 短信草稿）----
 /* 用户原话「不一定非要是闹钟，可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
  * 四端都要在：前端三档状态机、build() 带 mode、Java 双 channel、

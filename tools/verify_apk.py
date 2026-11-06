@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""出包后四件套校验（v1.1.2 起）。
+"""出包后五件套校验（v1.1.2 起，v1.1.43 加图标逐像素）。
 
     python tools/verify_apk.py [apk 路径]
 
 不给路径时自动挑 apk/ 下版本号最大的那个包，期望的 versionCode/versionName
 从 android/AndroidManifest.xml 里读 —— 免得每次发版都回来手改这个脚本。
 
-四件：
   1. assets/ 15 个文件与 web/ 逐字节一致（打包最容易静默出错的一环：
      sync_assets 扫目录复制，漏一个就是白屏或功能凭空消失）
   2. classes.dex 里能搜到本版新增的符号（证明改的是代码不是注释）
   3. aapt2 badging：包名 / versionCode / versionName / label 全对
   4. apksigner 证书 SHA-256 与上一版一致（不一致 = 老用户装不上，只能卸载重装）
+  5. v1.1.43 起：5 档 launcher 图标与选定方案**逐像素**一致
+     （aapt2 会 crunch PNG，zip 条目字节必然不同，只能比像素）
 
 任一项不过就 exit 1，可以直接挂到发布流程里。
 """
@@ -294,6 +295,57 @@ PAGES_SYMBOLS = [
 ]
 
 
+def check_launcher(apk):
+    """v1.1.43：出包后确认 5 档 launcher 图标真的换成了选定方案。
+
+    为什么不能只比 zip 条目字节：aapt2 会对 PNG 做 crunch（重新压缩），
+    包内字节与源 PNG 必然不同，逐字节比会误报。判内容要**逐像素**。
+    为什么不能只验「文件存在」：v1.1.15 那次「有包、有版本号，学生永远
+    升不完」就是只验存在；这里还要跟磁盘上 design/icons/CURRENT.txt
+    声明的方案对上，并且跟上一版 APK 的图标真的不同。
+    """
+    print("[5] launcher 图标（逐像素）")
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        print("    跳过（没装 Pillow）")
+        return
+    import io
+    cur = os.path.join(ROOT, "design", "icons", "CURRENT.txt")
+    if not os.path.exists(cur):
+        print("    跳过（还没选定图标方案）")
+        return
+    m = re.search(r"(\d{2}_[^\s]+)", io.open(cur, encoding="utf-8").read())
+    if not m:
+        fail("CURRENT.txt 里读不出方案目录名")
+        return
+    folder = os.path.join(ROOT, "design", "icons", m.group(1))
+    densities = [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96),
+                 ("xxhdpi", 144), ("xxxhdpi", 192)]
+    with zipfile.ZipFile(apk) as z:
+        names = z.namelist()
+        for d, n in densities:
+            key = "mipmap-%s-v4/ic_launcher.png" % d
+            hit = [x for x in names if x.endswith(key)]
+            if not hit:
+                fail("APK 里缺 " + key)
+                continue
+            got = Image.open(io.BytesIO(z.read(hit[0]))).convert("RGBA")
+            src_path = os.path.join(folder, "launcher-%d.png" % n)
+            if not os.path.exists(src_path):
+                fail("方案目录缺 launcher-%d.png" % n)
+                continue
+            want = Image.open(src_path).convert("RGBA")
+            if got.size != want.size:
+                fail("%s 尺寸不对（包内 %s / 源 %s）" % (d, got.size, want.size))
+                continue
+            bbox = ImageChops.difference(got, want).getbbox()
+            if bbox is not None:
+                fail("%s 像素与选定方案不一致（crunch 之外还改了内容）" % d)
+            else:
+                print("    OK %-9s %s 与 %s 逐像素一致" % (d, got.size, m.group(1)))
+
+
 def check_worker():
     """服务端代码不在 APK 里，但它们是同一个发布批次的一部分。
 
@@ -301,7 +353,7 @@ def check_worker():
     新接口，线上跑的还是老代码，报错全是 404，看代码怎么看都是对的。
     这里把 worker.js 的锚点也钉住，出包时顺手确认它已经改到位。
     """
-    print("[5] worker.js / pages 代理锚点")
+    print("[6] worker.js / pages 代理锚点")
     wp = os.path.join(ROOT, "server", "worker.js")
     txt = open(wp, encoding="utf-8").read()
     for s in WORKER_SYMBOLS:
@@ -380,10 +432,12 @@ def main():
     print()
     check_cert(apk)
     print()
+    check_launcher(apk)
+    print()
     check_worker()
     print()
     if ok:
-        print("[PASS] 四件套全部通过")
+        print("[PASS] 五件套全部通过")
         return 0
     print("[FAIL] 有检查项未通过，不要发这个包")
     return 1
