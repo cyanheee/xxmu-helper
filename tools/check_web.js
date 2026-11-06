@@ -1477,6 +1477,24 @@ if (/selfApkUrl\(/.test(app)) fail('app.js 里又出现第二套归一实现（�
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
 }
 
+// ---- v1.1.48：管理台时间全显示成 1/22（秒被当毫秒解析） ----
+console.log('\nv1.1.48 checkpoints（管理台时间单位）:');
+has(worker, 'function now() { return Math.floor(Date.now() / 1000); }',
+  'worker.js 的 now() 仍是秒级时间戳');
+has(app, 'const ms = ts < 1e11 ? ts * 1000 : ts', 'fmtDay 自己判单位（秒 / 毫秒都吃）');
+if (/fmtDay\([^)]*\*\s*1000\)/.test(
+  app.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, ''))) {
+  fail('还有调用点写 fmtDay(x * 1000)：fmtDay 已判单位，再乘就是毫秒的毫秒');
+}
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_admin_time.js')], { encoding: 'utf8' });
+  console.log('  管理台时间显示行为测试  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('管理台时间显示未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

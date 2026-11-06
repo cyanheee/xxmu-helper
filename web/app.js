@@ -2240,7 +2240,14 @@ const AdminUI = (() => {
 
   function fmtDay(ts) {
     if (!ts) return '--';
-    const d = new Date(ts);
+    /* 后台 now() 返回的是**秒**（worker.js: Math.floor(Date.now()/1000)），
+     * 而这里曾经直接 new Date(ts) 按**毫秒**解析 → 2026-11-06 的秒级时间戳
+     * 被当成毫秒，落在 1970-01-22，管理台显示成「1/22 02:17」。
+     * 同一批调用点里还有一处已经乘了 1000（版本发布那条），两种单位都传得进来。
+     * 所以按量级自判：< 1e11 当秒（≈1973 年前，业务数据不可能早于此），
+     * 否则当毫秒。调用方不必再记「要不要乘 1000」。 */
+    const ms = ts < 1e11 ? ts * 1000 : ts;
+    const d = new Date(ms);
     const p = n => (n < 10 ? '0' + n : String(n));
     return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
   }
@@ -3660,7 +3667,10 @@ const AdminUI = (() => {
       if (!f.read) top.appendChild(el('span', 'rev-badge', '未读'));
       top.appendChild(el('span', 'rev-badge', f.kind || '其它'));
       if (f.id) top.appendChild(el('span', 'rev-sub', '学号 ' + String(f.id).slice(-4)));
-      if (f.at) top.appendChild(el('span', 'rev-sub', fmtDay(f.at * 1000)));
+      /* 不再乘 1000：fmtDay 自己判单位（秒/毫秒都吃）。
+       * 这里以前写 fmtDay(f.at * 1000)，一旦哪天上游改成毫秒就会变成
+       * 「毫秒的毫秒」算到几万年后。 */
+      if (f.at) top.appendChild(el('span', 'rev-sub', fmtDay(f.at)));
       c.appendChild(top);
 
       if (f.gone) {
