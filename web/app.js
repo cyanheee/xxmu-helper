@@ -600,6 +600,8 @@ const HW_COLORS = {
   '已完成': '#34a853', '已过期': '#b0b0b0', '已结束': '#b0b0b0',
   '状态未知': '#9aa0a6',
 };
+/* v1.1.24：EXAM_OPEN 已废弃（历史上用于考试 open 判断，现在全走
+ * CX.classify 的 notstart 类）。留着仅供外部调试参考，不再参与任何判断。 */
 const EXAM_OPEN = ['未开始', '待做', '进行中', '待考'];
 
 /** 这条是不是「真的已经不用做了」（区别于「状态没读到」） */
@@ -759,18 +761,10 @@ function renderHomework() {
      * 手上那份 JSON 是上一版抓的，没有这个键。 */
     const known = (typeof w.status_known === 'boolean')
       ? w.status_known : !!String(w.status || '').trim();
-    /* ---- v1.1.5：读不到状态 ≠ 已完成 ----
-     *
-     * 用户报障：「内脏学压根没交却显示已完成」。截图里那些卡片角标全是「—」，
-     * 说明 status 是空的；而旧代码只写 `w._open = k === 'open'`，
-     * 空状态经 classify 变成 'unknown'，`unknown === 'open'` 为假，
-     * 于是「解析失败」被渲染成了「你作业做完了」，还折叠进「已完成」组里。
-     *
-     * 现在读不到状态就按截止时间判：没到期仍然算要做。
-     * 两个方向都可能判错，代价差很远——判成待做最多多点开看一眼，
-     * 判成已完成会让人直接错过截止，不可逆。拿不准就站「还得做」这边。 */
+    /* v1.1.24：notstart（未开始）单独一类，open=false，
+     * 渲染时单独列「未开始」组，不混进「待完成」。 */
     if (k === 'open') w._open = true;
-    else if (k === 'done') w._open = false;
+    else if (k === 'done' || k === 'notstart') w._open = false;
     else w._open = (left == null || left > 0);
     /* 角标文字：状态读到了就照原样显示（学习通写什么就显示什么），
      * 读不到就明说「状态未知」。绝不印「—」，更不印「已过期」——
@@ -781,7 +775,7 @@ function renderHomework() {
     items.push({
       kind: 'work', raw: w, course: clean(w.course) || '未标注课程',
       name: w.name || '(未命名作业)', status: shown,
-      open: w._open, left: left,
+      open: w._open, notStart: k === 'notstart', left: left,
     });
   }
 
@@ -803,8 +797,11 @@ function renderHomework() {
     /* 考试同理，并且多一条硬事实：**还没到开考时间，就不可能是「已完成」**。
      * 用户报「有的考试是未开始却也显示已完成」，那要么是状态读错了，
      * 要么是分块错位把上一场的状态安到了这一场上——不管哪种，
-     * 开考时间没到就以时间为准，这条不依赖任何解析结果。 */
-    if (upcoming) e._open = true;
+     * 开考时间没到就以时间为准，这条不依赖任何解析结果。
+     * v1.1.24：notstart（未开始）与 upcoming（还没到开考时间）都单独列
+     * 「未开始」组，不再混进「待完成」。 */
+    const notStarted = upcoming || ke === 'notstart';
+    if (notStarted) e._open = false;
     else if (ke === 'open') e._open = true;
     else if (ke === 'done') e._open = false;
     else e._open = (due == null || due > now);
@@ -815,7 +812,8 @@ function renderHomework() {
     items.push({
       kind: 'exam', raw: e, course: clean(e.course) || '未标注课程',
       name: e.name || '(未命名考试)', status: shownE,
-      open: e._open, left: due != null ? (due - now) / 3600 : null,
+      open: e._open, notStart: notStarted,
+      left: due != null ? (due - now) / 3600 : null,
       leftStart: e._leftStart,
     });
   }
@@ -917,19 +915,25 @@ function renderHomework() {
        * 不能整体 byDue —— 已完成/已过期的 left 是负数或很小，会全跑到
        * 最上面去，看起来像「这门课的活都干完了」。 */
       const list = groups.get(course).slice().sort((a, b) => {
-        if (a.open !== b.open) return a.open ? -1 : 1;
+        /* v1.1.28：待做排最前（先看到要动的），未开始其次，已完成沉底 */
+        const ra = x => x.open ? 0 : (x.notStart ? 1 : 2);
+        if (ra(a) !== ra(b)) return ra(a) - ra(b);
         const av = a.left == null ? Infinity : a.left;
         const bv = b.left == null ? Infinity : b.left;
         return av - bv;
       });
       const todo = list.filter(x => x.open).length;
-      const unk = list.filter(x => !x.open && !isDoneStatus(x.status)).length;
+      const ns = list.filter(x => !x.open && x.notStart).length;
+      const unk = list.filter(x => !x.open && !x.notStart && !isDoneStatus(x.status)).length;
       const head = el('div', 'grp-head', course);
       /* 组头也不能说「全部完成」而里面躺着状态没读到的条目——
        * 同样是「拿我们的解析失败冒充他的进度」。 */
-      head.appendChild(el('span', '', todo
-        ? todo + ' 项未完成 · 共 ' + list.length
-        : (unk ? '未完成情况不明 · 共 ' + list.length : '全部完成 · 共 ' + list.length)));
+      const parts = [];
+      if (ns) parts.push(ns + ' 项未开始');
+      if (todo) parts.push(todo + ' 项未完成');
+      if (unk) parts.push('情况不明 ' + unk + ' 项');
+      head.appendChild(el('span', '',
+        parts.length ? parts.join(' · ') + ' · 共 ' + list.length : '全部完成 · 共 ' + list.length));
       box.appendChild(head);
       const wrap = el('div');
       list.forEach(x => wrap.appendChild(cardOf(x)));
@@ -944,8 +948,13 @@ function renderHomework() {
      *   已完成   = 学习通明确说了做完了（已完成/已提交/待批阅…）
      *   状态未知 = 状态没读到，且已过截止时间（既不能算待做，也不能算做完）
      */
+    /* v1.1.28：「未开始」组从最前挪到「待完成」之后——用户看着页面时，
+     * 眼睛先要看到「现在就得做」的东西（待完成），「还没开放」的排后面，
+     * 它反正做不了，放最前只会把真正紧急的往下挤。 */
+    const notstart = pool.filter(x => !x.open && x.notStart)
+      .sort(byDue);
     const open = pool.filter(x => x.open).sort(byDue);
-    const closed = pool.filter(x => !x.open);
+    const closed = pool.filter(x => !x.open && !x.notStart);
     const done = closed.filter(x => isDoneStatus(x.status))
       .sort((a, b) => (b.left ?? -1e9) - (a.left ?? -1e9));
     const unknown = closed.filter(x => !isDoneStatus(x.status))
@@ -955,6 +964,12 @@ function renderHomework() {
       box.appendChild(el('div', 'hwsec', '待完成 · ' + open.length));
       const wrap = el('div');
       open.forEach(x => wrap.appendChild(cardOf(x)));
+      box.appendChild(wrap);
+    }
+    if (notstart.length) {
+      box.appendChild(el('div', 'hwsec', '未开始 · ' + notstart.length));
+      const wrap = el('div');
+      notstart.forEach(x => wrap.appendChild(cardOf(x)));
       box.appendChild(wrap);
     }
     if (done.length) {
@@ -1012,6 +1027,15 @@ function cardOf(x) {
       else lf.classList.add('gray');
       meta.appendChild(lf);
     }
+  } else if (x.notStart) {
+    /* 未开始的条目也要能看到时间：考试显示距开考，作业照常显示 */
+    let txt = '';
+    if (x.kind === 'exam' && x.leftStart != null && x.leftStart > 0) {
+      txt = '距开考 ' + fmtLeft(x.leftStart);
+    } else if (x.left != null) {
+      txt = fmtLeft(x.left);
+    }
+    if (txt) meta.appendChild(el('span', 'hwleft gray', txt));
   }
   if (x.kind === 'exam' && x.raw.score) {
     meta.appendChild(el('span', 'hwleft', x.raw.score + ' 分'));
@@ -1391,6 +1415,10 @@ function load() {
   renderWeek();
 
   renderHomework();
+
+  /* 课表读完（含外部/缓存/SCHEDULE 兜底）后，把课程提醒按最新课表重挂一次。
+   * load() 会被反复调用（刷新/换课表/改学期），每次都要重挂，否则提醒还停在上一次课表。 */
+  if (typeof REMINDER !== 'undefined') REMINDER.refresh();
 }
 
 function refreshAll(silent) {
@@ -1897,11 +1925,74 @@ function switchTab(name) {
 function closeSheet() {
   const s = document.getElementById('sheet');
   if (s) s.classList.remove('on');
+  parkTools();          // v1.1.28：半框关了，把住进来的卡搬回停车场
+  // 清掉 sh-body 里残留的表单/设置内容（「+ 加一条」「设置」等）
+  const body = document.getElementById('sh-body');
+  if (body) body.innerHTML = '';
 }
 
 function sheetOpen() {
   const s = document.getElementById('sheet');
   return !!(s && s.classList.contains('on'));
+}
+
+/* ---- v1.1.28：待办/番茄钟「停车场」----
+ * 两张卡平时住 #toolPark（display:none），点头部小按钮时整卡搬进
+ * #sheet 的 .sh-box，关闭搬回来。DOM 常驻所以 MYTODO/FOCUS 的
+ * render/paint 照旧按 id 找，感知不到自己被搬过。
+ * 为什么用「搬」而不是复制：复制会有两份同 id DOM，两边的状态
+ * （勾选框、计时大字）会各自演化，最后一定不同步。 */
+const TOOL_PARK = { card: null };   // 当前住进半框的卡
+
+function parkTools() {
+  const park = document.getElementById('toolPark');
+  if (TOOL_PARK.card && park) {
+    // 保持原相对顺序：待办在前、番茄钟在后
+    const fc = document.getElementById('focusCard');
+    if (TOOL_PARK.card === fc && fc) park.appendChild(fc);
+    else if (fc) park.insertBefore(TOOL_PARK.card, fc);
+    else park.appendChild(TOOL_PARK.card);
+    TOOL_PARK.card = null;
+  }
+  // 卡片回停车场后，清掉 sh-body 里残留的表单/设置内容（如果有）
+  const body = document.getElementById('sh-body');
+  if (body && !TOOL_PARK.card) body.innerHTML = '';
+}
+
+/* 打开卡片承载的半框之前，先把任何还留在 sh-body 里的表单清掉，
+ * 再把目标卡搬进 .sh-box。卡片与表单不能同时在 .sh-box 里叠着。 */
+function openToolCard(id) {
+  const card = document.getElementById(id);
+  const sheet = document.getElementById('sheet');
+  const box = sheet && sheet.querySelector('.sh-box');
+  if (!card || !box) return;
+  // 已有别的卡住着：先请回停车场，一次只住一张
+  if (TOOL_PARK.card && TOOL_PARK.card !== card) parkTools();
+  const body = document.getElementById('sh-body');
+  if (body) body.innerHTML = '';
+  TOOL_PARK.card = card;
+  card.style.display = '';
+  box.appendChild(card);
+  const name = id === 'myTodoCard' ? '我的待办' : '专注计时';
+  const nm = document.getElementById('sh-name');
+  if (nm) nm.textContent = name;
+  sheet.classList.add('on');
+  if (id === 'myTodoCard' && typeof MYTODO !== 'undefined') MYTODO.render();
+  if (id === 'focusCard' && typeof FOCUS !== 'undefined') FOCUS.paint();
+}
+
+/* 顶部小按钮的状态字：待办条数 + 计时当前值 */
+function paintToolEntries() {
+  const tc = document.getElementById('todoEntryCnt');
+  if (tc && typeof MYTODO !== 'undefined') {
+    const v = MYTODO.forView(MYTODO.list());
+    tc.textContent = v.openCount ? String(v.openCount) : '0';
+    tc.parentElement && (tc.parentElement.style.color = v.overdue ? 'var(--danger)' : '');
+  }
+  const fs = document.getElementById('focusEntryState');
+  if (fs && typeof FOCUS !== 'undefined') {
+    fs.textContent = FOCUS.fmt(FOCUS.remain(FOCUS.load()));
+  }
 }
 
 window.__onBack = function () {
@@ -4645,6 +4736,24 @@ CampusUI.refresh();
 AdminUI.init();
 CxUI.init();
 if (typeof MYTODO !== 'undefined') MYTODO.init();
+if (typeof FOCUS !== 'undefined') FOCUS.init();
+if (typeof REMINDER !== 'undefined') REMINDER.init();
+if (typeof ELEC !== 'undefined') ELEC.init();
+/* v1.1.28：待办/番茄钟入口小按钮 + 入口状态字 */
+(function bindToolEntries() {
+  const t = document.getElementById('todoEntry');
+  if (t) t.onclick = () => openToolCard('myTodoCard');
+  const f = document.getElementById('focusEntry');
+  if (f) f.onclick = () => openToolCard('focusCard');
+  paintToolEntries();
+  // 计时进行中时每秒刷入口小字；没在跑不占定时器
+  setInterval(() => {
+    if (typeof FOCUS !== 'undefined' && FOCUS.load && document.getElementById('focusEntryState')) {
+      paintToolEntries();
+    }
+  }, 1000);
+})();
+
 Onboard.init();
 if (typeof Disc !== 'undefined') Disc.init();
 if (typeof Tut !== 'undefined') Tut.init();

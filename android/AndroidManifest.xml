@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.xxmu.helper"
-    android:versionCode="1123"
-    android:versionName="1.1.23">
+    android:versionCode="1137"
+    android:versionName="1.1.37">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -18,6 +18,27 @@
          ActivityNotFoundException，现象是点了「下载」什么都没发生。 -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- v1.1.35：课程提醒的三个致命缺口（v1.1.27 起就是个死功能）。
+         ①POST_NOTIFICATIONS：Android 13+ 发通知必须声明+运行时授权。
+           之前 MainActivity.canNotify()/requestNotifyPermission() 里查的、
+           请求的都是这个权限，但 manifest 里根本声明——未声明的权限去
+           requestPermissions() 会被系统当场拒掉且不弹框，canNotify() 永远
+           false，用户看到的是「点了没反应」。
+         ②SCHEDULE_EXACT_ALARM：Android 12+ setExactAndAllowWhileIdle 需要
+           这个权限（安装即授予，但用户能在「特殊应用权限」里关掉，关掉后
+           调用抛 SecurityException）。Java 侧已加 setAndAllowWhileIdle 兜底，
+           牺牲准点也不让整批闹钟一条都挂不上。
+         ③下面 <application> 里的 <receiver>：之前 ReminderReceiver.java 写
+           得完整、MainActivity 也正确构造了 PendingIntent，但入口没有在
+           manifest 注册——广播到点无人接收，通知永远不出现。这是「文件生成了
+           ≠ 文件对」的典型：JS 静态体检全 PASS，链路在 manifest 处断掉。 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- ④RECEIVE_BOOT_COMPLETED：AlarmManager 里的闹钟不落盘，手机一重启全部清空，
+           且没有任何提示。不补这条权限，用户看到的是「头几天准时，重启后再也不响」。
+           下面的 BootReceiver 负责收到开机广播后按本地存的那份列表重挂。 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- v1.1.15：明文流量从「全局放开」改成「默认拒绝 + 按域白名单」。
          原来这里是 android:usesCleartextTraffic="true"，任何 http:// 都能走，
          在校园网里被 ARP/DNS 劫持一次就能拿到登录表单与 Cookie 的明文。
@@ -25,6 +46,15 @@
          只给学校 / 胖乖生活 / 学习通这些可能有老 http 页面的域开。
          注意 API 24+ 上 networkSecurityConfig 优先于 usesCleartextTraffic，
          所以这里把那个属性整个去掉，只留一个入口，避免两套规则打架。 -->
+
+    <!-- v1.1.33：Android 11+（API 30）包可见性限制。targetSdk 33 下，
+         getLaunchIntentForPackage / queryIntentActivities 只能看到 <queries>
+         里声明过的包，否则即使对方 App 装了也返回 null（宿舍空调「去缴费」
+         拉起完美校园一直不跳转的根因）。这里显式声明要查的包。 -->
+    <queries>
+        <package android:name="com.newcapec.mobile.ncp" />
+    </queries>
+
     <application
         android:label="河医大助手"
         android:icon="@mipmap/ic_launcher"
@@ -57,6 +87,29 @@
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:theme="@android:style/Theme.Holo.NoActionBar.Fullscreen" />
+
+        <!-- v1.1.35：课程提醒的广播接收者。缺了这一段，AlarmManager 到点发出的
+             广播没有任何接收者，通知永远不会出现——v1.1.27~v1.1.34 的「课程提醒」
+             就是这么一直是死的。exported=false：只有系统（AlarmManager）能投递，
+             外部 App 无法伪造一条假课表通知。 -->
+        <receiver
+            android:name=".ReminderReceiver"
+            android:exported="false" />
+
+        <!-- v1.1.35：手机重启 / 自更新装完新包后，AlarmManager 里的闹钟会被系统
+             静默清空。这个接收者收到开机/换包广播后按本地存的那份列表重挂，
+             否则用户看到的现象是「提醒开了，重启一次以后再也没响过」。
+             exported=true 是必须的：BOOT_COMPLETED 由系统外部投递过来。 -->
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- 只给系统安装器读下载好的 apk，不对外暴露 -->
         <provider

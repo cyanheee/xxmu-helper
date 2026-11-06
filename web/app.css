@@ -228,6 +228,75 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 /* ---------------- 学习页 ---------------- */
 .learn-head{display:flex;justify-content:space-between;align-items:center;
   padding:2px 2px 10px;font-size:13.5px;color:var(--fg2);font-weight:600}
+/* v1.1.28：头部右侧的工具入口小按钮组（待办/番茄钟/刷新），
+ * 一字排开，别把「0 条要交」挤没。 */
+.learn-tools{display:flex;align-items:center;gap:6px}
+.learn-tools .pill{padding:4px 10px;font-size:12px;font-weight:600}
+/* 半框里承载的卡片：去掉圆角阴影，撑满 .sh-box 宽度 */
+.sheet-only{margin:0;box-shadow:none;border-radius:0;padding:0;background:transparent}
+
+/* ---------------- 宿舍空调（v1.1.30） ----------------
+ * 大字显示剩余度数，下面「去缴费」跳官方。沿用同一套变量。 */
+/* v1.1.31：入口从「其他」卡里提出来，单独一张强调色卡放校园页顶部 */
+.elec-entry{background:linear-gradient(150deg,#3b82f6,#2563eb 60%,#4f46e5);
+  box-shadow:0 8px 20px -8px rgba(37,99,235,.7);cursor:pointer;
+  border-radius:var(--radius);padding:0}
+.elec-entry:active{transform:scale(.99);opacity:.94}
+.elec-entry-box{padding:14px 14px 13px;color:#fff;
+  display:flex;align-items:center;gap:12px}
+.elec-entry-title{font-size:17px;font-weight:700;letter-spacing:.3px}
+.elec-entry-sub{font-size:12.5px;opacity:.88;margin-top:3px}
+/* v1.1.37：度数直接印在入口卡上，右边一块（数字 + 手动刷新） */
+.elec-entry-main{flex:1;min-width:0}
+.elec-entry-right{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
+.elec-entry-num{display:flex;align-items:baseline;gap:3px;
+  font-variant-numeric:tabular-nums;line-height:1}
+.elec-entry-odd{font-size:30px;font-weight:700;letter-spacing:-.5px}
+.elec-entry-unit{font-size:12px;opacity:.85}
+.elec-entry-refresh{font-size:11.5px;font-weight:600;color:#fff;letter-spacing:0;
+  padding:3px 11px;border-radius:99px;border:0;cursor:pointer;
+  background:rgba(255,255,255,.22)}
+.elec-entry-refresh:active{background:rgba(255,255,255,.34)}
+.elec-entry-refresh.busy{opacity:.55}
+.elec-face{text-align:center;padding:22px 0 10px}
+.elec-label{font-size:12.5px;color:var(--mute);font-weight:600;letter-spacing:.4px;
+  display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;
+  padding:0 12px;line-height:1.45}
+/* v1.1.36：房间名太长，给它一句「换房间」贴在旁边 */
+.elec-change{font-size:11.5px;font-weight:600;color:#2563eb;letter-spacing:0;
+  padding:2px 9px;border-radius:99px;background:rgba(37,99,235,.09);flex:none}
+.elec-change:active{opacity:.6}
+.elec-big{font-size:60px;font-weight:700;line-height:1.05;color:var(--fg);
+  font-variant-numeric:tabular-nums;margin:8px 0 0}
+.elec-unit{font-size:12.5px;color:var(--mute);margin-top:2px}
+.elec-meta{font-size:11.5px;color:var(--mute);text-align:center;margin:10px 0 4px}
+/* v1.1.36：这个数字什么时候查的、能自己再刷一次 */
+.elec-time{margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.elec-acts{display:flex;gap:10px;margin:14px 0 4px}
+.elec-acts .btn{flex:1}
+
+/* ---------------- 宿舍空调 · 四级选择器（v1.1.36） ----------------
+ * 只在第一次用（或点「换房间」）时出现。选完记住，以后不再问。
+ * 层级：校区 → 公寓 → 楼层（只列空调分表）→ 房间。 */
+.pick{margin:4px 0 0}
+.pick-row{display:flex;align-items:center;gap:8px;padding:13px 14px;
+  background:var(--surface);border-radius:13px;margin-bottom:8px}
+.pick-row.on{box-shadow:0 0 0 1.5px rgba(37,99,235,.55) inset}
+.pick-row.ok{cursor:pointer}
+.pick-row.ok:active{opacity:.72}
+.pick-k{font-size:12.5px;color:var(--mute);flex:none;width:34px}
+.pick-v{font-size:14px;color:var(--fg);font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.pick-v.ph{color:var(--mute);font-weight:400}
+.pick-arrow{font-size:16px;color:var(--mute);flex:none;line-height:1}
+.pick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:2px 0 12px}
+.pick-grid.c4{grid-template-columns:repeat(4,1fr)}
+.pick-cell{background:var(--surface2);border-radius:11px;padding:12px 6px;
+  font-size:13.5px;color:var(--fg2);text-align:center;font-weight:600;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
+  font-variant-numeric:tabular-nums}
+.pick-cell:active{transform:scale(.97);opacity:.8}
+.pick-grid.c4 .pick-cell{padding:11px 2px;font-size:13px}
 .hwsec{font-size:12px;color:var(--mute);margin:16px 4px 7px;font-weight:650;
   letter-spacing:.3px}
 .hwsec.fold{cursor:pointer;user-select:none;display:flex;align-items:center;
@@ -286,6 +355,39 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .mtd-del.arm{color:var(--danger);font-size:11px;min-width:34px;text-align:right}
 #myTodoCard .btn.soft{margin-top:6px}
 #myTodoCard .empty{padding:8px 0 4px}
+
+/* ---------------- 专注计时（v1.1.26） ----------------
+ * 和待办同属「陪伴学习」工具，但视觉更「专注」：一个居中的大字计时，
+ * 下面一排操作，白噪音是可选胶囊。沿用同一套变量，不引新配色。 */
+#focusCard .card-title{display:flex;align-items:center}
+#focusCard .card-title .pill{margin-left:auto;padding:4px 12px}
+.focus-face{text-align:center;padding:18px 0 6px}
+.focus-phase{font-size:12px;color:var(--mute);font-weight:600;letter-spacing:.5px}
+.focus-time{font-size:56px;font-weight:700;line-height:1.05;color:var(--fg);
+  font-variant-numeric:tabular-nums;letter-spacing:1px;
+  margin:6px 0 2px}
+.focus-stat{font-size:11.5px;color:var(--mute);margin-top:2px}
+.focus-acts{display:flex;gap:8px;margin-top:6px}
+.focus-acts .btn{flex:1;margin-top:0}
+.focus-acts .btn.ghost{flex:0 0 40%}
+
+/* ---------------- 课程提醒（v1.1.27） ----------------
+ * 一条极简的状态行 + 设置半框；沿用既有变量，不加新配色。 */
+#remindCard .card-title{display:flex;align-items:center}
+#remindCard .card-title .pill{margin-left:auto;padding:4px 12px}
+#remindCard .row{margin:8px 0 2px}
+#remindCard .v{color:var(--accent);font-weight:600}
+
+/* 设置半框里的两行 */
+.rm-row{display:flex;align-items:center;justify-content:space-between;
+  padding:12px 2px;border-bottom:1px solid var(--line)}
+.rm-row:last-of-type{border-bottom:0}
+.rm-row-label{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--fg)}
+.rm-switch{width:44px;height:24px;accent-color:var(--accent)}
+.rm-sel{font-size:14px;padding:6px 10px;border:1px solid var(--line);
+  border-radius:10px;background:var(--surface);color:var(--fg)}
+/* v1.1.35：精确闹钟被系统关掉时的提示（提醒会晚几分钟） */
+.rm-warn{color:#b45309;margin-top:4px}
 
 /* ---------------- 分段切换 / 胶囊 ---------------- */
 .seg{display:flex;background:#eaedf4;border-radius:12px;padding:3px;margin:4px 0 10px}

@@ -227,6 +227,9 @@ const MYTODO = (() => {
     const body = $('sh-body');
     const sheet = $('sheet');
     if (!body || !sheet) return;
+    // v1.1.28：待办卡可能正住在半框里，先把卡请回停车场，
+    // 再写表单，否则卡片和表单会在 .sh-box 里叠着。
+    if (typeof parkTools === 'function') parkTools();
     $('sh-name').textContent = '加一条自己的待办';
     body.innerHTML = '';
 
@@ -296,6 +299,7 @@ const MYTODO = (() => {
       closeSheet();
       if (typeof XXMU !== 'undefined') XXMU.toast(r.msg);
       render();
+      if (typeof paintToolEntries === 'function') paintToolEntries();
     };
     body.appendChild(save);
 
@@ -377,6 +381,7 @@ const MYTODO = (() => {
         const r = toggle(x.id);
         if (!r.ok) { if (typeof XXMU !== 'undefined') XXMU.toast(r.msg); return; }
         render();
+        if (typeof paintToolEntries === 'function') paintToolEntries();
       };
       row.appendChild(cb);
 
@@ -421,6 +426,7 @@ const MYTODO = (() => {
         const r = remove(x.id);
         if (!r.ok) { if (typeof XXMU !== 'undefined') XXMU.toast(r.msg); return; }
         render();
+        if (typeof paintToolEntries === 'function') paintToolEntries();
       };
       row.appendChild(del);
       return row;

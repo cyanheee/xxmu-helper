@@ -32,7 +32,7 @@ if (lb[1] !== '河医大助手') fail('manifest 的 android:label 不是「河�
  * 写死的名字只用来排序（让输出顺序稳定、好看的排前面）。 */
 const KNOWN_ORDER = ['index.html', 'app.js', 'about.js', 'license.js', 'sync.js', 'water.js',
   'auth.js', 'wiki.js', 'guide.js', 'jsQR.js', 'onboard.js', 'disc.js', 'tut.js',
-  'chaoxing.js', 'data.js', 'homework.js', 'app.css'];
+  'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js', 'app.css'];
 const webDir = path.join(root, 'web');
 const names = fs.readdirSync(webDir)
   .filter(f => /\.(html|js|css)$/i.test(f) && fs.statSync(path.join(webDir, f)).isFile())
@@ -99,6 +99,22 @@ if (/\?\?\s*'—'|status\s*\|\|\s*'—'/.test(app)) fail('app.js 里还有把空
  * 判成待做会让用户以为还要再交一次。 */
 if (!/DONE_WORDS\s*=[^\n]*未批阅/.test(cx)) fail('chaoxing.js 的 DONE_WORDS 里没有「未批阅」');
 if (/OPEN_WORDS\s*=[^\n]*未批阅/.test(cx)) fail('chaoxing.js 的 OPEN_WORDS 里还留着「未批阅」（会和完成侧打架）');
+/* ---- v1.1.24 未开始单独一组 ----
+ * 用户要求「未开始不归到未完成里，重新列一组」。锚点：
+ * ① classify 必须返回 notstart（且「未开始」不能还留在 OPEN_WORDS 里）；
+ * ② renderHw 必须单独渲染「未开始」组。 */
+if (!/NOTSTART_WORDS/.test(cx)) fail('chaoxing.js 里没有 NOTSTART_WORDS（未开始无法单独归类）');
+if (!/return 'notstart'/.test(cx)) fail('chaoxing.js 的 classify 没有返回 notstart');
+if (/OPEN_WORDS\s*=[^\n]*未开始/.test(cx)) fail('chaoxing.js 的 OPEN_WORDS 里还留着「未开始」（应归 notstart）');
+if (!/notStart/.test(app)) fail('app.js 里没有 notStart 标志（未开始无法单独分组）');
+if (!/'未开始 · '/.test(app)) fail('app.js renderHw 没有「未开始」分组标题');
+/* v1.1.28：分组顺序改为 待完成 → 未开始（先看要动的，未开始反正做不了）。
+ * 锚点：renderHw 里 open 的组头渲染必须出现在 notstart 组头之前。 */
+const iOpenSec = app.indexOf("'待完成 · ' + open.length");
+const iNsSec = app.indexOf("'未开始 · ' + notstart.length");
+console.log('  待完成组排在未开始组之前        =', iOpenSec > 0 && iNsSec > 0 && iOpenSec < iNsSec);
+if (!(iOpenSec > 0 && iNsSec > 0 && iOpenSec < iNsSec))
+  fail('renderHw 分组顺序应为 待完成 → 未开始（v1.1.28 用户要求）');
 console.log('  about.js #btnShowHwRaw      =', /\$\('btnShowHwRaw'\)/.test(about));
 console.log('  index.html #btnShowHwRaw    =', /id="btnShowHwRaw"/.test(idx));
 if (!/\$\('btnShowHwRaw'\)/.test(about)) fail('about.js 没有「查看作业状态原文」按钮的绑定');
@@ -865,17 +881,223 @@ const iApp = idx.indexOf('src="app.js"');
 console.log('  mytodo.js 排在 app.js 之前      =', iTodo > 0 && iApp > 0 && iTodo < iApp);
 if (!(iTodo > 0 && iApp > 0 && iTodo < iApp)) fail('mytodo.js 必须写在 app.js 前面（app.js 末尾会调 MYTODO.init）');
 has(app, "if (typeof MYTODO !== 'undefined') MYTODO.init();", 'app.js 初始化 MYTODO');
-/* 待办卡必须排在作业列表**下面**：学习通那批有截止时间，先给它。
- * 位置关系写死成断言，否则以后挪上去也没人发现。 */
+/* 待办卡 v1.1.28 起改为「点头部小按钮 → 半框弹窗」承载：
+ * 卡片 DOM 常驻 #toolPark（display:none），openToolCard 把它搬进 #sheet。
+ * 位置断言从「排在 hwlist 之前」改成「toolPark 存在 + 入口按钮存在」。 */
 const iHw = idx.indexOf('id="hwlist"');
 const iCard = idx.indexOf('id="myTodoCard"');
-console.log('  待办卡排在作业列表之后          =', iHw > 0 && iCard > iHw);
-if (!(iHw > 0 && iCard > iHw)) fail('待办卡要排在 #hwlist 之后（学习通的作业有截止时间，先给它们）');
+const hasToolPark = idx.indexOf('id="toolPark"') >= 0;
+const hasEntry = idx.indexOf('id="todoEntry"') >= 0 && idx.indexOf('id="focusEntry"') >= 0;
+console.log('  待办/番茄钟停车场+入口按钮      =', hasToolPark && hasEntry && iCard > 0 && iHw > 0);
+if (!hasToolPark) fail('index.html 缺 #toolPark（v1.1.28 半框承载的卡片住处）');
+if (!hasEntry) fail('index.html 缺待办/番茄钟入口按钮（todoEntry/focusEntry）');
+has(app, 'function openToolCard(', 'app.js 有 openToolCard');
+has(app, 'function parkTools()', 'app.js 有 parkTools');
+has(app, 'function paintToolEntries()', 'app.js 有入口状态字');
+has(app, "openToolCard('myTodoCard')", '待办入口绑了 openToolCard');
+has(app, "openToolCard('focusCard')", '番茄钟入口绑了 openToolCard');
+/* closeSheet 必须负责把卡搬回停车场，否则下次打开 sheet 会把卡留在里面 */
+const csIdx = app.indexOf('function closeSheet()');
+const csChunk = app.slice(csIdx, csIdx + 300);
+has(csChunk, 'parkTools()', 'closeSheet 里调 parkTools');
 /* styles：三态视觉必须能区分（未完成 / 已完成删除线 / 过期红） */
 const cssTxt = read('web/app.css');
 has(cssTxt, '.mtd.done .mtd-text', '已完成有删除线样式');
 has(cssTxt, '.mtd-due.red', '过期日期有红色样式');
 has(cssTxt, '.mtd-cb.on', '勾选态有样式');
+
+// ---- v1.1.26：专注计时（纯本地 + Web Audio 白噪音） ----
+console.log('\nv1.1.26 checkpoints:');
+const focus = read('web/focus.js');
+has(idx, 'id="focusCard"', 'index.html 专注计时卡');
+has(idx, 'src="focus.js"', 'index.html 引入 focus.js');
+has(focus, 'const FOCUS = (() => {', 'focus.js 模块包裹');
+/* 计时必须用「结束时间戳」而不是每秒 +1，锁屏/切后台回来才准。 */
+has(focus, 'RT.endAt', 'focus 番茄钟用结束时间戳');
+has(focus, 'RT.startAt', 'focus 正计时用开始时间戳');
+has(focus, 'function makeNoiseBuffer(', 'focus 白噪音合成 buffer');
+has(focus, "AudioContext || window.webkitAudioContext", 'focus 用 Web Audio，不引音频文件');
+has(focus, 'function stats(', 'focus 专注统计');
+has(app, "if (typeof FOCUS !== 'undefined') FOCUS.init();", 'app.js 初始化 FOCUS');
+/* v1.1.28：入口小字需要 remain/fmt/load，focus 必须导出 remain */
+has(focus, 'remain,', 'focus.js 导出 remain');
+/* 顺序：focus.js 在 app.js 之前（app.js 末尾 init 要用）。 */
+const iFocus = idx.indexOf('src="focus.js"');
+console.log('  focus.js 排在 app.js 之前        =', iFocus > 0 && iApp > 0 && iFocus < iApp);
+if (!(iFocus > 0 && iApp > 0 && iFocus < iApp)) fail('focus.js 必须写在 app.js 前面（app.js 末尾会调 FOCUS.init）');
+/* 白噪音必须合成，不许引外部音频文件（零外部依赖红线）。 */
+const extAudio = /\.(mp3|wav|ogg|m4a)["']/.test(focus);
+console.log('  没有引外部音频文件              =', !extAudio);
+if (extAudio) fail('focus.js 引了外部音频文件（白噪音应 Web Audio 合成）');
+
+// ---- v1.1.27：课程提醒（课前 N 分钟本地通知，Java AlarmManager） ----
+console.log('\nv1.1.27 checkpoints:');
+const reminder = read('web/reminder.js');
+has(idx, 'id="remindCard"', 'index.html 课程提醒卡');
+has(idx, 'id="remindSet"', 'index.html 提醒设置按钮');
+has(idx, 'src="reminder.js"', 'index.html 引入 reminder.js');
+has(reminder, 'const REMINDER = (() => {', 'reminder.js 模块包裹');
+has(reminder, 'Host.scheduleReminders', 'reminder 调 Java scheduleReminders');
+has(reminder, 'Host.cancelReminders', 'reminder 调 Java cancelReminders');
+has(reminder, 'courseDate(', 'reminder 有课程时间计算');
+has(reminder, 'startTimeOf(', 'reminder 有作息起点解析');
+has(app, "if (typeof REMINDER !== 'undefined') REMINDER.init();", 'app.js 初始化 REMINDER');
+has(app, "if (typeof REMINDER !== 'undefined') REMINDER.refresh();", 'app.js load() 后重挂提醒');
+/* 顺序：reminder.js 在 app.js 之前（app.js 末尾 init 要用）。 */
+const iRemind = idx.indexOf('src="reminder.js"');
+console.log('  reminder.js 排在 app.js 之前     =', iRemind > 0 && iApp > 0 && iRemind < iApp);
+if (!(iRemind > 0 && iApp > 0 && iRemind < iApp)) fail('reminder.js 必须写在 app.js 前面（app.js 末尾会调 REMINDER.init）');
+/* 提醒必须由系统闹钟（Java）触发，前端只算时间戳，不做 setInterval 轮询。 */
+if (/setInterval\s*\(/.test(reminder)) fail('reminder.js 不该用 setInterval 轮询（闹钟在 Java 侧挂）');
+
+// ---- v1.1.29：开关切换后入口行状态要刷新 ----
+/* 用户报障：点开启后「外面还是显示未开启」。根因是 sw.onchange / sel.onchange
+ * 只调 apply() 没调 paint()，入口行的 #remindStat 不刷新。锚点：两个 onchange
+ * 里必须各有一句 paint()。 */
+console.log('\nv1.1.29 checkpoints:');
+const swChunk = reminder.slice(reminder.indexOf('sw.onchange'), reminder.indexOf('sw.onchange') + 220);
+const selChunk = reminder.slice(reminder.indexOf('sel.onchange'), reminder.indexOf('sel.onchange') + 220);
+has(swChunk, 'paint()', '开关 onchange 里刷新入口状态');
+has(selChunk, 'paint()', '提前量 onchange 里刷新入口状态');
+has(reminder, 'if (typeof parkTools === \'function\') parkTools();', 'reminder 设置前先 parkTools');
+
+// ---- v1.1.30：宿舍空调剩余度数（完美校园零鉴权接口） ----
+console.log('\nv1.1.30 checkpoints:');
+const elec = read('web/elec.js');
+has(idx, 'id="elecCard"', 'index.html 宿舍空调独立入口卡');
+has(idx, 'src="elec.js"', 'index.html 引入 elec.js');
+has(elec, 'const ELEC = (() => {', 'elec.js 模块包裹');
+has(elec, "CUSTOMER_CODE = '709'", 'elec 学校代码 709');
+has(elec, 'getbindroom', 'elec 调 getbindroom');
+has(elec, 'h5_getstuindexpage', 'elec 调 h5_getstuindexpage');
+has(elec, 'findAircon', 'elec 有筛空调房间');
+has(elec, 'function goPay(', 'elec 有去缴费入口');
+has(elec, "Host.openApp('com.newcapec.mobile.ncp')", 'elec 按包名拉起完美校园 App');
+if (elec.indexOf('openUrl(PAY_URL)') >= 0 || elec.indexOf('window.open(PAY_URL') >= 0) fail('elec.js 不得再跳缴费 H5 PAY_URL（浏览器里是空白页）');
+/* v1.1.36 起不再有「没查到绑定的宿舍房间」这句：没记住房间时直接进四级选择器。 */
+has(app, "if (typeof ELEC !== 'undefined') ELEC.init();", 'app.js 初始化 ELEC');
+/* 边界：不在 App 内做支付，只有「去缴费」跳官方。反向断言防改成内嵌支付。 */
+if (/createOrder|orderNo|afterPay|paymentOrder/i.test(elec)) fail('elec.js 里出现支付/下单逻辑（应只跳官方，不在 App 内支付）');
+/* 只读自己的学号，不提供输别人学号查的入口（account 只从 xxmu_user / 手填兜底读） */
+if (/prompt\(/.test(elec)) fail('elec.js 不该用 prompt 输学号（只查软件登记的学号）');
+
+// ---- v1.1.31：宿舍空调入口提为独立醒目卡（用户要求「放显眼一点」） ----
+console.log('\nv1.1.31 checkpoints:');
+has(idx, 'id="elecCard"', 'index.html 有 elecCard 入口卡');
+has(idx, 'elec-entry-title', 'index.html 入口卡有标题区');
+has(elec, "$('elecCard')", 'elec.js 绑定新入口卡 elecCard');
+if (/id="rowElec"/.test(idx)) fail('index.html 里不该再保留旧的 rowElec 入口行');
+if (!/elec-entry\{/.test(cssTxt)) fail('app.css 缺少 elec-entry 醒目卡样式');
+
+// ---- v1.1.32：去缴费改拉起完美校园 App + 未绑房间指引（用户报「跳转完是空白网页」） ----
+console.log('\nv1.1.32 checkpoints:');
+has(elec, '打开完美校园 App', 'elec 缴费指引有「打开完美校园 App」按钮');
+has(elec, "openApp('com.newcapec.mobile.ncp')", 'elec 走 Host.openApp 按包名拉起');
+if (/intent:\/\/com\.newcapec|openapp:\/\//.test(elec)) fail('elec.js 不应再用 intent:// scheme（真机落空报「没有可用的浏览器」）');
+has(elec, '浏览器里没有登录态', 'elec 空白页根因写进用户文案');
+if (elec.indexOf('window.open(PAY_URL') >= 0 || elec.indexOf("openUrl(PAY_URL)") >= 0) fail('elec.js 不得再以任何方式打开 PAY_URL');
+has(elec, '不退回第一个', 'findAircon 不再把普通电表当空调显示');
+const mact32 = read('android/src/com/xxmu/helper/MainActivity.java');
+has(mact32, 'getLaunchIntentForPackage', 'MainActivity 有 openApp 桥（按包名拉起 App）');
+
+// ---- v1.1.35：课程提醒的 Java 侧链路（v1.1.27 起一直是死的，静态体检没拦住） ----
+/* 事故复盘：reminder.js 写得完整、scheduleReminders/cancelReminders 桥也都在，
+ * 但 AndroidManifest.xml 里没有 <receiver>，POST_NOTIFICATIONS 也没声明。
+ * 于是 AlarmManager 到点广播无人接收、Android 13+ 连权限都拿不到，
+ * 而这个文件当时只断言了「前端有没有写」，全是 true —— 全 PASS 的死功能。
+ * 教训：跨语言链路必须两端都断言。断在 Java/manifest 那头，前端写再全也没用。 */
+console.log('\nv1.1.35 checkpoints（提醒链路必须两端都在）:');
+has(mani, 'android:name=".ReminderReceiver"', 'manifest 注册了 ReminderReceiver');
+has(mani, 'android.permission.POST_NOTIFICATIONS', 'manifest 声明 POST_NOTIFICATIONS');
+has(mani, 'android.permission.SCHEDULE_EXACT_ALARM', 'manifest 声明 SCHEDULE_EXACT_ALARM');
+/* exported 必须是 false：提醒接收者只该由系统闹钟投递，外部 App 不许伪造课表通知 */
+const rcvChunk = mani.slice(mani.indexOf('.ReminderReceiver') - 200, mani.indexOf('.ReminderReceiver') + 200);
+if (!/android:exported="false"/.test(rcvChunk)) fail('ReminderReceiver 必须 android:exported="false"（否则外部 App 可伪造通知）');
+/* Receiver 类文件本身要在 */
+const rcvSrc = read('android/src/com/xxmu/helper/ReminderReceiver.java');
+has(rcvSrc, 'extends BroadcastReceiver', 'ReminderReceiver 继承 BroadcastReceiver');
+has(rcvSrc, 'createNotificationChannel', 'ReminderReceiver 建通知 channel（API 26+ 不建就静默不弹）');
+/* Java 侧：精确闹钟被系统拒绝时要有非精确兜底，不然整批提示一条都挂不上。
+ * 调度逻辑已抽到 ReminderScheduler（MainActivity 与 BootReceiver 共用一份），
+ * 所以这两条断言看的是 ReminderScheduler 而不是 MainActivity。 */
+const schedSrc = read('android/src/com/xxmu/helper/ReminderScheduler.java');
+has(schedSrc, 'canScheduleExactAlarms', 'scheduleReminders 处理 Android 12+ 精确闹钟权限');
+has(schedSrc, 'setAndAllowWhileIdle', 'scheduleReminders 有非精确兜底');
+/* 重启后闹钟会被系统清空：必须有开机重挂链路，否则「头几天响，重启后再不响」 */
+has(mani, 'RECEIVE_BOOT_COMPLETED', 'manifest 声明 RECEIVE_BOOT_COMPLETED');
+has(mani, 'android:name=".BootReceiver"', 'manifest 注册 BootReceiver');
+has(mani, 'android.intent.action.BOOT_COMPLETED', 'BootReceiver 监听开机广播');
+has(mani, 'MY_PACKAGE_REPLACED', 'BootReceiver 监听自更新换包');
+has(schedSrc, 'static void restore', 'ReminderScheduler 有重启重挂');
+has(schedSrc, 'KEY_LIST', 'ReminderScheduler 把提醒列表落盘');
+/* 调度只能有一份实现：MainActivity 里不许再自己构造闹钟 PendingIntent */
+if (/getBroadcast\(\s*MainActivity\.this,\s*i\s*\+\s*1/.test(mact32)) fail('MainActivity 里还有第二份闹钟构造（应与 ReminderScheduler 共用）');
+has(mact32, 'ReminderScheduler.schedule', 'MainActivity 调 ReminderScheduler.schedule');
+has(mact32, 'ReminderScheduler.cancelAll', 'MainActivity 调 ReminderScheduler.cancelAll');
+
+// ---- v1.1.36：宿舍空调只选一次房（用户：「每次点进去都要一遍遍选校区公寓楼层宿舍，很麻烦」） ----
+/* 事故/体验背景：完美校园的 h5_getstuindexpage 只要服务端没有 bindroom，
+ * 传 roomverify 也好、传完整四级参数也好，一律回「未绑定房间」——
+ * 已实测 4 种参数形态都是这个结果，没有「只读按房间号查」的口子。
+ * 于是改成：只让学生选一次，选完本地记住（xxmu_elec_room），之后点开直出度数；
+ * 服务端登记丢了就按记住的房间自动重登记一次。 */
+console.log('\nv1.1.36 checkpoints（宿舍空调只选一次）:');
+/* 四级列表的接口和参数名是硬事实：buildid / floorid 小写，写错服务端会返回全校数据 */
+has(elec, "'getzonelist'", 'elec 调 getzonelist 取校区');
+has(elec, "'getbuildlist'", 'elec 调 getbuildlist 取公寓');
+has(elec, 'buildid: buildid', 'elec getfloorlist 用 buildid（小写，写错会返回全校 221 条）');
+has(elec, 'floorid: floorid', 'elec getroomnumlist 用 floorid');
+/* roomverify 是 5 段 zoneid-buildid-unitid-floorid-roomnum，第 3 段为空 */
+has(elec, "sel.z + '-' + sel.b + '--' + sel.f + '-' + sel.r", 'rvOf 拼 5 段 roomverify（第 3 段空）');
+has(elec, 'function parseRv', 'parseRv 能从 roomverify 反解四级');
+if (/sel\.z \+ '-' \+ sel\.b \+ '-' \+ sel\.f/.test(elec)) fail('elec.js 的 roomverify 拼错了段数（必须 5 段、第 3 段空）');
+/* bindroom 六个参数缺一不可（实测少一个就报「必要请求参数缺失」） */
+const bindChunk = elec.slice(elec.indexOf("cmd: 'bindroom'") - 120, elec.indexOf("cmd: 'bindroom'") + 260);
+for (const p of ['account', 'roomverify', 'zoneid', 'buildid', 'floorid', 'roomnum']) {
+  has(bindChunk, p + ':', 'bindroom 带上 ' + p);
+}
+/* 记住房间 → 下次不再问 */
+has(elec, "K_ROOM = 'xxmu_elec_room'", 'elec 把选过的房间存本地（只选一次）');
+has(elec, 'function savedRoom', 'elec 有读取已记住房间');
+has(elec, 'if (saved) showRoom(acct, saved);', 'elec 有记住的房间就直查');
+has(elec, 'else autoPick(acct);', 'elec 没记住房间才进选择器');
+/* 服务端登记丢了要自动补，而不是把学生丢回选择器 */
+has(elec, 'e.unbound', 'fetchRoom 能识别「未绑定房间」');
+has(elec, '正在重新登记房间', '登记丢了自动重登记一次（不用重选）');
+/* 楼层只列空调分表：照明表和空调用电不是一回事，混着列会误导 */
+has(elec, 'function airconFloors', 'elec 楼层只留空调分表');
+has(elec, 'elec-change', 'elec 有「换房间」入口');
+/* 选择器 UI 与样式 */
+has(idx, 'id="sh-body"', '选择器复用全局半框 #sh-body');
+if (!/\.pick-grid\{/.test(cssTxt)) fail('app.css 缺少四级选择器样式 .pick-grid');
+if (!/\.pick-cell\{/.test(cssTxt)) fail('app.css 缺少选择器单元格样式 .pick-cell');
+if (!/\.elec-change\{/.test(cssTxt)) fail('app.css 缺少「换房间」小按钮样式');
+/* 红线不变：仍然只读、仍然不在 App 内支付 */
+if (/createOrder|orderNo|afterPay|paymentOrder/i.test(elec)) fail('elec.js 出现支付/下单逻辑（应只跳官方）');
+if (/unbindroom'[\s\S]{0,200}for\s*\(/.test(elec)) fail('elec.js 不该批量解绑（只解绑自己刚换掉的那一间）');
+
+// ---- v1.1.37：度数直接印在入口卡上 + 10 分钟自刷 + 手动刷新 ----
+/* 用户原话：「可以把这个剩余度数显示在这个按钮的右边，然后再每过十分钟自动刷新，
+ * 再加个手动刷新按钮」。这张卡在「校园事务」最上面，是学生最高频的一眼。
+ * 要点：卡上的数字必须是「记住的那间房」的，换了房间不能还贴着旧度数（会算错电费）。 */
+console.log('\nv1.1.37 checkpoints（空调度数印在入口卡上）:');
+has(idx, 'id="elecEntryOdd"', '入口卡上有度数字段 #elecEntryOdd');
+has(idx, 'id="elecEntrySub"', '入口卡上有副标题 #elecEntrySub');
+has(idx, 'id="elecRefresh"', '入口卡上有手动刷新按钮 #elecRefresh');
+has(idx, 'class="elec-entry-main"', '入口卡左半边（标题/副标题）');
+has(idx, 'class="elec-entry-right"', '入口卡右半边（数字+刷新）');
+has(idx, 'class="elec-entry-num"', '数字与「度」同排');
+has(elec, 'function paintEntry', 'elec 有 paintEntry（把数字贴到入口卡）');
+has(elec, 'function entryRefresh', 'elec 有 entryRefresh（只刷卡、不动半框）');
+has(elec, "const AUTO_MS = 10 * 60 * 1000", '入口卡 10 分钟自刷');
+has(elec, 'entryRefresh, paintEntry', 'paintEntry/entryRefresh 已导出');
+has(elec, 'c.rv === cur.rv', '只在数字属于当前房间时才显示（换房不贴旧数）');
+has(elec, "num.textContent = '--'", '没数据时显示 -- 而不是 0');
+if (/setInterval\s*\([^)]*showRoom/.test(elec)) fail('elec.js 的定时器调了 showRoom（会打断用户正在看的半框）');
+if (!/if \(document\.hidden\) return;/.test(elec)) fail('elec.js 定时器没判页面可见就刷（后台白刷学校接口）');
+if (!/\.elec-entry-num\{/.test(cssTxt)) fail('app.css 缺少入口卡数字样式 .elec-entry-num');
+if (!/\.elec-entry-refresh\{/.test(cssTxt)) fail('app.css 缺少入口卡刷新按钮样式 .elec-entry-refresh');
+if (!/\.elec-entry-right\{/.test(cssTxt)) fail('app.css 缺少入口卡右侧布局 .elec-entry-right');
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

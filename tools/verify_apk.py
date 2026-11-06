@@ -91,8 +91,12 @@ NEW_JS_SYMBOLS = {
                       "function paintKbBar", "function kbWeekStats",
                       "function kbDiagText", "kbBarBound",
                       # v1.1.14 详情卡：改完 display 必须跟着滚动，否则卡片落在视口外
-                      "function showDetail(id, fromRow)", "DETAIL_FROM",
-                      "card.scrollIntoView"],
+                      # —— 那条在 v1.1.23 被换掉了（用户原话「点详情能不能弹一个半框
+                      # 页面显示，而不是加载在上面」），锚点跟着改成新设计。
+                      # 这里长期留着一条教训：**删功能时要顺手删它的锚点**，
+                      # 否则 verify 会在下一个版本开始无缘无故 FAIL，看起来像包坏了。
+                      "function showDetail(id)", "DETAIL_OPEN",
+                      "document.getElementById('sheet').classList.add('on')"],
     "assets/about.js": ["btnClearCheck", "btnShowHwRaw", "Tut.afterUnlock",
                         "已过期，重新登录一次",
                         # v1.1.13 课表抓取原文
@@ -116,7 +120,10 @@ NEW_JS_SYMBOLS = {
                           'id="kbBarSync"', 'id="kbBarDiag"',
                           'id="btnShowKbRaw"',
                           # v1.1.14 详情卡必须排在名单卡之前（排下面会落在视口外）
-                          'id="admDetailCard"', 'id="admDetailBody"'],
+                          # —— v1.1.23 起详情改走全局半框 #sheet，卡片本身不存在了。
+                          # 现在的等价约束：半框必须存在，且 sh-body / sh-name 都在
+                          # （少一个，showDetail 会静默 return，点详情毫无反应）。
+                          'id="sheet"', 'id="sh-body"', 'id="sh-name"'],
     # v1.1.11：声明必须能独立工作（不联网、读不到 pref 当没看过）
     "assets/disc.js": ["xxmu_disc_done", "function afterUnlock", "function replay",
                        "replayMode", "function gateLocked"],

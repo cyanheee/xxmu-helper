@@ -534,6 +534,28 @@ public class MainActivity extends Activity {
         }
 
         /**
+         * 按包名直接拉起已安装的 App（宿舍空调缴费要跳「完美校园」用）。
+         * 为什么不用 scheme：完美校园不注册公开 scheme，intent:// 落空只会报
+         * 「没有可用的浏览器」（真机已踩坑）。getLaunchIntentForPackage 是
+         * 系统提供的按包名打开启动页的正路，没装返回 null，前端据此给指引。
+         * 注意：Android 11+（API 30）包可见性限制——必须在 AndroidManifest 的
+         * <queries> 里声明 <package name="com.newcapec.mobile.ncp"/> 才能查到，
+         * 否则这里恒返回 null（v1.1.33 曾因此一直「不跳转」）。
+         */
+        @JavascriptInterface
+        public boolean openApp(final String pkg) {
+            try {
+                android.content.Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                if (i == null) return false;
+                i.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                startActivity(i);
+                return true;
+            } catch (Exception e) {
+                return false;
+            }
+        }
+
+        /**
          * 在 App 内的 WebView 打开链接（用于学习通作业/考试页）。
          *
          * 为什么必须走内置 WebView 而不是系统浏览器：
@@ -1001,6 +1023,108 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        // ---- 课程提醒（本地通知）----
+        //
+        // 前端（reminder.js）算好「下一次课的绝对毫秒时间戳」，把这一批
+        // 闹钟一次性传下来；这里在 Java 侧用 AlarmManager.setExactAndAllowWhileIdle
+        // 挂精确闹钟。到点后系统广播给 ReminderReceiver，由它发通知。
+        //
+        // 为什么闹钟要放在 Java、而不是前端 setInterval 里数秒：
+        //   锁屏 / 切后台后 WebView 的定时器会被系统节流甚至冻结，
+        //   前台数秒的提醒在真机上几乎必然晚点或漏掉；AlarmManager 由系统
+        //   定时，App 被杀也能唤醒（用 setExactAndAllowWhileIdle 在 Doze 下也尽量准）。
+
+        /** 取消所有已挂的课程提醒（改课表 / 关提醒时先清空再重挂） */
+        @JavascriptInterface
+        public void cancelReminders() {
+            // v1.1.35：逻辑搬进 ReminderScheduler，和 BootReceiver 的重挂共用一份。
+            // 之前这里有第二份 PendingIntent 构造，两处一旦改岔就 cancel 不掉旧闹钟。
+            try {
+                ReminderScheduler.cancelAll(MainActivity.this);
+            } catch (Throwable ignored) {}
+        }
+
+        /**
+         * 挂一批课程提醒。参数是一个 JSON 数组，每项：
+         *   { "at": 绝对毫秒时间戳, "name": 课程名, "room": 教室, "mins": 提前分钟数 }
+         * 返回挂了条数。at 必须是未来时间，过去的不挂（避免一开就弹一堆过期通知）。
+         */
+        @JavascriptInterface
+        public int scheduleReminders(String json) {
+            try {
+                return ReminderScheduler.schedule(MainActivity.this, json);
+            } catch (Throwable e) {
+                return 0;
+            }
+        }
+
+        /** 有没有发通知的权限（Android 13+ 才需要问，老版本默认有） */
+        @JavascriptInterface
+        public boolean canNotify() {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 33) {
+                    return checkSelfPermission(
+                            "android.permission.POST_NOTIFICATIONS")
+                            == android.content.pm.PackageManager.PERMISSION_GRANTED;
+                }
+                return true;
+            } catch (Throwable e) {
+                return true;
+            }
+        }
+
+        /** 请求发通知权限（Android 13+ 弹系统框，老版本直接返回 true） */
+        @JavascriptInterface
+        public void requestNotifyPermission() {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                try {
+                    if (checkSelfPermission("android.permission.POST_NOTIFICATIONS")
+                            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[]{"android.permission.POST_NOTIFICATIONS"},
+                                3001);
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        /**
+         * 精确闹钟能不能用（Android 12+ 用户可以关掉「闹钟和提醒」特殊权限）。
+         * 关掉后提醒仍然会响，但可能晚几分钟——前端据此给一句诚实提示，
+         * 而不是让学生以为「设了没反应」。
+         */
+        @JavascriptInterface
+        public boolean exactAlarmOk() {
+            try {
+                if (android.os.Build.VERSION.SDK_INT >= 31) {
+                    android.app.AlarmManager am = (android.app.AlarmManager)
+                            getSystemService(android.content.Context.ALARM_SERVICE);
+                    return am == null || am.canScheduleExactAlarms();
+                }
+                return true;
+            } catch (Throwable e) {
+                return true;
+            }
+        }
+
+        /** 跳到系统的「闹钟和提醒」特殊权限页（精确闹钟被关掉时给用户一个出口） */
+        @JavascriptInterface
+        public void openExactAlarmSettings() {
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    try {
+                        if (android.os.Build.VERSION.SDK_INT >= 31) {
+                            android.content.Intent it = new android.content.Intent(
+                                    android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,
+                                    Uri.parse("package:" + getPackageName()));
+                            startActivity(it);
+                        }
+                    } catch (Throwable e) {
+                        showToast("打不开设置页，请到「设置 → 应用 → 特殊权限 → 闹钟和提醒」里允许");
+                    }
+                }
+            });
+        }
     }
 
     // ---------------------------------------------------------------- 内置浏览（Activity）
@@ -1097,6 +1221,33 @@ public class MainActivity extends Activity {
         } else if (req == REQ_PHOTO) {
             handlePhotoResult(res, data);
         }
+    }
+
+    /**
+     * 通知权限（Android 13+）申请结果。
+     *
+     * 必须回调前端：用户点了「允许」以后，前面挂好的闹钟才算真的能弹出通知。
+     * 若前端只调 requestNotifyPermission() 然后就什么都不等，它无从知道用户
+     * 是同意了还是又点了「不允许」——只能显示「已开启」，而实际上一条都不会响。
+     */
+    @Override
+    public void onRequestPermissionsResult(int req, String[] perms, int[] grants) {
+        super.onRequestPermissionsResult(req, perms, grants);
+        if (req != 3001) return;
+        boolean ok = false;
+        try {
+            if (grants != null && grants.length > 0) {
+                ok = grants[0] == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            }
+        } catch (Throwable ignored) {}
+        final boolean granted = ok;
+        runOnUiThread(new Runnable() {
+            public void run() {
+                if (web == null) return;
+                web.evaluateJavascript(
+                        "window.__onNotifyPerm && window.__onNotifyPerm(" + granted + ")", null);
+            }
+        });
     }
 
     /**
@@ -1972,6 +2123,22 @@ public class MainActivity extends Activity {
                 w.getDecorView().setSystemUiVisibility(f);
             }
         } catch (Throwable ignored) {
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        /* 从别的 App（完美校园、支付宝）切回来时告诉页面一声。
+         * WebView 里 visibilitychange 不一定触发（真机切后台 WebView 常保持「可见」状态），
+         * 所以由 Java 侧补一条回调，页面自己决定要不要刷新（宿舍空调度数就是靠这个）。
+         * 用 evaluateJavascript 而不是 loadUrl("javascript:")——后者会把返回值当导航。 */
+        if (web != null) {
+            try {
+                web.evaluateJavascript(
+                        "(function(){try{window.__onResume&&window.__onResume()}catch(e){}})()", null);
+            } catch (Throwable ignored) {
+            }
         }
     }
 

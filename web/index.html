@@ -191,7 +191,74 @@
   <section id="tab-learn" class="tab">
     <div class="learn-head">
       <span id="hwcount">0 条要交</span>
-      <button id="refresh" class="pill">刷新</button>
+      <span class="learn-tools">
+        <!-- v1.1.28：待办/番茄钟从两张大卡缩成入口小按钮，点开是半框。
+             学习页的主角是作业列表；这两个工具用得快进快出，占一整屏
+             反而把作业往下挤。状态小字还在按钮里（未做条数/计时状态）。 -->
+        <button id="todoEntry" class="pill">待办 · <span id="todoEntryCnt">0</span></button>
+        <button id="focusEntry" class="pill">番茄钟 · <span id="focusEntryState">25:00</span></button>
+        <button id="refresh" class="pill">刷新</button>
+      </span>
+    </div>
+
+    <!-- v1.1.28：待办/番茄钟两张卡的「停车场」。平时藏在这里，
+         点头部小按钮时整卡搬进 #sheet 半框，关闭时搬回来。
+         卡片 DOM 常驻（MYTODO/FOCUS 直接按 id 找它们），只是换了住处。
+         toolPark 本体也藏在学习页 section 外不可见处 —— 搬进半框前
+         绝不随页面渲染。 -->
+    <div id="toolPark" style="display:none">
+    <div class="card sheet-only" id="myTodoCard">
+      <div class="card-title">
+        <span class="dot"></span>我的待办
+        <span class="mtd-cnt" id="myTodoCount"></span>
+      </div>
+      <div id="myTodoList"></div>
+      <button id="myTodoAdd" class="btn soft">+ 加一条</button>
+    </div>
+
+    <!-- v1.1.28：专注计时也搬进 toolPark（见上）。 -->
+    <div class="card sheet-only" id="focusCard">
+      <div class="card-title">
+        <span class="dot"></span>专注计时
+        <button id="focusSet" class="pill">设置</button>
+      </div>
+
+      <div class="seg" data-fmode-seg>
+        <button data-fmode="pomo" class="on">番茄钟</button>
+        <button data-fmode="timer">正计时</button>
+      </div>
+
+      <div class="focus-face">
+        <div class="focus-phase" id="focusPhase">番茄钟 · 待开始</div>
+        <div class="focus-time" id="focusTime">25:00</div>
+        <div class="focus-stat" id="focusStat">今日 0 分钟 · 本周 0 分钟</div>
+      </div>
+
+      <div class="focus-acts">
+        <button id="focusToggle" class="btn">开始</button>
+        <button id="focusReset" class="btn ghost">重置</button>
+      </div>
+
+      <div class="chips" data-noise-seg>
+        <button data-noise="off" class="on">静音</button>
+        <button data-noise="white">白噪音</button>
+        <button data-noise="pink">粉噪音</button>
+        <button data-noise="brown">棕噪音</button>
+      </div>
+    </div>
+    </div><!-- /toolPark -->
+
+    <!-- v1.1.27：课程提醒。课前 N 分钟由系统闹钟弹本地通知（锁屏也收得到）。
+         开关/提前量在「设置」半框里调，入口放这里和专注计时一排。 -->
+    <div class="card" id="remindCard">
+      <div class="card-title">
+        <span class="dot"></span>课程提醒
+        <button id="remindSet" class="pill">设置</button>
+      </div>
+      <div class="row" id="remindRow">
+        <span>状态</span>
+        <span id="remindStat" class="v">未开启</span>
+      </div>
     </div>
 
     <!-- 学习通连接状态：没登录时这里就是入口；登录了就显示上次同步时间 -->
@@ -216,20 +283,10 @@
     </div>
 
     <!-- v1.1.22：我的待办 —— 学习通里没有的那些事。
-         独立成一张卡，不和上面的作业列表混排：混在一起之后
+         独立成一张卡，不和下面的作业列表混排：混在一起之后
          用户分不清「这条是学习通说的」还是「我自己记的」。
-         位置放在作业列表**下面**：学习通那批是有截止时间、会自己冒出来的，
-         先给它们；自建待办没有截止压力，排在后面不抢首屏。 -->
+         v1.1.25：卡片已挪到学习页最顶部（见上），这里只剩作业列表。 -->
     <div id="hwlist"></div>
-
-    <div class="card" id="myTodoCard">
-      <div class="card-title">
-        <span class="dot"></span>我的待办
-        <span class="mtd-cnt" id="myTodoCount"></span>
-      </div>
-      <div id="myTodoList"></div>
-      <button id="myTodoAdd" class="btn soft">+ 加一条</button>
-    </div>
   </section>
 
   <!-- ================= WIKI ================= -->
@@ -247,6 +304,25 @@
 
   <!-- ================= 校园事务 ================= -->
   <section id="tab-campus" class="tab">
+
+    <!-- 宿舍空调：高频查询，单独提一张卡放最上面，一眼能看到。
+         v1.1.37：度数直接印在这张卡上（不用点开），旁边一个手动刷新；
+         另外每 10 分钟自己刷一次（只在页面可见时）。 -->
+    <div class="card elec-entry" id="elecCard">
+      <div class="elec-entry-box">
+        <div class="elec-entry-main">
+          <div class="elec-entry-title">宿舍空调</div>
+          <div class="elec-entry-sub" id="elecEntrySub">点一下，看还剩多少度 ›</div>
+        </div>
+        <div class="elec-entry-right">
+          <div class="elec-entry-num">
+            <span class="elec-entry-odd" id="elecEntryOdd">--</span>
+            <span class="elec-entry-unit">度</span>
+          </div>
+          <button class="elec-entry-refresh" id="elecRefresh" type="button">刷新</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 饮水机 -->
     <div class="card" id="waterCard">
@@ -725,7 +801,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.23</div>
+      <div class="about-ver" id="aboutVer">v1.1.37</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
@@ -954,6 +1030,9 @@
 <script src="tut.js"></script>
 <script src="water.js"></script>
 <script src="mytodo.js"></script>
+<script src="focus.js"></script>
+<script src="reminder.js"></script>
+<script src="elec.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -48,8 +48,15 @@ const CX = (() => {
   /* ---------------- 状态口径 ---------------- */
 
   /* 需要我做 = 未完成。
-   * 「待互评」也在里面：那是要我去评别人的作业，仍然是我的活。 */
-  const OPEN_WORDS = ['待做', '待完成', '未交', '未提交', '未开始', '重新编辑', '待互评', '进行中'];
+   * 「待互评」也在里面：那是要我去评别人的作业，仍然是我的活。
+   * v1.1.24：「未开始」从这里挪到 NOTSTART_WORDS——它也是「还没到能动手的时候」，
+   * 和「待做」不是一回事，用户要求单独列一组，不混进「待完成」。 */
+  const OPEN_WORDS = ['待做', '待完成', '未交', '未提交', '重新编辑', '待互评', '进行中'];
+
+  /* 还没到能开始做的时候（考试未开考、作业未开放）。
+   * 单独一类：不算「待完成」（还动不了手），更不能算「已完成」。
+   * 渲染层（app.js renderHw）会把它单独列一组「未开始」。 */
+  const NOTSTART_WORDS = ['未开始', '未开考'];
 
   /* 已经不用我动手了。
    * 「待批阅」是**我交了**等老师批，算完成；这点最容易搞反。
@@ -71,6 +78,7 @@ const CX = (() => {
      * 而「待互评」含「互评」却也含「待」——所以顺序不能反，
      * 必须先匹配明确表示"已交"的词，再看待办词。 */
     for (const w of DONE_WORDS) if (s.indexOf(w) >= 0) return 'done';
+    for (const w of NOTSTART_WORDS) if (s.indexOf(w) >= 0) return 'notstart';
     for (const w of OPEN_WORDS) if (s.indexOf(w) >= 0) return 'open';
     return 'unknown';
   }
@@ -403,8 +411,12 @@ const CX = (() => {
        *   - 未交误判成已完成：用户以为没事，直接错过截止。
        * 后者是不可逆的，所以拿不准的时候站到「还得做」这边。
        * 到点之后仍读不出状态，才落进「已过期/状态未知」那一组。 */
+      /* v1.1.24：notstart 单独一类——「未开始」不是待做（还动不了手），
+       * 但也不是已完成。open 保持 false（不进「待完成」组），
+       * 渲染层靠 w.state==='notstart' 把它单独列组。 */
       if (w.state === 'open') w.open = true;
       else if (w.state === 'done') w.open = false;
+      else if (w.state === 'notstart') w.open = false;
       else w.open = (due == null || due > now);
     });
 
@@ -423,7 +435,9 @@ const CX = (() => {
        * 用户报「有的考试是未开始却也显示已完成」，那要么是状态读错了，
        * 要么是分块错位把上一场的状态安到了这一场上——不管哪种，
        * 开考时间没到就以时间为准，这条不依赖任何解析结果。 */
-      if (e.upcoming) e.open = true;
+      /* v1.1.24：notstart（未开始/未开考）单独一组，不进「待完成」。
+       * upcoming（开考时间没到）也归这类——本来就是同一件事。 */
+      if (e.upcoming || e.state === 'notstart') e.open = false;
       else if (e.state === 'open') e.open = true;
       else if (e.state === 'done') e.open = false;
       else e.open = (due == null || due > now);
@@ -616,7 +630,7 @@ const CX = (() => {
      * diag/diagReset 给「我的 → 反馈」用：状态读不到时把那段原始 HTML 留出来，
      * 下次学习通改版不用再靠截图反推。 */
     pickStatus, wordIn, stripTags, diag, diagReset,
-    OPEN_WORDS, DONE_WORDS,
+    OPEN_WORDS, DONE_WORDS, NOTSTART_WORDS,
     readErr: () => LAST_READ_ERR,
     LOGIN_URL, K_HW, K_AT,
   };

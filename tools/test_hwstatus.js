@@ -94,7 +94,9 @@ function main() {
     ['未批阅', 'done'],   /* v1.1.5：从 open 挪到 done */
     ['已批阅', 'done'], ['已过期', 'done'], ['已结束', 'done'],
     ['待做', 'open'], ['未交', 'open'], ['未提交', 'open'],
-    ['未开始', 'open'], ['重新编辑', 'open'], ['进行中', 'open'],
+    ['重新编辑', 'open'], ['进行中', 'open'],
+    /* v1.1.24：未开始/未开考 单独一类，不再混进 open */
+    ['未开始', 'notstart'], ['未开考', 'notstart'],
     ['', 'unknown'], ['   ', 'unknown'], ['什么鬼', 'unknown'],
   ];
   cls.forEach(([s, want]) => {
@@ -144,14 +146,18 @@ function main() {
       /* 状态明确 = 未交 + 已过截止 → 仍然没交。归到「已完成」正是用户抱怨的
        * 那个 bug，所以它必须留在待做侧，靠倒计时显示「已过期」来提示。 */
       { name: 'E', status: '未交', end: past, start: '' },
+      /* v1.1.24：未开始 → 单独一类，不算待做，也不算完成 */
+      { name: 'F', status: '未开始', end: future, start: '' },
     ];
     const exams = [
-      /* 未开考 + 状态读成已完成 → 必须是待考（用户报的那条） */
+      /* 未开考 + 状态读成已完成 → 未开始（用户报的那条，之前误判成待考） */
       { name: 'X', status: '已完成', start: future, end: future },
       /* 已结束 + 状态已完成 → 不算待考 */
       { name: 'Y', status: '已完成', start: past, end: past },
-      /* 未开考 + 状态读空 → 待考 */
+      /* 未开考 + 状态读空 → 未开始 */
       { name: 'Z', status: '', start: future, end: future },
+      /* v1.1.24：明确「未开始」状态 → 未开始 */
+      { name: 'W', status: '未开始', start: future, end: future },
     ];
     const d = CX.finish(works, exams, { courses: 1, errors: [] });
     const by = (arr, n) => arr.find(x => x.name === n);
@@ -167,13 +173,19 @@ function main() {
      * 「已完成」，那正是用户截图里看到的错。它留在待做侧，界面靠
      * 倒计时显示「已过期」来区分「还没交且已晚」和「还来得及」。 */
     ok('E 未交已过期 -> 仍然是没交，留在待做', by(d.works, 'E').open === true);
+    /* v1.1.24：未开始 → notstart 类，open=false（不进待做），state=notstart */
+    ok('F 未开始 -> open=false', by(d.works, 'F').open === false);
+    ok('F 未开始 -> state=notstart', by(d.works, 'F').state === 'notstart');
 
-    ok('X 未开考却写着已完成 -> 仍然待考', by(d.exams, 'X').open === true);
+    /* v1.1.24：未开考的考试 open=false（不进待考），state=notstart 或 upcoming */
+    ok('X 未开考却写着已完成 -> 未开始，不算待考', by(d.exams, 'X').open === false);
     ok('Y 已结束 -> 不算待考', by(d.exams, 'Y').open === false);
-    ok('Z 未开考状态空 -> 待考', by(d.exams, 'Z').open === true);
+    ok('Z 未开考状态空 -> 未开始，不算待考', by(d.exams, 'Z').open === false);
+    ok('W 明确未开始 -> 未开始，不算待考', by(d.exams, 'W').open === false);
+    ok('W state=notstart', by(d.exams, 'W').state === 'notstart');
 
     ok('pending 统计只数真要做的', d.pending === 3, 'got ' + d.pending);
-    ok('exam_upcoming 只数未来开考的', d.exam_upcoming === 2, 'got ' + d.exam_upcoming);
+    ok('exam_upcoming 只数未来开考的', d.exam_upcoming === 3, 'got ' + d.exam_upcoming);
   }
 
   /* ---------- 6. 真机快照回归：用 data/homework.json 的真实数据 ---------- */

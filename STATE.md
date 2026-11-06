@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-05 09:13
+> 生成时间：2026-11-06 12:13
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.22** |
-| AndroidManifest versionCode | **1122** |
-| web/about.js APP_VERSION | 1.1.22 |
-| web/index.html #aboutVer | 1.1.22 |
+| AndroidManifest versionName | **1.1.37** |
+| AndroidManifest versionCode | **1137** |
+| web/about.js APP_VERSION | 1.1.37 |
+| web/index.html #aboutVer | 1.1.37 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.22.apk` |
-| 大小 | 571000 字节 |
-| SHA-256 | `b5b8a1a19ed0f658594c9854f973100d8e02a3a9b0fad9b303f41753fc0e4188` |
-| 出包时间 | 2026-11-05 09:11 |
-| 包内版本（aapt2） | 1.1.22 / 1122 |
+| 文件 | `apk/xxmu-helper-v1.1.37.apk` |
+| 大小 | 599857 字节 |
+| SHA-256 | `7ae07ad7597fb21d9a0b28125b3b6936dad041cdd54e056755ac683dc4eac5a1` |
+| 出包时间 | 2026-11-06 12:10 |
+| 包内版本（aapt2） | 1.1.37 / 1137 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -34,12 +34,12 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.17** |
-| latest.code | 1117 |
-| latest.size | 558650 |
-| latest.sha256 | `e75cfc7c4ac94de3` |
-| latest.url | https://xxmu-auth.pages.dev/v1/apk |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.17.apk |
+| latest.version | **1.1.23** |
+| latest.code | 1123 |
+| latest.size | 571000 |
+| latest.sha256 | `f8c1d7ed9af3ff48` |
+| latest.url | https://www.xxmuhelper.top/v1/apk |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.23.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | True |
 | updPolicy | nag |
@@ -48,37 +48,44 @@
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.22**，线上还是 **1.1.17** —— 新版本**还没发**。
+> 本地已到 **1.1.37**，线上还是 **1.1.23** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `afd9489` |
+| 分支 | main @ `3b7952f` |
 | origin/main | `f921482` |
-| 领先远程 | 9 个提交 |
-| 未提交改动 | 5 个文件 |
+| 领先远程 | 11 个提交 |
+| 未提交改动 | 24 个文件 |
 
 最近提交：
 
 ```
+3b7952f release: v1.1.23 (code 1123)
+659f007 chore: 项目搬到 桌面\\xxmuhelper\\ + 新增 tools/deliver.py 固定交付落点
 afd9489 chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
 1aca16b chore: STATE 重新生成（推送后）
 042a8ee fix(publish): --no-publish 不再留下「blob 新、cfg 旧」的坏包状态
 e6a5670 chore: STATE.md 重新生成 + v1.1.22 发版说明
-b212d2e chore: 重新生成 STATE.md
-5d306ee fix(tools): 收尾比对照走 API tree，不假设本地有远程 commit 对象
 ```
 
 未提交：
 
 ```
 M STATE.md
+ M android/AndroidManifest.xml
+ M android/src/com/xxmu/helper/MainActivity.java
+ M docs/handoff/changelog.md
  M docs/handoff/todo.md
- M tools/build_apk.py
+ M tools/check_web.js
  M tools/state.py
-?? tools/deliver.py
+ M tools/test_hwstatus.js
+ M tools/verify_apk.py
+ M web/about.js
+ M web/app.css
+ M web/app.js
 ```
 
 ## 5. 常用命令（复制即用）
@@ -109,16 +116,19 @@ python tools/state.py                   # 重新生成本文件
 
 ### 一、等用户的
 - [ ] **备份签名密钥** `android/xxmu.jks`（pass `xxmu123`）到网盘/邮箱。
-- [ ] **XXMU 有没有登录后的空闲教室查询入口**。有的话给我那个页面的 URL，
+- [ ] **XXMU 有没有登录后的空闲教室查询入口**。有的话给我那个页面的 URL…
 
 ### 二、等真机（没有设备，一律不能声称已验证）
 - [ ] **青果登录页 `input#username` 在真机 WebView 的 `onPageFinished` 时序下能否稳定读到**。
 - [ ] **学号不一致时拦课表同步的提示是否清楚**（v1.1.2 那次判据错把人永久锁死过）。
-- [ ] **v1.1.16 饮水机四条（最要紧）**：
-- [ ] **v1.1.15 三条**：明文白名单下教务/学习通/胖乖生活三个内嵌页是否都正常
-- [ ] **v1.1.22「我的待办」在真机上的手感**：勾选圈点得准不准、日期选择器在
+- [ ] **v1.1.16 饮水机四条（最要紧）**…
+- [ ] **v1.1.15 三条**：明文白名单下教务/学习通/胖乖生活三个内嵌页是否都正常…
+- [ ] **v1.1.22「我的待办」在真机上的手感**：勾选圈点得准不准、日期选择器在…
+- [ ] **v1.1.35 课程提醒真的会弹吗（优先级最高，v1.1.27~v1.1.34 一直是死的）**…
+- [ ] **v1.1.26 专注计时在真机上的三件事**：①切后台/锁屏 10 分钟后回来…
+- [ ] **v1.1.28 停车场机制的手感**：学习页头部三个小按钮（待办 / 番茄钟 / 刷新）…
+- [ ] **v1.1.30~v1.1.37 宿舍空调八条**：①自己的学号能否查到绑定房间…
 
 ### 三、可以做（纯本地，不需要任何外部条件）
-- [ ] **课程提醒**：Android `AlarmManager` + `Notification`，上课前 N 分钟提醒。
-- [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍，
-- [ ] **`app.js` 已 4700+ 行**。若要长期维护可以按页面拆，但**保持无构建链**更稳；
+- [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍…
+- [ ] **`app.js` 已 4700+ 行**。若要长期维护可以按页面拆，但**保持无构建链**更稳…

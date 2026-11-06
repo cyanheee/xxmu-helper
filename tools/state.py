@@ -176,6 +176,29 @@ def target_dir_hint():
 
 # ---------------------------------------------------------------- 待办拾取
 
+def todo_line(s):
+    """把一条待办的第一行收成一个「看起来就是一句话」的提纲。
+
+    待办条目在 todo.md 里是多行的（第一行是标题，下面挂着解释）。状态页只取
+    第一行，于是常常停在半个句子上：「…有的话给我那个页面的 URL，」——读的人
+    会以为是排版坏了，而不是「下面还有」。这里把尾部的逗号/冒号/顿号去掉，
+    再补一个省略号；已经以句号结尾的（完整的判断句）原样留着。
+    """
+    s = s.strip()
+    if not s:
+        return ''
+    cut = s[-1] not in '。！？'
+    s = s.rstrip('，、；：,;:（(·—… ')
+    if not s:
+        return ''
+    # 截断时可能正好切在 ** 中间，补齐配对的强调符
+    if s.count('**') % 2 == 1:
+        s += '**'
+    if cut and not s.endswith('。'):
+        s += '…'
+    return s
+
+
 def todo_of_project():
     """从 docs/handoff/todo.md 抓未完成的待办（`- [ ]` 开头的行）。
 
@@ -198,7 +221,7 @@ def todo_of_project():
         elif s.startswith('- [ ]'):
             # 待办条目常常是多行（下面挂着解释）。这里只取第一行当提纲，
             # 完整内容在 todo.md 里 —— 状态页要保持一屏能读完。
-            out.append(s[5:].strip())
+            out.append(todo_line(s[5:]))
     # 有标题但下面没有未勾条目的，去掉那个空标题
     cleaned = []
     for i, t in enumerate(out):
