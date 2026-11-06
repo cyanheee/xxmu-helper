@@ -62,6 +62,10 @@ ids.txt
 # 它不是源码，改它没用（下次出包会被覆盖），进仓库只会让人改错地方
 android/assets/
 
+# 换图标前的自动备份：是回滚产物，留在磁盘即可，不进公开仓库
+# （apply_icon.py --restore 读本地 design/icons/_backup/，删索引不影响回滚）
+design/icons/_backup/
+
 # 打包中间产物
 build/
 android/build/
