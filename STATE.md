@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 22:10
+> 生成时间：2026-11-06 22:11
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -55,20 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `8dd647e` |
+| 分支 | main @ `ff7f2b5` |
 | origin/main | `30caf86` |
-| 领先远程 | 22 个提交 |
+| 领先远程 | 23 个提交 |
 | 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+ff7f2b5 docs: 提交后重新生成 STATE（本地 1.1.47 / 线上 1.1.43）
 8dd647e fix(update): v1.1.47 下载URL跟着双入口回退走 + 学生视角说明/教程/文档
 4e13f0b docs: 提交后重新生成 STATE（本地 1.1.46 / 线上 1.1.43）
 308abf1 perf(update): v1.1.46 检查更新去掉 1.5s 白等 + 更新说明只写学生视角（线上 notes 已热更）
 a493af8 docs: 提交后重新生成 STATE（本地 1.1.45 / 线上 1.1.43）
 6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
-6293cf9 perf(cdn): v1.1.44 版本化 APK URL + Worker/Pages 双层边缘缓存 + 官网静态缓存（服务端热更，未出 APK）
 ```
 
 ## 5. 常用命令（复制即用）
