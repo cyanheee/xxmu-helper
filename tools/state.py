@@ -126,10 +126,69 @@ def git_state():
     st['dirty'] = [l for l in sh([GIT, 'status', '--porcelain']).split('\n') if l]
     st['remote'] = sh([GIT, 'rev-parse', '--short', 'origin/main'])
     st['ahead'] = sh([GIT, 'rev-list', '--count', 'origin/main..HEAD'])
-    # 远程 sha 可能由 API 造（push_via_api.py 在 github.com 连不上时用它），
-    # 那样两边 sha 不同、内容其实一样。只看提交数会误报「有 2 个没推」。
+    # 远程 sha 可能由 API 造（github.com:443 被掐时走 push_full_tree.py）：
+    # 两边提交号必然不同、tree 却可以逐文件完全一致。而 API 造的提交对象
+    # 不在本地，origin/main 这个 remote-tracking 引用指不到它，于是
+    # `git diff --stat origin/main HEAD` 会把「内容已对齐」误报成「领先 24 个提交」。
+    # 真值只看内容：API 读远程 tree，逐文件比本地 HEAD 的 git blob sha。
     st['tree_same'] = sh([GIT, 'diff', '--stat', 'origin/main', 'HEAD']) == ''
+    st['remote_api'] = remote_tree_state()
+    if st['remote_api']['ok']:
+        st['tree_same'] = st['remote_api']['same']
     return st
+
+
+def remote_tree_state():
+    """API 读远程 main 的 tree，逐文件比本地 HEAD 的 git blob sha。
+
+    返回 {ok, same, head, files, bad, extra, note}。失败一律 ok=False，
+    state.py 退回本地引用判据，绝不因为读不到就谎报一致。
+    """
+    out = {'ok': False, 'same': False, 'head': '', 'files': 0,
+           'bad': [], 'extra': [], 'note': ''}
+    try:
+        tok = io.open(r'D:\_ghtoken.txt', encoding='utf-8').read().strip()
+        if not tok:
+            out['note'] = '没有 GitHub token'
+            return out
+
+        def api(path):
+            req = urllib.request.Request(
+                'https://api.github.com' + path,
+                headers={'Authorization': 'Bearer ' + tok,
+                         'User-Agent': 'xxmu-state',
+                         'Accept': 'application/vnd.github+json'})
+            with urllib.request.urlopen(req, timeout=25) as r:
+                return json.loads(r.read().decode('utf-8') or '{}')
+
+        ref = api('/repos/cyanheee/xxmu-helper/git/ref/heads/main')
+        head = (ref.get('object') or {}).get('sha') or ''
+        if not head:
+            out['note'] = '读不到远程 main'
+            return out
+        out['head'] = head[:7]
+        tree = api('/repos/cyanheee/xxmu-helper/git/trees/' + head + '?recursive=1')
+        if tree.get('truncated'):
+            out['note'] = '远程 tree 被截断'
+            return out
+        remote = dict((e['path'], e['sha']) for e in tree.get('tree', [])
+                      if e.get('type') == 'blob')
+        local = {}
+        for line in sh([GIT, 'ls-tree', '-r', 'HEAD']).split('\n'):
+            if not line or '\t' not in line:
+                continue
+            meta, path = line.split('\t', 1)
+            parts = meta.split()
+            if len(parts) >= 3:
+                local[path] = parts[2]
+        out['files'] = len(local)
+        out['bad'] = [p for p in local if remote.get(p) != local[p]]
+        out['extra'] = [p for p in remote if p not in local]
+        out['same'] = not out['bad'] and not out['extra'] and len(local) > 0
+        out['ok'] = True
+    except Exception as e:                                   # noqa: BLE001
+        out['note'] = type(e).__name__
+    return out
 
 
 # ---------------------------------------------------------------- 线上
@@ -351,11 +410,20 @@ def main():
     w('| 项 | 值 |')
     w('|---|---|')
     w('| 分支 | %s @ `%s` |' % (g['branch'], g['head']))
-    w('| origin/main | `%s` |' % (g['remote'] or '未取'))
-    if g['tree_same']:
-        w('| 与远程内容 | **一致**（没推的东西） |')
+    ra = g.get('remote_api') or {}
+    if ra.get('ok'):
+        w('| 远程 main（API 实读） | `%s` |' % (ra['head'] or '未取'))
+        w('| 与远程内容 | **%s**（逐文件比 %s 个 blob sha：不一致 %d / 远程多出 %d） |'
+          % ('一致' if ra['same'] else '不一致', ra['files'],
+             len(ra['bad']), len(ra['extra'])))
     else:
-        w('| 领先远程 | %s 个提交 |' % (g['ahead'] or '0'))
+        w('| origin/main | `%s` |' % (g['remote'] or '未取'))
+        if ra.get('note'):
+            w('| 远程实读 | 退回本地引用（%s） |' % ra['note'])
+        if g['tree_same']:
+            w('| 与远程内容 | **一致**（没推的东西） |')
+        else:
+            w('| 领先远程 | %s 个提交 |' % (g['ahead'] or '0'))
     w('| 未提交改动 | %s 个文件 |' % (len(g['dirty']) if g['dirty'] != [''] else 0))
     w('')
     if g['log']:

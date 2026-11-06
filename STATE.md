@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 22:11
+> 生成时间：2026-11-06 22:28
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -34,41 +34,45 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.43** |
-| latest.code | 1143 |
-| latest.size | 661744 |
-| latest.sha256 | `3ccccfed3591249d` |
-| latest.url | https://www.xxmuhelper.top/v1/apk?v=3ccccfed3591 |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.43.apk |
+| latest.version | **1.1.47** |
+| latest.code | 1147 |
+| latest.size | 665840 |
+| latest.sha256 | `96cfdfb498a27665` |
+| latest.url | https://www.xxmuhelper.top/v1/apk?v=96cfdfb498a2 |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.47.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | True |
 | updPolicy | nag |
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
-
-> 本地已到 **1.1.47**，线上还是 **1.1.43** —— 新版本**还没发**。
-> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
+> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `ff7f2b5` |
-| origin/main | `30caf86` |
-| 领先远程 | 23 个提交 |
-| 未提交改动 | 0 个文件 |
+| 分支 | main @ `41afc47` |
+| 远程 main（API 实读） | `445818d` |
+| 与远程内容 | **一致**（逐文件比 209 个 blob sha：不一致 0 / 远程多出 0） |
+| 未提交改动 | 2 个文件 |
 
 最近提交：
 
 ```
+41afc47 release: v1.1.47 (code 1147)
 ff7f2b5 docs: 提交后重新生成 STATE（本地 1.1.47 / 线上 1.1.43）
 8dd647e fix(update): v1.1.47 下载URL跟着双入口回退走 + 学生视角说明/教程/文档
 4e13f0b docs: 提交后重新生成 STATE（本地 1.1.46 / 线上 1.1.43）
 308abf1 perf(update): v1.1.46 检查更新去掉 1.5s 白等 + 更新说明只写学生视角（线上 notes 已热更）
 a493af8 docs: 提交后重新生成 STATE（本地 1.1.45 / 线上 1.1.43）
-6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
+```
+
+未提交：
+
+```
+M STATE.md
+ M tools/state.py
 ```
 
 ## 5. 常用命令（复制即用）
