@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 15:06
+> 生成时间：2026-11-06 15:15
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -34,58 +34,38 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.37** |
-| latest.code | 1137 |
-| latest.size | 599857 |
-| latest.sha256 | `7ae07ad7597fb21d` |
+| latest.version | **1.1.38** |
+| latest.code | 1138 |
+| latest.size | 612205 |
+| latest.sha256 | `c8540b667a62bdc4` |
 | latest.url | https://www.xxmuhelper.top/v1/apk |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.37.apk |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.38.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | True |
 | updPolicy | nag |
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
-
-> 本地已到 **1.1.38**，线上还是 **1.1.37** —— 新版本**还没发**。
-> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
+> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `a05665d` |
-| origin/main | `a05665d` |
+| 分支 | main @ `2f06dac` |
+| origin/main | `2f06dac` |
 | 与远程内容 | **一致**（没推的东西） |
-| 未提交改动 | 14 个文件 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+2f06dac docs: v1.1.38 发版说明 + README 徽章
+d1015d6 feat(free): v1.1.38 全校空闲教室（青果 SB12）+ 登录页缩放 + 登录状态不再误报
 a05665d chore: 发版后重新生成 STATE（线上 1.1.37 / 领先 0）
 3387acc release: v1.1.37 (code 1137)
 31a1480 release: v1.1.23 (code 1123)
 a27fb2b release: v1.1.23 (code 1123)
-ed58183 chore: 项目搬到 桌面\\xxmuhelper\\ + 新增 tools/deliver.py 固定交付落点
-3c4e02b chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
-```
-
-未提交：
-
-```
-M android/AndroidManifest.xml
- M android/src/com/xxmu/helper/WebActivity.java
- M docs/compare-henubox.md
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/app.js
- M web/index.html
-?? tools/fixtures/
 ```
 
 ## 5. 常用命令（复制即用）
