@@ -7,7 +7,50 @@
 
 ---
 
-### v1.1.43（2026-11-06）—— 应用图标换成 F 号「夜空河字」（**只出本地包，未上线**）
+### v1.1.44（2026-11-06 线上热更，**服务端 + 官网，未出 APK**）
+
+用户报「现在走app内下载好慢呀，什么原因，官网加载也慢」，先量化再动手，回一句「有改善你就做」后执行。
+**这次只改 `server/worker.js` / `server/pages/dist/_worker.js` / `dist/_headers` / 两个发版脚本 + 当前 KV 的 cfg.latest.url，
+没有出新 APK，线上版本号仍 1.1.43 / 1143，学生不会因此收到更新提示。**
+
+**实测基线（改前）**：官网首页 TTFB 0.84s、连打三次全 `cf-cache-status: DYNAMIC` + `max-age=0` 次次回源；
+`/v1/config` TTFB ~0.85s 但 `x-edge: hit`；`/v1/apk` 单流 2.42s / 273 KB/s，4 段并发 1.84s；
+直连 workers.dev 21.2s 超时（国内污染，双跳必须存在）。根因是**每个请求都跨
+手机 → Pages Functions → workers.dev → Worker → KV 双跳且每一跳都不缓存**：
+`worker.js` 第 2186 行注释写「/v1/config 与 /v1/apk 靠边缘缓存」，但 `handleApk` 直接 return、根本没调
+`edgeCache`，`no-cache` + Pages 原样透传 → 注释与代码不符；4 段并发各付一遍双跳 TTFB，收益被吃掉。
+
+**改动**
+1. **Worker**：`cfg.latest.url` 改成 `/v1/apk?v=<sha256 前 12 位>`；`handleApk` 只在 `?v=` 是当前 sha 前缀时
+   把**全量字节**存进 Cache API 并回 `immutable`，Range 统一走 `apkResponse()` 从全量切片（不缓存 206）。
+   **无参数老 URL / v 不匹配的请求仍走原来的 no-cache 分支**，旧客户端与回滚口行为一字不变。
+2. **Pages 层**：只对「带 ?v= **且带 Range**」的请求做 Cache API 缓存，键带 `&r=<Range>`（4 段不互相覆盖），
+   206 段包成 200 存、段范围另存 `x-apk-range`，命中还原 206。首页 300s / 图片 1 天短 TTL 缓存，
+   404 分支不缓存。新增 `dist/_headers` 给浏览器/CDN 一层声明（真生效的是 Cache API）。
+3. **两个发版脚本**：`publish_apk.py` 与 `set_latest.py` 都生成/补齐 `?v=`（后者专门防 `release_all.py`
+   兜底传无参数 `--url` 把旧 URL 写回 cfg）。App 侧 `isSelf` 是前缀匹配，带 query 仍命中，不用改客户端。
+4. 当前线上 KV 用 `set_latest.py` 补成版本化 URL，回读确认 `/v1/config` 已是 `...?v=3ccccfed3591`。
+
+**当场发现并修掉的两个真问题**
+- **单流被拖慢 80%**：第一版 Pages 层把无 Range 的首包也 `await` 读 661KB 再写缓存，单流 1.7s → 3.1s。
+  改成只缓存带 Range 的请求，单流走原透传（Worker 层全量缓存仍在，第二次起照样省 KV）。
+- **旧 cfg 缓存副本**：`set_latest.py` 写 KV 成功，但 `/v1/config` 有 60 秒 `edgeCache`，连读四次仍是旧 URL；
+  带 `?probe=1` 一读就是新值。这是缓存生效的正常表现，不是写失败，别因此重跑发布。
+
+**回读（改后）**：`/v1/config` url 带 `?v=3ccccfed3591`；版本化 Range 连打稳定 `x-pages-cache: hit`
++ `immutable`、TTFB 从 ~1.08s 降到 0.74~0.90s；官网首页连打 `miss → hit → hit`、`max-age=300`；
+老无参数 URL 仍 206 + `x-apk-cache: legacy` + `no-cache`。Worker 部署后四条绑定齐全。
+`npx wrangler pages deploy` 必须用 **dist 绝对路径**（检测到 server/wrangler.toml 时会把相对 `dist`
+解析成 `server/dist`）；它因 config 警告把 stderr 当错误报 exit 1，但 `Deployment complete` 是真的，按回读判定。
+
+**验证边界（如实说）**：① 编译/语法 + ② `check_web.js` 全 PASS、新增 `test_apk_cache.js` 33 项、
+全套离线测试 0 FAIL 都过了；③ **真机秒数改善测不出稳定值** —— 本机到 Cloudflare 带宽本身在抖
+（单流 1.4~4.5s、4 段 2.0~3.0s，新旧互有胜负），只敢承诺「缓存命中率与回源跳数」这两项结构性指标，
+不承诺具体快多少秒。学生手机在校园网/5G 的单流上限仍要真机看。
+
+---
+
+### v1.1.43（2026-11-06）—— 应用图标换成 F 号「夜空河字」（**已上线**）
 
 用户回「图标要F吧」。上一轮给了 6 套方案但明确不擅自换 `android/res`，
 这句就是明确授权，所以这轮只做替换，别的功能一行不改。

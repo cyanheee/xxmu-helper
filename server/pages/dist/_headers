@@ -1,0 +1,22 @@
+# 河医大助手官网 · 静态资源缓存规则
+#
+# 为什么要这一份：Pages Functions (_worker.js) 接管了所有请求，
+# 它的响应默认不进 Cloudflare 边缘 HTTP 缓存；官网首页实测连打三次
+# 都是 cf-cache-status: DYNAMIC、TTFB 0.8~0.9s，每张 SVG 也要回源验一次（REVALIDATED）。
+# v1.1.44 在 _worker.js 里用 Cache API 显式缓存了首页与 /img/*，
+# 这里再给浏览器/CDN 一层声明，双保险；真生效的是 Cache API 那一层。
+#
+# 首页 5 分钟：管理员改了官网文案，最迟 5 分钟全校看到新的，
+# 和 /v1/config 的 60 秒缓存同理，不追求永久。
+# 图片没有版本号，但都是纯代码生成的示意图、改了会同步改 _worker.js 缓存键，
+# 给 1 天已经足够保守。
+# 404 分支不缓存（_worker.js 里已排除）。
+
+/
+  Cache-Control: public, max-age=300, s-maxage=300
+
+/index.html
+  Cache-Control: public, max-age=300, s-maxage=300
+
+/img/*
+  Cache-Control: public, max-age=86400, s-maxage=86400

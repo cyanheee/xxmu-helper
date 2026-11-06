@@ -815,25 +815,80 @@ async function handleUploadApk(req, env, url) {
  *   不支持 Range 的旧版客户端不受影响：不带头就还是原来那条 200 全量路径。
  */
 async function handleApk(req, env) {
+  /* v1.1.44 性能：版本化 URL 才走缓存。
+   *
+   * 原来 /v1/apk 固定 URL + no-cache，每次下载都要跨
+   * 「手机 → Pages Functions → workers.dev → Worker → KV」双跳，
+   * TTFB 稳定 0.8~1.2s；App 的 4 段并发各付一遍，所以并发只快 24%。
+   * 现在 cfg.latest.url 带 ?v=<sha256 前 12 位>，第一次回源把**全量字节**
+   * 存进 Cache API，之后所有学生（含 4 个 Range 段）都命中边缘缓存，
+   * Worker 与 KV 一次都不执行。版本一变 URL 就变，天然不会串版本。
+   *
+   * 两条硬约束：
+   * ① 只缓存带 ?v= 且 v 与当前 meta.sha256 前缀一致的请求。
+   *    老客户端 / 手动贴的无参数链接仍走下面原来的 no-cache 分支，
+   *    行为完全不变（回滚口不消失）。
+   * ② 缓存里只放 200 全量，Range 从这份全量里切片，不缓存 206。
+   *    否则 4 段各存一片，拼不回一份完整包，还把缓存键搞碎。 */
+  const u = new URL(req.url);
+  const qv = (u.searchParams.get('v') || '').trim();
+
   const meta = await getApkMeta(env);
   if (!meta) return bad('服务器上还没有安装包', 404);
+  const sha = String(meta.sha256 || '');
+  const versioned = qv.length >= 8 && sha.toLowerCase().indexOf(qv.toLowerCase()) === 0;
+
+  if (versioned) {
+    const cacheKey = new Request(u.origin + u.pathname + '?v=' + qv, { method: 'GET' });
+    let full = null;
+    let cache = null;
+    try { cache = caches.default; } catch (e) { cache = null; }
+    if (cache) {
+      try {
+        const hit = await cache.match(cacheKey);
+        if (hit) full = await hit.arrayBuffer();
+      } catch (e) { /* 缓存读失败就当 miss */ }
+    }
+    if (!full) {
+      const buf = await getApkBlob(env, meta);
+      if (!buf) return bad('安装包数据丢了，请重新上传', 404);
+      // 克隆一份，apksigner 的原始 ArrayBuffer 不进缓存写入路径
+      full = buf.slice(0);
+      if (cache) {
+        try {
+          const h = new Headers({
+            'content-type': 'application/vnd.android.package-archive',
+            'cache-control': 'public, max-age=31536000, immutable',
+          });
+          await cache.put(cacheKey, new Response(full.slice(0), { status: 200, headers: h }));
+        } catch (e) { /* 缓存写失败不影响这次下载 */ }
+      }
+    }
+    return apkResponse(req, full, meta, true);
+  }
+
+  /* 老路径：无 ?v= 或版本不匹配 —— 保持 v1.1.43 及以前的行为 */
   const buf = await getApkBlob(env, meta);
   if (!buf) return bad('安装包数据丢了，请重新上传', 404);
+  return apkResponse(req, buf, meta, false);
+}
+
+/** 从一份全量字节里按 Range 切片（缓存命中与回源共用，避免两份实现改岔）。 */
+function apkResponse(req, buf, meta, versioned) {
   const fn = (meta.name || 'app.apk').replace(/[^\w.\-]/g, '_');
   const total = buf.byteLength || 0;
   const head = {
     'content-type': 'application/vnd.android.package-archive',
     'content-disposition': 'attachment; filename="' + fn + '"',
-    /* 必须 no-cache：这个 URL 是固定的 /v1/apk，发新版时 blob 换成新内容，
-     * 但 URL 一个字都没变。给它 max-age 就等于让浏览器/中间代理在发版后
-     * 最多一整天还发旧包——用户点了「去下载」，装回来还是老版本，
-     * 那种 bug 极难查（服务端查什么都是对的）。省那点 KV 读不值得。
-     * no-cache 仍然允许存，只是每次回源验一次，Range 重试照样省不了往返，
-     * 但至少不会串版本。 */
-    'cache-control': 'no-cache',
+    /* 版本化 URL 永久缓存（内容变则 URL 变）；老 URL 仍 no-cache，
+     * 发版后不会因为一个固定 URL 被中间代理缓存住旧包。 */
+    'cache-control': versioned
+      ? 'public, max-age=31536000, immutable'
+      : 'no-cache',
     'accept-ranges': 'bytes',
     'x-apk-sha256': meta.sha256 || '',
     'x-apk-ver': meta.ver || '',
+    'x-apk-cache': versioned ? 'versioned' : 'legacy',
   };
 
   const rv = String((req && req.headers.get('range')) || '').trim();
@@ -842,7 +897,6 @@ async function handleApk(req, env) {
     let start;
     let end;
     if (m[1] === '') {
-      // "bytes=-500" 最后 500 字节
       if (m[2] === '') return apk416(total, head);
       const n = parseInt(m[2], 10);
       start = Math.max(0, total - n);
