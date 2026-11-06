@@ -92,6 +92,9 @@ NEW_JS_SYMBOLS = {
                       # v1.1.45 管理名单
                       "function listNewFirst(a, b)", "function looksOddId(id)",
                       "格式异常（手填）", "LIST.slice().sort(listNewFirst)",
+                      # v1.1.46 检查更新提速
+                      "function checkUpdateOnFirstPaint()",
+                      "requestAnimationFrame(() => window.requestAnimationFrame(fire))",
                       # v1.1.5 作业状态：这一批全是「静默失败」型 bug ——
                       # 解析不到就 status=''，然后被当成「已完成」，不报错不报警。
                       "isDoneStatus", "status_known",

@@ -4852,5 +4852,25 @@ if (typeof Disc !== 'undefined') Disc.init();
 if (typeof Tut !== 'undefined') Tut.init();
 UpdateUI.init();
 Gate.init();
-// 启动后延迟拉一次版本配置：不抢首屏，也不影响课表渲染
-setTimeout(() => UpdateUI.check(true), 1500);
+/* v1.1.46：启动后立刻查版本，不再固定白等 1500ms。
+ *
+ * 用户原话「启动软件检查更新能不能快一点，现在有点慢，感觉打开了好久才弹要更新」。
+ * 实测 /v1/config 的 TTFB 是 0.8~1.4s（双跳 + 首次 TLS），而原来还要先睡
+ * 1500ms 才发请求 —— 学生感知的「好久」里有一大半是这 1.5 秒纯等待，
+ * 跟网络一点关系都没有。
+ *
+ * 现在用双 rAF：第一帧让浏览器把首屏画出来，第二帧就发请求（约 32ms）。
+ * 为什么不用 0ms：同步塞进启动段会和 load()/各模块 init 抢主线程，
+ * 首屏反而更慢；双 rAF 是「不抢首屏」和「不白等」的折中。
+ * 为什么不用 setTimeout(0)：那只是排到任务队列尾部，仍可能挤在首屏绘制前。
+ *
+ * 双保险：极老的 WebView 没有 rAF 时退回 60ms 定时器；
+ * 请求是异步桥发出的，不阻塞 JS 线程，课表同步等初始化照常并行进行。 */
+(function checkUpdateOnFirstPaint() {
+  const fire = () => { setTimeout(() => UpdateUI.check(true), 0); };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(fire));
+  } else {
+    setTimeout(fire, 60);
+  }
+})();

@@ -1437,6 +1437,26 @@ if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
 }
 
+// ---- v1.1.46：更新检查提速 + 发版说明学生视角 ----
+console.log('\nv1.1.46 checkpoints（检查更新 / 说明文案）:');
+has(app, 'function checkUpdateOnFirstPaint()', '启动检查改成立即执行（双 rAF）');
+has(app, 'window.requestAnimationFrame(() => window.requestAnimationFrame(fire))',
+  '用双 rAF 等首屏画完再发，不抢渲染');
+if (/setTimeout\(\(\) => UpdateUI\.check\(true\), 1500\)/.test(app)) {
+  fail('还在固定白等 1500ms 才查更新（用户报「打开好久才弹」的主因）');
+}
+has(app, 'UpdateUI.check(true)', '仍是非阻塞的静默检查');
+has(app, "updNotes').textContent = la.notes", '更新弹窗只显示 latest.notes');
+has(app, "ntcBody').textContent = String(cfg.notice || '')", '公告只读 cfg.notice（与更新说明分离）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'check_notes.js')], { encoding: 'utf8' });
+  console.log('  发版说明学生视角检查  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('发版说明里还有管理员/内部视角的话：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);
