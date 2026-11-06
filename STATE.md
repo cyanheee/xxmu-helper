@@ -55,36 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `6293cf9` |
+| 分支 | main @ `6f285a2` |
 | origin/main | `30caf86` |
-| 领先远程 | 17 个提交 |
-| 未提交改动 | 11 个文件 |
+| 领先远程 | 18 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
 6293cf9 perf(cdn): v1.1.44 版本化 APK URL + Worker/Pages 双层边缘缓存 + 官网静态缓存（服务端热更，未出 APK）
 f758dad docs: STATE 终态（线上 1.1.43）
 738fdee docs: 上线终态 STATE（线上 1.1.43 / 与远程内容一致）
 f526676 chore: 上线后重新生成 STATE（线上 1.1.43 / 领先 0）+ 完整 tree 对齐工具
 3b70f93 release: v1.1.43 (code 1143)
-468ed2d chore: 图标回滚备份不进公开仓库（磁盘保留）
-```
-
-未提交：
-
-```
-M android/AndroidManifest.xml
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M server/worker.js
- M tools/check_web.js
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/app.js
- M web/index.html
-?? tools/test_admin_list.js
 ```
 
 ## 5. 常用命令（复制即用）
