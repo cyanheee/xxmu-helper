@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 18:53
+> 生成时间：2026-11-06 18:54
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -55,37 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `b7019d6` |
+| 分支 | main @ `b7962d2` |
 | origin/main | `2f06dac` |
-| 领先远程 | 3 个提交 |
-| 未提交改动 | 14 个文件 |
+| 领先远程 | 4 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+b7962d2 feat(settings): v1.1.40 独立设置页 + 6 套图标方案（图标待用户选，未替换 res）
 b7019d6 docs: 提交后重新生成 STATE（本地 1.1.39 / 线上 1.1.38）
 cd31085 feat(theme): v1.1.39 深色模式（三档主题/跟随系统/首屏不闪白/关 WebView 自动反色）
 2769498 chore: 发版后重新生成 STATE（线上 1.1.38 / 领先 0）
 2f06dac docs: v1.1.38 发版说明 + README 徽章
 d1015d6 feat(free): v1.1.38 全校空闲教室（青果 SB12）+ 登录页缩放 + 登录状态不再误报
-a05665d chore: 发版后重新生成 STATE（线上 1.1.37 / 领先 0）
-```
-
-未提交：
-
-```
-M android/AndroidManifest.xml
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/test_theme.js
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/app.js
- M web/index.html
- M web/theme.js
-?? design/
 ```
 
 ## 5. 常用命令（复制即用）
