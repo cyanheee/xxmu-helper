@@ -16,6 +16,12 @@
   7. 在 GitHub 上建 Release 并挂上 APK
   8. 最后再验一遍：官网 / 与 /v1/config、GitHub Release 附件 SHA
 
+v1.1.42 起第 1 步预检多一道：跑 tools/check_tutorial.js。
+用户原话「使用教程什么的每次版本更新，如果有功能性变化这个也需要更新」。
+契约表 docs/handoff/tutorial-contract.json 列了 App 现在的功能，
+教程声称覆盖的清单对不上、某页还标着旧版本、或还在教已删的「结束并结算」，
+这里就 die()，不许带着过时教程发出去。
+
 为什么要这一个脚本：发版涉及五六个不同系统（KV、Pages、git、GitHub Release、
 本地桌面副本），任何一处漏掉都会造成「官网说 A、App 提示 B、GitHub 挂 C」的
 不一致。这个项目已经因为「三处版本号不同步」踩过一次，所以收成一条命令，
@@ -159,10 +165,36 @@ def bump_in_text(path, old_ver, new_ver, extra_patterns=()):
 
 
 def old_version():
-    """从 manifest 读「当前磁盘上的」版本号——发版前它就是旧的。"""
-    mani = io.open(os.path.join(ROOT, 'android', 'AndroidManifest.xml'), encoding='utf-8').read()
-    m = re.search(r'android:versionName="([^"]+)"', mani)
-    return m.group(1) if m else ''
+    """取「线上当前版本」——发版时要被替换掉的旧版本号。
+
+    以前这里读 manifest，前提是「发版前 manifest 还是旧版」。但现在流程是
+    先 bump_ver + build_apk 出包、隔好几轮才说「上线」，manifest 早已是新版：
+    读它会得到 == apk['ver']，第 4 步直接打印「无需替换」，README 徽章
+    永远停在上线前的那一版（v1.1.38 这次就差点漏掉）。
+    正确来源是 /v1/config 的 cfg.latest：那才是学生/官网当前看到的值。
+    读不到网络时退回 README 徽章里的版本号，再不行才用 manifest。
+    """
+    try:
+        _, body = http_get(BASE + '/v1/config', timeout=15)
+        v = (json.loads(body.decode('utf-8')).get('latest') or {}).get('version')
+        if v and re.match(r'^\d+\.\d+\.\d+$', str(v)):
+            return str(v)
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        rm = io.open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read()
+        m = re.search(r'badge/version-(\d+\.\d+\.\d+)-', rm)
+        if m:
+            return m.group(1)
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        mani = io.open(os.path.join(ROOT, 'android', 'AndroidManifest.xml'),
+                       encoding='utf-8').read()
+        m = re.search(r'android:versionName="([^"]+)"', mani)
+        return m.group(1) if m else ''
+    except Exception:                                            # noqa: BLE001
+        return ''
 
 
 # ---------------------------------------------------------------- GitHub
@@ -228,6 +260,25 @@ def main():
         print('\n--dry-run：到此为止，不做任何写操作')
         return 0
 
+    # ---------- 1b. 教程必须跟着功能走（v1.1.42） ----------
+    # 放在 --dry-run 之后、任何写操作之前。契约表里的功能变了没更教程，
+    # 或者教程还在教已删掉的「结束并结算」，这一步就 die()，不许发版。
+    step(1, total, '预检：使用教程与功能清单一致')
+    node = r'C:\Program Files\nodejs\node.exe'
+    if not os.path.exists(node):
+        node = 'node'   # 交给 PATH
+    ok, out = sh([node, 'tools/check_tutorial.js'], check=False)
+    if not ok:
+        print(out.strip()[-800:])
+        die('教程契约检查没过：功能变了但教程没跟着更。'
+            '改 docs/handoff/tutorial-contract.json 与 web/tut.js 后重跑')
+    print('  教程契约检查通过')
+
+    # ★ 必须在切 KV **之前**抓旧版本号：第 2 步一发布，/v1/config 就返回新版，
+    #   第 4 步再读线上会得到 == apk['ver']，README 徽章就漏替换了。
+    prev_ver = old_version()
+    print('  线上当前版本（替换基准）：%s' % (prev_ver or '读不到'))
+
     # ---------- 2. 发布到 KV ----------
     step(2, total, '发布到 Cloudflare KV')
     args = [sys.executable, 'tools/publish_apk.py', '--apk', apk_path]
@@ -252,7 +303,7 @@ def main():
 
     # ---------- 4. 官网 ----------
     step(4, total, '更新官网文档里的版本号')
-    ov = old_version()
+    ov = prev_ver
     if ov and ov != apk['ver']:
         n1 = bump_in_text('server/pages/dist/index.html', ov, apk['ver'])
         n2 = bump_in_text('README.md', ov, apk['ver'])
@@ -260,7 +311,7 @@ def main():
         print('  index.html 替换 %d 处，README 替换 %d 处（%s → %s）'
               % (n1, n2, ov, apk['ver']))
     else:
-        print('  磁盘版本号已是 %s，无需替换' % apk['ver'])
+        print('  线上版本已是 %s（或读不到），无需替换' % apk['ver'])
 
     # ---------- 5. 提交 ----------
     step(5, total, '提交到本地 Git')
