@@ -91,6 +91,11 @@ def main():
         url = sys.argv[sys.argv.index('--url') + 1]
 
     facts = apk_facts(apk)
+    # v1.1.44：URL 一律补/换成带 ?v=<sha 前缀> 的版本化形式。
+    # release_all.py 的兜底会传 --url BASE + '/v1/apk'（无参数），
+    # 若不在这里补，就会把旧 URL 写回 cfg，边缘缓存整条失效。
+    base_url = url.split('?')[0]
+    url = base_url + '?v=' + facts['sha256'][:12]
     print('目标包：', facts['name'])
     print('  版本 %s / code %d / %d 字节' % (facts['ver'], facts['code'], facts['size']))
     print('  sha256 %s' % facts['sha256'])

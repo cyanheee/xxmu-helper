@@ -1385,6 +1385,36 @@ if ((rmJava.match(/new NotificationChannel\(/g) || []).length !== 1) {
   fail('NotificationChannel 构造应只在一处（靠变量选 id/重要性），两处各写一遍容易改岔');
 }
 
+/* ---- v1.1.44：APK 版本化缓存 + 官网静态缓存（用户报「下载慢/官网慢」） ----
+ * 详细行为测试在 tools/test_apk_cache.js（33 项，check_web 会同步调）。
+ * 这里钉住「两层缓存都在 + cfg.latest.url 带 ?v= + 老 URL 仍可用」四端。 */
+console.log('\nv1.1.44 checkpoints（下载/官网性能）:');
+const wrk = read('server/worker.js');
+const pgw = read('server/pages/dist/_worker.js');
+const pyp = read('tools/publish_apk.py');
+const pys = read('tools/set_latest.py');
+has(wrk, "u.searchParams.get('v')", 'Worker 读版本化 query');
+has(wrk, 'cache.match(cacheKey)', 'Worker handleApk 真调 Cache API');
+has(wrk, 'function apkResponse(req, buf, meta, versioned)', 'Range 从全量切片（单一实现）');
+has(wrk, "'no-cache'", '老 URL 仍 no-cache（不缓存旧包）');
+has(pgw, 'versionedApk', 'Pages 层有版本化 APK 缓存分支');
+has(pgw, "'&r=' + encodeURIComponent(rv)", '缓存键带 Range（4 段不互相覆盖）');
+has(pgw, "x-pages-cache', 'hit'", 'Pages 层有命中标记，线上可验');
+has(pgw, 'HOME_TTL = 300', '官网首页短 TTL');
+has(pyp, "'/v1/apk?v=' + sha[:12]", 'publish_apk 生成版本化 URL');
+has(pys, "'?v=' + facts['sha256'][:12]", 'set_latest 也补 ?v=');
+has(app, 'url.indexOf(self) === 0', 'App 内下载仍前缀匹配（带 query 不外链）');
+if (!fs.existsSync(path.join(root, 'server', 'pages', 'dist', '_headers')))
+  fail('缺 dist/_headers（官网静态缓存规则）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_apk_cache.js')], { encoding: 'utf8' });
+  console.log('  APK 缓存契约检查      =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('APK 缓存契约未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

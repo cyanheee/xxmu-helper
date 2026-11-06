@@ -309,7 +309,10 @@ def main():
     latest.update({
         'version': vname,
         'code': vcode,
-        'url': BASE + '/v1/apk',
+        # v1.1.44：版本化 URL。sha 变则 URL 变，Worker 与 Pages 两层的
+        # 边缘缓存才能用 immutable 永久缓存而不串版本。
+        # App 侧 isSelf 判定是前缀匹配（AUTH.BASE + '/v1/apk'），带 query 仍命中。
+        'url': BASE + '/v1/apk?v=' + sha[:12],
         'size': len(blob),
         'sha256': sha,
     })

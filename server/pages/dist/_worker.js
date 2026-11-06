@@ -43,6 +43,59 @@ const CORS = {
   'access-control-allow-methods': 'GET,POST,OPTIONS'
 };
 
+/* ===================== v1.1.44：Pages 边缘缓存 =====================
+ *
+ * 为什么必须放在这一层：
+ *   学生流量全部先到 Pages Functions，再由它 fetch(workers.dev)。
+ *   实测（2026-11-06）每次请求 TTFB 稳定 0.8~1.0s，其中约 0.4s 是
+ *   「Pages → workers.dev → Worker → KV」这段内网往返；官网首页与
+ *   /v1/apk 都是 cf-cache-status: DYNAMIC（Functions 的响应默认不进
+ *   边缘 HTTP 缓存，光写 cache-control 没用）。App 的 4 段并发下载
+ *   各付一遍这个固定成本，所以只从 2.42s 降到 1.84s。
+ *   在**这一层**用 Cache API 命中，才真正把「手机 → 边缘」之外所有跳省掉。
+ *
+ * 两条边界（收益确定、风险面不变）：
+ *   ① 只缓存带 ?v=<sha 前缀> 的 /v1/apk —— 版本化 URL 变了就自动失效，
+ *      永远不会把旧包缓存住；老的无参数链接走原来的透传路径，行为不变。
+ *   ② 官网静态首页/图片也缓存，但 TTL 短（首页 300s / 图片 1 天），
+ *      管理员改官网后最迟 5 分钟生效，和 /v1/config 的 60 秒同理。
+ *
+ * 关于 Range：Cloudflare Cache API 的 put 只接受 200，直接存 206 会被拒。
+ * 所以缓存键带 Range 值，把该段字节包成 status:200 存入、段范围记在
+ * x-apk-range 头里；命中时还原成 206 + content-range。
+ * 每个学生的 4 段切分固定（Http.java 按 total/4），键稳定可复用。
+ */
+const APK_TTL = 31536000;   // 版本化 URL，内容变则 URL 变，可永久缓存
+const HOME_TTL = 300;
+const IMG_TTL = 86400;
+
+async function cacheMatch(key) {
+  try { return await caches.default.match(key); } catch (e) { return null; }
+}
+async function cacheStore(key, resp) {
+  try { await caches.default.put(key, resp); } catch (e) { /* 写失败不影响本次 */ }
+}
+function copyHeaders(src, list, out) {
+  list.forEach(function (k) {
+    const v = src.headers.get(k);
+    if (v) out.set(k, v);
+  });
+}
+function parseRange(rv, total) {
+  const m = /^bytes=(\d*)-(\d*)$/i.exec(String(rv || '').trim());
+  if (!m || total <= 0) return null;
+  let s, e;
+  if (m[1] === '') {
+    if (m[2] === '') return null;
+    s = Math.max(0, total - parseInt(m[2], 10)); e = total - 1;
+  } else {
+    s = parseInt(m[1], 10);
+    e = (m[2] === '') ? total - 1 : Math.min(parseInt(m[2], 10), total - 1);
+  }
+  if (!isFinite(s) || !isFinite(e) || s > e || s >= total) return null;
+  return { s: s, e: e };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const u = new URL(request.url);
@@ -81,9 +134,43 @@ export default {
          * 「页面正常」。
          *
          * 规则：只认 `/` 与 `/index.html` 是首页；其它静态路径如果拿回来
-         * 的仍是那个 index.html（说明没命中真实文件），改判 404。 */
-        const r = await env.ASSETS.fetch(request);
+         * 的仍是那个 index.html（说明没命中真实文件），改判 404。
+         *
+         * v1.1.44：首页与图片在这一层做短 TTL 边缘缓存，省掉 Function 执行
+         * 与 ASSETS 回源。404 分支不缓存（避免把误判固化 5 分钟）。 */
         const isHome = (p === '/' || p === '/index.html');
+        const isImg = p.indexOf('/img/') === 0;
+        if (request.method === 'GET' && (isHome || isImg)) {
+          const ck = new Request(u.origin + (isHome ? '/' : p), { method: 'GET' });
+          const hit = await cacheMatch(ck);
+          if (hit) {
+            const oh = new Headers(hit.headers);
+            oh.set('x-pages-cache', 'hit');
+            return new Response(hit.body, { status: hit.status, headers: oh });
+          }
+          const assetResp = await env.ASSETS.fetch(request);
+          // 静态资源返回 HTML 但不是首页 → 404（原来的 SPA 回落修正）
+          if (!isHome && assetResp.ok) {
+            const ct = (assetResp.headers.get('content-type') || '').toLowerCase();
+            if (ct.indexOf('text/html') >= 0) {
+              return new Response('页面不存在（404）。回首页：/', {
+                status: 404,
+                headers: { 'content-type': 'text/plain; charset=utf-8' },
+              });
+            }
+          }
+          if (assetResp.status === 200) {
+            const oh = new Headers(assetResp.headers);
+            oh.set('cache-control', 'public, max-age=' + (isHome ? HOME_TTL : IMG_TTL)
+              + ', s-maxage=' + (isHome ? HOME_TTL : IMG_TTL));
+            oh.set('x-pages-cache', 'miss');
+            const out = new Response(assetResp.body, { status: 200, headers: oh });
+            await cacheStore(ck, out.clone());
+            return out;
+          }
+          return assetResp;
+        }
+        const r = await env.ASSETS.fetch(request);
         if (!isHome && r.ok) {
           const ct = (r.headers.get('content-type') || '').toLowerCase();
           /* 命中了真文件（图片/css/js）就原样返回。只有「拿回了 HTML
@@ -106,6 +193,47 @@ export default {
     }
 
     const target = UPSTREAM + u.pathname + u.search;
+
+    /* ================= v1.1.44：版本化 APK 的 Pages 层缓存 =================
+     * 只拦「GET /v1/apk?v=<sha 前缀>」。这一层命中后不再 fetch(workers.dev)，
+     * 直接把边缘存的那段字节还给学生 —— 双跳里的第二跳整段消失。
+     *
+     * 缓存键 = origin + pathname + ?v= + Range 值。Range 必须进键：
+     * 4 段并发请求的是同一 URL 的不同字节区间，键里不带就会互相覆盖。
+     * Cloudflare Cache API 的 put 只收 200，所以把 206 段包成 200 存，
+     * 段范围写进 x-apk-range，命中时还原成 206 + content-range。
+     *
+     * 不带 ?v= 的老链接、以及所有其它 /v1/ 接口，走下面原来的透传路径，
+     * 行为一字不变（回滚口 xxmu-auth.pages.dev 保持可用）。 */
+    const qv = (u.searchParams.get('v') || '').trim();
+    const rvAll = String(request.headers.get('range') || '').trim();
+    /* v1.1.44 实测修正：**无 Range 的单流不要进这一层缓存**。
+     * 首包为了写缓存要先 await 读完整 661KB 再返回，实测单流从 1.7s
+     * 拖到 3.1s（-80%）；而 App 内下载按 4 段走，带 Range 的段才有收益。
+     * 单流交给 Worker 层那份全量缓存（第二次起仍省 KV），行为与改写前一致。 */
+    const versionedApk = (p === '/v1/apk' && request.method === 'GET'
+      && qv.length >= 8 && /^[0-9a-f]+$/i.test(qv) && rvAll !== '');
+    if (versionedApk) {
+      const rv = rvAll;
+      const ck = new Request(u.origin + u.pathname + '?v=' + qv + '&r=' + encodeURIComponent(rv),
+        { method: 'GET' });
+      const hit = await cacheMatch(ck);
+      if (hit) {
+        const oh = new Headers();
+        copyHeaders(hit, ['content-type', 'content-disposition', 'cache-control',
+          'accept-ranges', 'etag', 'x-apk-sha256', 'x-apk-ver'], oh);
+        Object.keys(CORS).forEach(function (k) { oh.set(k, CORS[k]); });
+        oh.set('x-pages-cache', 'hit');
+        const hdr = String(hit.headers.get('x-apk-range') || '');
+        if (hdr) {
+          oh.set('content-range', hdr);
+          oh.set('content-length', String(hit.headers.get('x-apk-length') || ''));
+          return new Response(hit.body, { status: 206, headers: oh });
+        }
+        oh.set('content-length', String(hit.headers.get('x-apk-length') || ''));
+        return new Response(hit.body, { status: 200, headers: oh });
+      }
+    }
 
     // 复制请求头，但去掉这些由边缘重新生成/会干扰上游路由的头
     const headers = new Headers(request.headers);
@@ -168,11 +296,38 @@ export default {
     ['content-type', 'cache-control', 'content-disposition',
      'content-length', 'content-encoding',
      'accept-ranges', 'content-range', 'etag', 'x-edge',
-     'x-apk-sha256', 'x-apk-ver'].forEach(function (k) {
+     'x-apk-sha256', 'x-apk-ver', 'x-apk-cache'].forEach(function (k) {
       const v = r.headers.get(k);
       if (v) out.set(k, v);
     });
     Object.keys(CORS).forEach(function (k) { out.set(k, CORS[k]); });
+
+    /* v1.1.44：把这次回源拿到的字节存进 Pages 边缘缓存。
+     * 只在 200/206 且响应头明确是 versioned（Worker 判定通过）时存，
+     * 免得把 404 / 502 / 旧包错误地固化一年。
+     * 206 要包成 200 存（Cache API 不接受 206），段范围另存 x-apk-range。 */
+    if (versionedApk && (r.status === 200 || r.status === 206)) {
+      // 先 clone 一份：arrayBuffer() 会消费 body，异常时还要能退回原响应。
+      const backup = r.clone();
+      try {
+        const bytes = await r.arrayBuffer();
+        const rv = String(request.headers.get('range') || '').trim();
+        const ck = new Request(u.origin + u.pathname + '?v=' + qv + '&r=' + encodeURIComponent(rv),
+          { method: 'GET' });
+        const ch = new Headers();
+        copyHeaders(r, ['content-type', 'content-disposition', 'cache-control',
+          'accept-ranges', 'etag', 'x-apk-sha256', 'x-apk-ver'], ch);
+        ch.set('x-apk-length', String(bytes.byteLength));
+        if (r.status === 206) ch.set('x-apk-range', String(r.headers.get('content-range') || ''));
+        ch.set('cache-control', 'public, max-age=' + APK_TTL + ', immutable');
+        await cacheStore(ck, new Response(bytes.slice(0), { status: 200, headers: ch }));
+        out.set('x-pages-cache', 'miss');
+        return new Response(bytes, { status: r.status, headers: out });
+      } catch (e) {
+        // 读 body / 写缓存失败：仍要把原响应返回，不能因为缓存把下载搞坏。
+        return new Response(backup.body, { status: backup.status, headers: out });
+      }
+    }
 
     return new Response(r.body, { status: r.status, headers: out });
   }
