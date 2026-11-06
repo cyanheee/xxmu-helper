@@ -442,21 +442,6 @@
       <div class="row"><span>学习通作业</span><span id="hwStat" class="v">--</span></div>
     </div>
 
-    <div class="card">
-      <div class="card-title"><span class="dot"></span>学期设置</div>
-      <div class="row"><span>开学日（第 1 周周一）</span><span id="startday" class="v">--</span></div>
-      <div class="row"><span>总周数</span><span id="totalweeks" class="v">--</span></div>
-      <div class="fr-row">
-        <input id="setStart" class="fr-input" type="date">
-        <input id="setWeeks" class="fr-input" type="number" min="10" max="30" step="1" placeholder="总周数">
-        <button id="setSave" class="btn-sm">保存</button>
-      </div>
-      <p class="hint tight">
-        周次算错了就调这里。日历一周一周对不上的话，把开学日往前或往后挪 7 天。
-        改完立刻生效，只影响这台手机。
-      </p>
-    </div>
-
     <!-- 管理员专属，普通学生看不到这一块 -->
     <div class="card" id="adminCard" style="display:none">
       <div class="card-title"><span class="dot"></span>管理员</div>
@@ -470,15 +455,51 @@
     </div>
 
     <div class="card">
-      <div class="row click" id="rowTheme"><span>外观</span><span class="v dim" id="themeState">跟随系统 ›</span></div>
+      <div class="row click" id="rowSettings"><span>设置</span><span class="v dim" id="settingsState" data-theme-state>外观 · 学期 · 更新 ›</span></div>
       <div class="row click" id="rowTut"><span>使用教程</span><span class="v dim">六页看完 ›</span></div>
       <div class="row click" id="rowGuide"><span>使用帮助</span><span class="v dim">这个 App 怎么用 ›</span></div>
       <div class="row click" id="rowDisc"><span>使用声明</span><span class="v dim">以官方为准 ›</span></div>
       <div class="row click" id="rowAbout"><span>关于本软件</span><span class="v dim" id="aboutJumpVer">›</span></div>
-      <div class="row click" id="rowUpd"><span>检查更新</span><span class="v dim" id="updJumpVer">›</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 设置（二级页，从「我的」进） =================
+       把「改这台手机怎么显示/怎么算」的东西全收进来：外观、学期、数据、更新。
+       搬动时所有 id 原样保留，app.js / theme.js / UpdateUI 的绑定一行都不用改。 -->
+  <section id="tab-settings" class="tab">
+    <div class="crumb">
+      <button id="settingsBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">设置</span>
     </div>
 
-    <button id="resync" class="btn ghost">重新读取本地数据</button>
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>外观</div>
+      <div id="themeInline" class="th-inline"></div>
+      <p class="hint tight">跟随系统 / 浅色 / 深色，点一下立刻生效，只影响这台手机。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>课表与学期</div>
+      <div class="row"><span>开学日（第 1 周周一）</span><span id="startday" class="v">--</span></div>
+      <div class="row"><span>总周数</span><span id="totalweeks" class="v">--</span></div>
+      <div class="fr-row">
+        <input id="setStart" class="fr-input" type="date">
+        <input id="setWeeks" class="fr-input" type="number" min="10" max="30" step="1" placeholder="总周数">
+        <button id="setSave" class="btn-sm">保存</button>
+      </div>
+      <p class="hint tight">
+        周次算错了就调这里。日历一周一周对不上的话，把开学日往前或往后挪 7 天。
+        改完立刻生效，只影响这台手机。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据与更新</div>
+      <div class="row click" id="rowUpd"><span>检查更新</span><span class="v dim" id="updJumpVer">›</span></div>
+      <button id="resync" class="btn ghost">重新读取本地数据</button>
+      <p class="hint tight">课表或作业读不出来时，点一下重读本机缓存。</p>
+    </div>
   </section>
 
   <!-- ================= 使用帮助（二级页，从「我的」进） ================= -->
@@ -805,7 +826,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.39</div>
+      <div class="about-ver" id="aboutVer">v1.1.40</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 

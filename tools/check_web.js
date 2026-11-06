@@ -1160,8 +1160,10 @@ if (iThemeScript >= 0 && iCssLink >= 0 && iThemeScript > iCssLink) {
   fail('theme.js 排在 app.css 之后（深色用户冷启动会先闪一帧白）');
 }
 if (!/THEME\.init\(\)/.test(idx)) fail('index.html 没有调 THEME.init()（入口行与系统变化不生效）');
-has(idx, 'id="rowTheme"', '「我的」页有外观入口行');
-has(idx, 'id="themeState"', '外观入口有当前状态字');
+/* v1.1.40 起外观三档直接铺进独立设置页，id="rowTheme" 那一行已删。
+ * 旧的入口行锚点必须跟着删 —— 「删功能忘了删锚点」会让检查永远红。 */
+has(idx, 'id="themeInline"', '设置页有外观三档容器');
+has(idx, 'data-theme-state', '状态字用 data-theme-state 批量同步');
 
 /* ② theme.js 三档判定：auto 存空串、resolve 是纯函数、系统真值走 Java。 */
 has(theme, "var KEY = 'xxmu_theme'", '主题 pref 键');
@@ -1218,6 +1220,56 @@ has(mani, 'keyboardHidden|uiMode', 'manifest 的 configChanges 含 uiMode（切�
 has(mainTheme, 's.setAlgorithmicDarkeningAllowed(false)', 'MainActivity 关掉 WebView 自动反色（33+）');
 has(mainTheme, 's.setForceDark(WebSettings.FORCE_DARK_OFF)', 'MainActivity 关掉 WebView 自动反色（29~32）');
 has(webActTheme, 'setAlgorithmicDarkeningAllowed(false)', 'WebActivity 也关掉自动反色（教务登录页不被反色）');
+
+// ---- v1.1.40：独立设置页 + 6 套图标方案 ----
+console.log('\nv1.1.40 checkpoints（设置页 / 图标方案）:');
+const genIcons = read('tools/gen_icons.py');
+const applyIcon = read('tools/apply_icon.py');
+
+/* ① 设置页是二级页：DOM、层级、返回、入口，四处缺一就是「点不动或退不回来」。 */
+has(idx, '<section id="tab-settings" class="tab">', '有独立设置页 section');
+has(idx, 'id="rowSettings"', '「我的」页有设置入口');
+has(idx, 'id="settingsBack"', '设置页有返回按钮');
+has(idx, 'id="themeInline"', '设置页里有外观三档容器');
+has(app, "settings: 'me'", 'TAB_PARENT 把 settings 挂到 me（返回键/底栏自动接管）');
+has(app, "settings: ['设置'", 'PAGE_HEAD 有设置页标题');
+has(app, "switchTab('settings')", '入口真的跳设置页');
+has(app, "switchTab('me')", '返回箭头回「我的」');
+/* ② 被搬走的 DOM 只留一份：既要在 settings 段里，又不能还留在 me 段里。 */
+const meSeg = idx.slice(idx.indexOf('id="tab-me"'), idx.indexOf('id="tab-settings"'));
+const setSeg = idx.slice(idx.indexOf('id="tab-settings"'), idx.indexOf('id="tab-guide"'));
+[['id="setStart"', '学期设置'], ['id="rowUpd"', '检查更新'],
+ ['id="resync"', '重读数据'], ['id="themeInline"', '外观三档']].forEach(pair => {
+  if (setSeg.indexOf(pair[0]) < 0) fail(pair[1] + '没搬进设置页');
+  if (meSeg.indexOf(pair[0]) >= 0) fail(pair[1] + '还留在「我的」页（出现两份）');
+});
+if (/id="rowTheme"/.test(idx)) fail('还留着重复的外观行（设置页里已直接铺开三档）');
+has(idx, 'data-theme-state', '状态字用 data-theme-state 批量同步');
+has(theme, 'function mount(containerId)', 'theme.js 能把三档直接铺进设置页');
+has(theme, 'function dropTransient()', '半框重开只丢临时组（不弄丢设置页常驻三档）');
+has(theme, 'transient: !!transient', 'register 区分常驻/临时两组');
+if (/\.th-inline\{/.test(themeCss) === false) fail('app.css 缺 .th-inline（设置页三档样式）');
+
+/* ③ 图标方案：只生成给用户挑，不擅自换 android/res。 */
+has(genIcons, 'SCHEMES = [', 'gen_icons.py 有 6 套方案表');
+has(genIcons, 'launcher-%d.png', '生成多尺寸 launcher');
+has(genIcons, 'icon.svg', '生成 SVG 源');
+has(genIcons, '_总览.png', '生成总览图');
+has(genIcons, 'thumb_rgba', '总览按 alpha 合成（四角不留黑块）');
+has(applyIcon, 'def backup()', '换图标前先备份');
+has(applyIcon, 'if a != b:', '替换后逐字节 hash 校验');
+has(applyIcon, '--restore', '支持从备份回滚');
+/* 反向：生成方案时绝不能碰 res（用户还没选）。 */
+if (/os\.path\.join\(RES/.test(genIcons)) fail('gen_icons.py 碰了 android/res（用户还没选，不许擅自换）');
+/* 只禁止「真的往 res 里写文件」，不禁止注释里提到 ic_launcher 这个词
+ * —— 上一版把注释也算进去，误报过一次。 */
+if (/shutil\.copyfile\([^)]*RES/.test(genIcons)) fail('gen_icons.py 往 android/res 写了文件');
+const iconDir = path.join(root, 'design', 'icons');
+if (!fs.existsSync(path.join(iconDir, '_总览.png'))) fail('design/icons/_总览.png 不存在（先跑 gen_icons.py）');
+for (let i = 1; i <= 6; i++) {
+  const pre = String(i).padStart(2, '0') + '_';
+  if (!fs.readdirSync(iconDir).some(n => n.startsWith(pre))) fail('缺第 ' + i + ' 套图标方案目录');
+}
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

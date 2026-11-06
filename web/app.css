@@ -1159,3 +1159,8 @@ html[data-theme="dark"] .elec-change{color:var(--accent)}
   background:var(--accent-soft);font-weight:650}
 .th-tick{font-size:15px;font-weight:700;min-width:18px;text-align:center}
 .th-hint{margin:12px 2px 4px;font-size:11.5px;color:var(--mute)}
+/* v1.1.40：设置页里直接铺开三档，不收进半框（少一次点击）。
+   .row.click 的「主题」行还在，点它仍可开半框；两处共用同一套选中态。 */
+.th-inline{margin:10px 0 2px}
+.th-inline .th-wrap{padding:2px 0 0}
+.th-inline .th-opt{font-size:14px;padding:11px 14px}

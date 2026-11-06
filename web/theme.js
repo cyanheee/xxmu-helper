@@ -61,9 +61,77 @@ window.THEME = (function () {
   function paint() {
     try {
       if (!document.getElementById) return;
+      /* v1.1.40：状态字可能有多处（设置页标题行、我的页入口），
+       * 统一按 data-theme-state 刷，别只认第一个 id。
+       * 三档按钮的选中态由 repaintAll() 单独管。 */
+      var txt = LABEL[mode()] + ' ›';
       var row = document.getElementById('themeState');
-      if (row) row.textContent = LABEL[mode()] + ' ›';
+      if (row) row.textContent = txt;
+      if (document.querySelectorAll) {
+        var all = document.querySelectorAll('[data-theme-state]');
+        for (var i = 0; i < all.length; i++) all[i].textContent = txt;
+      }
     } catch (e) {}
+  }
+
+  /** 生成三档按钮（v1.1.40：设置页内嵌与半框共用同一套 DOM 结构）。 */
+  function buildOptions(onPick) {
+    var wrap = document.createElement('div');
+    wrap.className = 'th-wrap';
+    var opts = [];
+    [AUTO, LIGHT, DARK].forEach(function (m) {
+      var b = document.createElement('button');
+      b.className = 'btn ghost th-opt';
+      b.setAttribute('data-mode', m);
+      var t = document.createElement('span');
+      t.textContent = LABEL[m];
+      b.appendChild(t);
+      var tick = document.createElement('span');
+      tick.className = 'th-tick';
+      b.appendChild(tick);
+      b.onclick = function () {
+        set(m);
+        repaintAll();
+        if (onPick) onPick(m);
+      };
+      opts.push({ m: m, btn: b, tick: tick });
+      wrap.appendChild(b);
+    });
+    return { wrap: wrap, opts: opts };
+  }
+
+  /* 页面里可能同时有「设置页内嵌」和「半框」两套三档按钮，
+   * 切一次要全部重画，否则会出现两个地方选中态不一致。 */
+  var GROUPS = [];
+  var HINTS = [];
+  function hintText() {
+    return '当前：' + (current() === DARK ? '深色' : '浅色') +
+      '。跟随系统会按手机的夜间模式自动切换，切完不用重启 App。' +
+      '课表上的彩色课程块在两种主题里保持一致。';
+  }
+  function repaintAll() {
+    var now = mode();
+    GROUPS.forEach(function (g) {
+      g.opts.forEach(function (o) {
+        if (o.m === now) o.btn.classList.add('on');
+        else o.btn.classList.remove('on');
+        o.tick.textContent = o.m === now ? '✓' : '';
+      });
+    });
+    HINTS.forEach(function (h) { h.el.textContent = hintText(); });
+    paint();
+  }
+  function register(wrap, opts, hint, transient) {
+    GROUPS.push({ wrap: wrap, opts: opts, transient: !!transient });
+    if (hint) HINTS.push({ el: hint, transient: !!transient });
+    repaintAll();
+  }
+
+  /* 半框是临时 DOM：每次重开只丢掉上一份半框的注册，
+   * 设置页里常驻的那组必须留着，否则「开过一次外观再回设置页」三档就不刷新了。 */
+  function dropTransient() {
+    GROUPS = GROUPS.filter(function (g) { return !g.transient; });
+    HINTS = HINTS.filter(function (h) { return !h.transient; });
   }
 
   function apply() {
@@ -100,56 +168,46 @@ window.THEME = (function () {
       if (typeof parkTools === 'function') parkTools();
       if (name) name.textContent = '外观';
       body.innerHTML = '';
+      dropTransient();
 
-      var wrap = document.createElement('div');
-      wrap.className = 'th-wrap';
-      var opts = [];
-      [AUTO, LIGHT, DARK].forEach(function (m) {
-        var b = document.createElement('button');
-        b.className = 'btn ghost th-opt';
-        b.setAttribute('data-mode', m);
-        var t = document.createElement('span');
-        t.textContent = LABEL[m];
-        b.appendChild(t);
-        var tick = document.createElement('span');
-        tick.className = 'th-tick';
-        b.appendChild(tick);
-        b.onclick = function () {
-          set(m);
-          repaint();
-          if (typeof XXMU !== 'undefined' && XXMU.toast) {
-            XXMU.toast('已切换：' + LABEL[m]);
-          }
-        };
-        opts.push({ m: m, btn: b, tick: tick });
-        wrap.appendChild(b);
+      var built = buildOptions(function (m) {
+        if (typeof XXMU !== 'undefined' && XXMU.toast) {
+          XXMU.toast('已切换：' + LABEL[m]);
+        }
       });
-      body.appendChild(wrap);
+      body.appendChild(built.wrap);
 
       var hint = document.createElement('div');
       hint.className = 'hint left th-hint';
       body.appendChild(hint);
 
-      function repaint() {
-        var now = mode(), cur = current();
-        opts.forEach(function (o) {
-          if (o.m === now) o.btn.classList.add('on');
-          else o.btn.classList.remove('on');
-          o.tick.textContent = o.m === now ? '✓' : '';
-        });
-        hint.textContent = '当前：' + (cur === DARK ? '深色' : '浅色') +
-          '。跟随系统会按手机的夜间模式自动切换，切完不用重启 App。' +
-          '课表上的彩色课程块在两种主题里保持一致。';
-      }
-      repaint();
+      register(built.wrap, built.opts, hint, true);
       sheet.classList.add('on');
+    } catch (e) {}
+  }
+
+  /** v1.1.40：把三档直接铺进「设置」页，不用再点开半框。 */
+  function mount(containerId) {
+    try {
+      var box = document.getElementById(containerId);
+      if (!box || box.getAttribute('data-theme-mounted') === '1') return;
+      box.setAttribute('data-theme-mounted', '1');
+      var built = buildOptions(null);
+      box.appendChild(built.wrap);
+      var hint = document.createElement('div');
+      hint.className = 'hint left th-hint';
+      box.appendChild(hint);
+      register(built.wrap, built.opts, hint);
     } catch (e) {}
   }
 
   function init() {
     try {
+      /* v1.1.40：三档已直接铺在设置页，不再有 id="rowTheme" 那一行。
+       * 保留一个软兼容：万一以后又加回入口行，仍能点开半框。 */
       var row = document.getElementById('rowTheme');
       if (row) row.onclick = open;
+      mount('themeInline');
     } catch (e) {}
     /* 系统夜间模式变了（Java 的 onConfigurationChanged 会回调），
      * 以及浏览器自己发的 matchMedia 事件，都只重算一次颜色。 */
@@ -183,7 +241,7 @@ window.THEME = (function () {
 
   return {
     KEY: KEY, LABEL: LABEL,
-    mode: mode, set: set, open: open, init: init,
+    mode: mode, set: set, open: open, init: init, mount: mount,
     resolve: resolve, current: current, sysDark: sysDark, apply: apply,
     paint: paint, getPref: getPref, setPref: setPref
   };

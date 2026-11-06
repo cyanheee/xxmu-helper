@@ -1890,6 +1890,7 @@ const PAGE_HEAD = {
   about: ['关于', '开发者与反馈'],
   admin: ['管理控制台', '服务器后台'],
   guide: ['使用帮助', '这个 App 怎么用'],
+  settings: ['设置', '外观 · 学期 · 更新'],
 };
 
 let CUR_TAB = 'kb';
@@ -1902,7 +1903,7 @@ let CUR_TAB = 'kb';
  * 说明自己在第几层。这样用户任何时候按返回，都是顺着层级往上一级走，
  * 而不是从二级页一步掉到桌面。
  */
-const TAB_PARENT = { about: 'me', admin: 'me', guide: 'me' };
+const TAB_PARENT = { about: 'me', admin: 'me', guide: 'me', settings: 'me' };
 const rootOf = n => TAB_PARENT[n] || n;
 const levelOf = n => (TAB_PARENT[n] ? 2 : 1);
 
@@ -2084,6 +2085,16 @@ document.querySelectorAll('#tabs button').forEach(b => {
   };
   const gback = document.getElementById('guideBack');
   if (gback) gback.onclick = () => switchTab('me');
+
+  /* v1.1.40：设置是「我的」下的二级页。返回箭头、物理返回键都由
+   * TAB_PARENT 自动接管，这里只负责「从哪进来」和「进来后重画状态字」。 */
+  const sjump = document.getElementById('rowSettings');
+  if (sjump) sjump.onclick = () => {
+    switchTab('settings');
+    if (typeof THEME !== 'undefined' && THEME.paint) THEME.paint();
+  };
+  const sback = document.getElementById('settingsBack');
+  if (sback) sback.onclick = () => switchTab('me');
 })();
 
 /* ===== 管理员 · 控制台（联网） =====

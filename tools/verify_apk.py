@@ -160,8 +160,11 @@ NEW_JS_SYMBOLS = {
                         "Host.isSystemDark", "Host.setAppTheme(dark)",
                         "__onThemeSys", "var prev = window.__onResume"],
     "assets/app.css": ["html[data-theme=\"dark\"]{", "color-scheme:dark;",
-                       "--bg:#0e1320", ".th-opt{"],
-    "assets/index.html": ["id=\"rowTheme\"", "src=\"theme.js\"", "THEME.init()"],
+                       "--bg:#0e1320", ".th-opt{", ".th-inline{"],
+    "assets/index.html": ["id=\"tab-settings\"", "id=\"rowSettings\"",
+                          "id=\"themeInline\"", "src=\"theme.js\"", "THEME.init()"],
+    "assets/theme.js": ["function mount(containerId)", "dropTransient",
+                        "data-theme-state", "transient: !!transient"],
 }
 
 ok = True

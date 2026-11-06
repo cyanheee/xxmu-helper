@@ -58,10 +58,17 @@ function makeEnv(sysDark, saved, headOnly) {
   const store = Object.assign({}, saved || {});
   const html = El('html');
   const meta = El('meta'); meta.attrs['name'] = 'theme-color'; meta.attrs.content = '#ffffff';
-  const body = El('div'), name = El('b'), sheet = El('div'), row = El('div');
+  const body = El('div'), name = El('b'), sheet = El('div');
+  const inline = El('div');           // 设置页里常驻三档的容器
+  const settingsState = El('span');   // 「我的」页设置入口的状态字
+  settingsState.attrs['data-theme-state'] = '';
+  const themeState = El('span');
+  themeState.attrs['data-theme-state'] = '';
+  /* v1.1.40 起 index.html 里已经没有 id="rowTheme" 那一行了
+   *（三档直接铺在设置页里），shim 跟着真实 DOM，不再伪造这个节点。 */
   const els = {
     'sh-body': body, 'sh-name': name, sheet: sheet,
-    rowTheme: row, themeState: El('span'),
+    themeInline: inline, settingsState: settingsState, themeState: themeState,
   };
   const Host = {
     getPref: k => (store[k] === undefined ? '' : store[k]),
@@ -85,6 +92,10 @@ function makeEnv(sysDark, saved, headOnly) {
     getElementById: id => (domReady ? (els[id] || null) : null),
     /* <meta name="theme-color"> 写在 theme.js 之前，head 阶段就已经能查到。
      * 把它也跟着 domReady 藏起来是不忠实的 shim（真浏览器里它一直在）。 */
+    querySelectorAll: sel => {
+      if (!domReady || sel !== '[data-theme-state]') return [];
+      return [els.settingsState, els.themeState];
+    },
     querySelector: sel => sel === 'meta[name="theme-color"]' ? meta : null,
     createElement: El,
     addEventListener: (k, fn) => { if (k === 'DOMContentLoaded') document.__dcl = fn; else document.__vis = fn; },
@@ -150,6 +161,7 @@ console.log('\n2. 首屏：data-theme / theme-color / Java 桥');
   ok(e.T.mode() === 'auto', '没设过时 mode() = auto');
   ok(e.T.current() === 'dark', 'current() 是真正生效的 dark');
   ok(e.els.themeState.textContent === '跟随系统 ›', '入口状态字显示「跟随系统」', e.els.themeState.textContent);
+  ok(e.els.settingsState.textContent === '跟随系统 ›', '「我的」页设置入口状态字同步', e.els.settingsState.textContent);
 }
 {
   const e = makeEnv(false, { xxmu_theme: 'light' });
@@ -179,9 +191,11 @@ console.log('\n2a. 真实加载时序（head 阶段 DOM 还不存在）');
   ok(e.els.themeState.textContent === '深色 ›',
     'DOMContentLoaded 补画后状态字与真实主题一致（不谎报「跟随系统」）',
     e.els.themeState.textContent);
-  ok(e.els.rowTheme.onclick === null, '入口行的绑定仍由 THEME.init() 负责（职责分开）');
   e.T.init();
-  ok(e.els.rowTheme.onclick === e.T.open, 'init 后入口可点');
+  ok(e.els.themeInline.children.length === 2,
+    'init 把三档直接铺进设置页（不用再点开半框）', e.els.themeInline.children.length);
+  const inlineWrap = e.els.themeInline.children[0];
+  ok(!!inlineWrap && inlineWrap.children.length === 3, '设置页里三个按钮');
 }
 
 /* ---------------------------------------------------------------- 3. 持久化与归一化 */
@@ -193,6 +207,9 @@ console.log('\n3. 切换 / 持久化 / 脏值');
   ok(e.html.attrs['data-theme'] === 'dark', '切完立刻生效');
   ok(e.Host.__lastTheme === true, '切完立刻通知 Java');
   ok(e.els.themeState.textContent === '深色 ›', '状态字跟着变', e.els.themeState.textContent);
+  ok(e.els.settingsState.textContent === '深色 ›', '设置入口状态字也跟着变（多处同步）', e.els.settingsState.textContent);
+  e.T.set('light');
+  ok(e.els.settingsState.textContent === '浅色 ›', '切回浅色，两处都更新');
   e.T.set('light');
   ok(e.store.xxmu_theme === 'light' && e.html.attrs['data-theme'] === 'light', '再切回浅色');
   e.T.set('auto');
@@ -236,11 +253,11 @@ console.log('\n5. onResume 不能把 elec.js 的回调覆盖掉');
   e.sandbox.__onResume();
   ok(e.sandbox.__prevResume === 1, '前一个 __onResume（elec）真的被调到', e.sandbox.__prevResume);
   ok(e.Host.__calls >= 2, '同时重算了一次主题', e.Host.__calls);
-  ok(e.els.rowTheme.onclick === e.T.open, 'rowTheme 绑定到 THEME.open');
+  ok(e.els.themeInline.children.length === 2, '设置页三档仍然常驻');
 }
 
 /* ---------------------------------------------------------------- 6. 外观半框 */
-console.log('\n6. 「我的 → 外观」半框三档');
+console.log('\n6. 外观三档（半框 / 设置页内嵌共用同一套逻辑）');
 {
   const e = makeEnv(false, {});
   e.T.init();
@@ -268,8 +285,78 @@ console.log('\n6. 「我的 → 外观」半框三档');
   ok(e.store.xxmu_theme === '' && e.html.attrs['data-theme'] === 'light', '点回跟随系统立即恢复浅色');
 }
 
+/* ---------------------------------------------------------------- 6a. 设置页常驻三档 */
+console.log('\n6a. 设置页里直接点三档（v1.1.40）');
+{
+  const e = makeEnv(false, {});
+  e.T.init();
+  const inlineWrap = e.els.themeInline.children[0];
+  ok(!!inlineWrap && inlineWrap.children.length === 3, '三档铺在设置页里');
+  ok(inlineWrap.children[0].classList.contains('on'), '默认选中跟随系统');
+  inlineWrap.children[2].onclick();                 // 点深色
+  ok(e.store.xxmu_theme === 'dark' && e.html.attrs['data-theme'] === 'dark', '设置页里点深色立刻生效');
+  ok(inlineWrap.children[2].classList.contains('on') && !inlineWrap.children[0].classList.contains('on'),
+    '设置页选中态跟着变');
+  ok(e.els.settingsState.textContent === '深色 ›', '「我的」页入口状态字同步');
+  /* 关键回归：开过一次半框再回设置页，常驻那组不能被 dropTransient 弄丢 */
+  e.T.open();
+  e.T.open();
+  ok(e.els.themeInline.children.length === 2, '半框重开不会重复挂三档');
+  inlineWrap.children[1].onclick();                 // 在设置页点浅色
+  ok(e.store.xxmu_theme === 'light' && inlineWrap.children[1].classList.contains('on'),
+    '开过半框后设置页三档仍能切换并刷新');
+  /* 半框那组也跟着同步（两个地方选中态不打架） */
+  const sheetWrap = e.els['sh-body'].children[0];
+  ok(sheetWrap.children[1].classList.contains('on'), '半框里的选中态同步为浅色');
+  ok(e.els.settingsState.textContent === '浅色 ›', '状态字仍同步');
+}
+
 /* ---------------------------------------------------------------- 7. CSS 深色变量覆盖 */
-console.log('\n7. app.css：深色块必须覆盖全部语义变量（漏一个就花脸）');
+/* ---------------------------------------------------------------- 7. 设置页与导航结构 */
+console.log('\n7. 独立设置页：DOM / 层级 / 入口真走');
+{
+  const idx = read('web/index.html');
+  const app = read('web/app.js');
+  ok(/<section id="tab-settings" class="tab">/.test(idx), '有独立设置页 section');
+  ok(/id="rowSettings"/.test(idx), '「我的」页有设置入口');
+  ok(/id="settingsBack"/.test(idx), '设置页有返回按钮');
+  ok(/id="themeInline"/.test(idx), '外观三档容器在设置页里');
+  ok(/id="setStart"/.test(idx) && /id="setSave"/.test(idx), '学期设置搬进设置页（id 保留）');
+  ok(/id="rowUpd"/.test(idx) && /id="resync"/.test(idx), '检查更新与重读数据搬进设置页（id 保留）');
+  const me = idx.slice(idx.indexOf('id="tab-me"'), idx.indexOf('id="tab-settings"'));
+  const st = idx.slice(idx.indexOf('id="tab-settings"'), idx.indexOf('id="tab-guide"'));
+  ok(st.indexOf('id="setStart"') >= 0 && me.indexOf('id="setStart"') < 0, '学期设置真的搬走了（不是两份）');
+  ok(st.indexOf('id="rowUpd"') >= 0 && me.indexOf('id="rowUpd"') < 0, '检查更新真的搬走了');
+  ok(st.indexOf('id="resync"') >= 0 && me.indexOf('id="resync"') < 0, '重读数据真的搬走了');
+  ok(st.indexOf('id="themeInline"') >= 0 && me.indexOf('id="themeInline"') < 0, '外观三档只在设置页');
+  ok(me.indexOf('id="rowTheme"') < 0 && st.indexOf('id="rowTheme"') < 0,
+    '不再有重复的外观行（设置页里直接铺开）');
+  ok(/settings:\s*'me'/.test(app), 'TAB_PARENT 有 settings → me（返回键/底栏自动接管）');
+  ok(/settings:\s*\['设置'/.test(app), 'PAGE_HEAD 有设置页标题');
+  ok(/rowSettings[\s\S]{0,300}switchTab\('settings'\)/.test(app), '入口真的跳转到设置页');
+  ok(/settingsBack[\s\S]{0,160}switchTab\('me'\)/.test(app), '返回箭头回到「我的」');
+  ok(/switchTab\('settings'\)[\s\S]{0,200}THEME\.paint/.test(app), '进设置页重画状态字');
+  ok(/data-theme-state/.test(idx), '状态字用 data-theme-state 批量同步');
+}
+
+/* ---------------------------------------------------------------- 7a. 图标方案 */
+console.log('\n7a. 图标方案（6 套 + 总览 + 一键替换）');
+{
+  const gen = read('tools/gen_icons.py');
+  const ap = read('tools/apply_icon.py');
+  ok(/SCHEMES\s*=\s*\[/.test(gen) && (gen.match(/scheme_[a-f]\)/g) || []).length >= 6,
+    'gen_icons.py 里 6 套方案');
+  ok(/launcher-%d\.png/.test(gen), '生成多尺寸 launcher');
+  ok(/icon\.svg/.test(gen), '生成 SVG 源');
+  ok(/_总览\.png/.test(gen), '生成总览图');
+  ok(/thumb_rgba/.test(gen), '总览图按 alpha 合成（不留黑角）');
+  ok(/CURRENT\.txt/.test(ap) && /--restore/.test(ap), 'apply_icon.py 有选号记录与回滚');
+  ok(/a != b/.test(ap), '替换后逐字节 hash 校验');
+  ok(/backup\(\)/.test(ap) && /_backup/.test(ap), '换图标前先备份');
+  ok(!/os\.path\.join\(RES/.test(gen), '生成方案时不碰 android/res');
+}
+
+console.log('\n7b. app.css：深色块必须覆盖全部语义变量（漏一个就花脸）');
 {
   const css = read('web/app.css');
   const light = css.slice(css.indexOf(':root{'), css.indexOf('}', css.indexOf(':root{')));

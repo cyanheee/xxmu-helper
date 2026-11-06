@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 17:27
+> 生成时间：2026-11-06 18:53
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.39** |
-| AndroidManifest versionCode | **1139** |
-| web/about.js APP_VERSION | 1.1.39 |
-| web/index.html #aboutVer | 1.1.39 |
+| AndroidManifest versionName | **1.1.40** |
+| AndroidManifest versionCode | **1140** |
+| web/about.js APP_VERSION | 1.1.40 |
+| web/index.html #aboutVer | 1.1.40 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.39.apk` |
-| 大小 | 616362 字节 |
-| SHA-256 | `113f0d7159d8176a23d22f8db6b80f8e1f5969ee633fe4023ee649ba3b05e213` |
-| 出包时间 | 2026-11-06 17:23 |
-| 包内版本（aapt2） | 1.1.39 / 1139 |
+| 文件 | `apk/xxmu-helper-v1.1.40.apk` |
+| 大小 | 620458 字节 |
+| SHA-256 | `fe92d047852dc3809c9c0288829b60fd35b71c2285efa209f1111451acff2336` |
+| 出包时间 | 2026-11-06 18:47 |
+| 包内版本（aapt2） | 1.1.40 / 1140 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -48,27 +48,44 @@
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.39**，线上还是 **1.1.38** —— 新版本**还没发**。
+> 本地已到 **1.1.40**，线上还是 **1.1.38** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `cd31085` |
+| 分支 | main @ `b7019d6` |
 | origin/main | `2f06dac` |
-| 领先远程 | 2 个提交 |
-| 未提交改动 | 0 个文件 |
+| 领先远程 | 3 个提交 |
+| 未提交改动 | 14 个文件 |
 
 最近提交：
 
 ```
+b7019d6 docs: 提交后重新生成 STATE（本地 1.1.39 / 线上 1.1.38）
 cd31085 feat(theme): v1.1.39 深色模式（三档主题/跟随系统/首屏不闪白/关 WebView 自动反色）
 2769498 chore: 发版后重新生成 STATE（线上 1.1.38 / 领先 0）
 2f06dac docs: v1.1.38 发版说明 + README 徽章
 d1015d6 feat(free): v1.1.38 全校空闲教室（青果 SB12）+ 登录页缩放 + 登录状态不再误报
 a05665d chore: 发版后重新生成 STATE（线上 1.1.37 / 领先 0）
-3387acc release: v1.1.37 (code 1137)
+```
+
+未提交：
+
+```
+M android/AndroidManifest.xml
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M tools/check_web.js
+ M tools/test_theme.js
+ M tools/verify_apk.py
+ M web/about.js
+ M web/app.css
+ M web/app.js
+ M web/index.html
+ M web/theme.js
+?? design/
 ```
 
 ## 5. 常用命令（复制即用）
@@ -112,6 +129,8 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **v1.1.30~v1.1.37 宿舍空调八条**：①自己的学号能否查到绑定房间…
 - [ ] **v1.1.38 教务登录页缩放在真机上的观感**：手机点「登录教务」，表单是否完整可见…
 - [ ] **v1.1.39 深色模式五条（优先级最高，本机无设备一律不能声称已验证）**…
+- [ ] **v1.1.40 独立设置页四条（真机）**：①「我的」点设置能否进二级页…
+- [ ] **图标选定后**：等用户回「用 N 号图标」，跑…
 
 ### 三、可以做（纯本地，不需要任何外部条件）
 - [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍…
