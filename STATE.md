@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 12:13
+> 生成时间：2026-11-06 12:17
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -34,58 +34,38 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.23** |
-| latest.code | 1123 |
-| latest.size | 571000 |
-| latest.sha256 | `f8c1d7ed9af3ff48` |
+| latest.version | **1.1.37** |
+| latest.code | 1137 |
+| latest.size | 599857 |
+| latest.sha256 | `7ae07ad7597fb21d` |
 | latest.url | https://www.xxmuhelper.top/v1/apk |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.23.apk |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.37.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | True |
 | updPolicy | nag |
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
-
-> 本地已到 **1.1.37**，线上还是 **1.1.23** —— 新版本**还没发**。
-> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
+> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `3b7952f` |
-| origin/main | `f921482` |
-| 领先远程 | 11 个提交 |
-| 未提交改动 | 24 个文件 |
+| 分支 | main @ `3387acc` |
+| origin/main | `3387acc` |
+| 与远程内容 | **一致**（没推的东西） |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
-3b7952f release: v1.1.23 (code 1123)
-659f007 chore: 项目搬到 桌面\\xxmuhelper\\ + 新增 tools/deliver.py 固定交付落点
-afd9489 chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
-1aca16b chore: STATE 重新生成（推送后）
-042a8ee fix(publish): --no-publish 不再留下「blob 新、cfg 旧」的坏包状态
-e6a5670 chore: STATE.md 重新生成 + v1.1.22 发版说明
-```
-
-未提交：
-
-```
-M STATE.md
- M android/AndroidManifest.xml
- M android/src/com/xxmu/helper/MainActivity.java
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/state.py
- M tools/test_hwstatus.js
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/app.js
+3387acc release: v1.1.37 (code 1137)
+31a1480 release: v1.1.23 (code 1123)
+a27fb2b release: v1.1.23 (code 1123)
+ed58183 chore: 项目搬到 桌面\\xxmuhelper\\ + 新增 tools/deliver.py 固定交付落点
+3c4e02b chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
+9ae5ebc chore: STATE 重新生成（推送后）
 ```
 
 ## 5. 常用命令（复制即用）
