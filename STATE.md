@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 20:15
+> 生成时间：2026-11-06 20:17
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -52,20 +52,26 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `f526676` |
-| origin/main | `d8268ac` |
+| 分支 | main @ `738fdee` |
+| origin/main | `30caf86` |
 | 与远程内容 | **一致**（没推的东西） |
-| 未提交改动 | 0 个文件 |
+| 未提交改动 | 1 个文件 |
 
 最近提交：
 
 ```
+738fdee docs: 上线终态 STATE（线上 1.1.43 / 与远程内容一致）
 f526676 chore: 上线后重新生成 STATE（线上 1.1.43 / 领先 0）+ 完整 tree 对齐工具
 3b70f93 release: v1.1.43 (code 1143)
 468ed2d chore: 图标回滚备份不进公开仓库（磁盘保留）
 ac9a231 docs: 提交后重新生成 STATE（本地 1.1.43 / 线上 1.1.38）
 ab03937 feat(icon): v1.1.43 应用图标换成 F 号夜空河字 + 五件套逐像素校验
-3711d2d docs: 提交后重新生成 STATE（本地 1.1.42 / 线上 1.1.38）
+```
+
+未提交：
+
+```
+M STATE.md
 ```
 
 ## 5. 常用命令（复制即用）
