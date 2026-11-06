@@ -95,6 +95,8 @@ NEW_JS_SYMBOLS = {
                       # v1.1.46 检查更新提速
                       "function checkUpdateOnFirstPaint()",
                       "requestAnimationFrame(() => window.requestAnimationFrame(fire))",
+                      # v1.1.47 下载 URL 跟着双入口回退走
+                      "AUTH.localizeUrl(rawUrl)",
                       # v1.1.5 作业状态：这一批全是「静默失败」型 bug ——
                       # 解析不到就 status=''，然后被当成「已完成」，不报错不报警。
                       "isDoneStatus", "status_known",
@@ -158,7 +160,9 @@ NEW_JS_SYMBOLS = {
                        # v1.1.7 留言带上 fp，限流不再按 IP（全校共享额度）
                        "fp: f",
                        # v1.1.8 服务器拒绝分档：别把「限流」当成「你被封了」
-                       "const HARD =", "const KEEP =", "photoRaw"],
+                       "const HARD =", "const KEEP =", "photoRaw",
+                       # v1.1.47 双入口回退时下载 URL 归一
+                       "function localizeUrl(url)", "localizeUrl,"],
     "assets/sync.js": ["showable", "bad_weeks",
                        # v1.1.13 解析器两个洞 + 诊断留样
                        "k(\\d)(\\d{1,2})",

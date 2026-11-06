@@ -614,6 +614,54 @@ const AUTH = (() => {
   const Photos = { list: photos, url: photoUrl };
   const Feedback = { list: feedbackList, post: feedbackPost };
 
+  /** 把服务端下发的绝对地址对齐到「这台手机当前真正能连上的入口」（v1.1.47）。
+   *
+   * 为什么需要：cfg.latest.url 由服务端写死，是
+   *   https://www.xxmuhelper.top/v1/apk?v=<sha前12位>
+   * 而校园网 DNS 查不到新域名的学生，fetchAny 会把 liveHost 回退到
+   * xxmu-auth.pages.dev。这批学生 /v1/config 能收到（更新提示照样弹），
+   * 可 UpdateUI.go() 里拼的 self = AUTH.BASE + '/v1/apk' 是 pages.dev，
+   * url 却还是 www —— 前缀判据 url.indexOf(self)===0 不成立，于是「去下载」
+   * 被甩给系统浏览器打开一个根本解析不了的地址，App 内下载、4 段并发、
+   * 断点续传、整包 SHA 校验、拉起安装器整条链路全部丢掉。
+   * 这就是 v1.1.17「更新了的学生一联网全部连不上」没补完的最后一处。
+   *
+   * 边界（改窄了会出事）：
+   *  · 只认 HOSTS 里两个已知入口，且 host 后面必须直接是 / ? # 或结尾 ——
+   *    否则 https://www.xxmuhelper.top.evil.com/ 也会被当成自己人。
+   *  · 只改写 /v1/ 开头的接口路径；管理员若把 url 配成网盘/群文件外链，
+   *    原样返回，仍走浏览器（不改变已有行为）。
+   *  · path 与 query 一个字节都不动，尤其 ?v=<sha> 是 v1.1.44 的边缘缓存键，
+   *    吃掉它等于关掉版本化缓存。
+   *  · 当前入口与 url 同 origin 时什么都不做 —— 绝大多数学生走这条，
+   *    改动对他们零影响。
+   */
+  function localizeUrl(url) {
+    const s = String(url || '').trim();
+    if (!s) return '';
+    const here = baseNow();
+    /* 管理员若把 url 配成相对路径（/v1/apk?v=…），也补成当前入口 ——
+     * 否则 go() 里那个绝对前缀判据会把它当外链甩给浏览器。 */
+    if (s.charAt(0) === '/') {
+      return s.indexOf('/v1/') === 0 ? (here + s) : s;
+    }
+    let from = '';
+    for (let i = 0; i < HOSTS.length; i++) {
+      const h = HOSTS[i];
+      if (s.indexOf(h) !== 0) continue;
+      const tail = s.slice(h.length);
+      if (tail === '' || tail.charAt(0) === '/' || tail.charAt(0) === '?' || tail.charAt(0) === '#') {
+        from = h;
+        break;
+      }
+    }
+    if (!from) return s;                       // 外链 / 形近域名：一律不动
+    if (s.indexOf(here) === 0) return s;      // 本来就同入口，原样返回
+    const rest = s.slice(from.length);
+    if (rest.indexOf('/v1/') !== 0) return s; // 只归一自己的接口，别碰别的路径
+    return here + rest;
+  }
+
   const api = {
     K_TICKET, K_EXP, K_ROLE,
     fingerprint, activate, check, localValid, usable, clearTicket,
@@ -623,6 +671,8 @@ const AUTH = (() => {
     Admin, Photos, Feedback,
     /** 当前入口（探测后可能变成回退地址）。给测试与诊断用。 */
     hostNow: baseNow,
+    /** 服务端下发的绝对地址 → 当前可用入口（更新下载用）。 */
+    localizeUrl,
   };
 
   /* BASE 必须保持「属性」形态，不能改成函数。

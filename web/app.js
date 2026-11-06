@@ -4568,7 +4568,13 @@ const UpdateUI = (() => {
   }
 
   function go() {
-    const url = (cfg && cfg.latest && cfg.latest.url) || '';
+    /* 服务端写死的绝对 URL 必须对齐到「这台手机当前真正能连上的入口」（v1.1.47）。
+     * 校园网 DNS 没刷到 www 的学生，fetchAny 已经退到 pages.dev，
+     * 但 cfg.latest.url 仍是 www —— 不做这一步，下面的 isSelf 判据永远 false，
+     * 于是甩给系统浏览器打开一个解析不了的地址，App 内下载/校验/安装器全丢。 */
+    const rawUrl = (cfg && cfg.latest && cfg.latest.url) || '';
+    const url = (typeof AUTH !== 'undefined' && AUTH.localizeUrl)
+      ? AUTH.localizeUrl(rawUrl) : rawUrl;
     if (!url) {
       const q = qq();
       if (q) {
@@ -4588,7 +4594,9 @@ const UpdateUI = (() => {
 
     /* 自己托管的包（/v1/apk）走 App 内下载 + 拉起安装器：
      * 用户不用去文件管理器里再点一遍，也躲开了国产浏览器把 apk 拦成
-     * 「风险文件」的问题。别的外链（网盘、QQ 群文件）仍然交给浏览器。 */
+     * 「风险文件」的问题。别的外链（网盘、QQ 群文件）仍然交给浏览器。
+     * v1.1.47：url 已在开头经 AUTH.localizeUrl 归一到「这台手机当前能连上的
+     * 入口」，所以这里的前缀判据在回退到 pages.dev 的机器上同样成立。 */
     const self = (typeof AUTH !== 'undefined' && AUTH.BASE) ? (AUTH.BASE + '/v1/apk') : '';
     const isSelf = self && url.indexOf(self) === 0;
     if (isSelf && typeof APKDL !== 'undefined' && APKDL.canUse()) {

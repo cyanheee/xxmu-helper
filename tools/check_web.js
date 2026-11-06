@@ -1457,6 +1457,26 @@ has(app, "ntcBody').textContent = String(cfg.notice || '')", '公告只读 cfg.n
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
 }
 
+// ---- v1.1.47：下载 URL 跟着双入口回退走（v1.1.17 事故没补完的最后一处） ----
+console.log('\nv1.1.47 checkpoints（更新下载入口归一）:');
+has(auth, 'function localizeUrl(url)', 'auth.js 有统一入口归一函数');
+has(auth, 'localizeUrl,', '归一函数真的导出到 AUTH（app.js 才调得到）');
+has(auth, 'if (rest.indexOf(\'/v1/\') !== 0) return s', '只归一 /v1/ 接口，不碰外链与官网静态资源');
+has(auth, 'tail.charAt(0) === \'/\' || tail.charAt(0) === \'?\' || tail.charAt(0) === \'#\'',
+  'HOSTS 前缀比较带边界（形近域名不被当成自己人）');
+has(auth, 's.indexOf(here) === 0', '同入口时原样返回（绝大多数学生零影响）');
+has(app, 'AUTH.localizeUrl(rawUrl)', 'go() 用的是归一后的地址');
+has(app, 'url.indexOf(self) === 0', '前缀判据仍在（?v= 版本化缓存键照样命中）');
+if (/selfApkUrl\(/.test(app)) fail('app.js 里又出现第二套归一实现（逻辑只能放 auth.js 一处）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_download_host.js')], { encoding: 'utf8' });
+  console.log('  下载入口归一行为测试  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('下载入口归一未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

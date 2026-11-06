@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 21:34
+> 生成时间：2026-11-06 22:09
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.46** |
-| AndroidManifest versionCode | **1146** |
-| web/about.js APP_VERSION | 1.1.46 |
-| web/index.html #aboutVer | 1.1.46 |
+| AndroidManifest versionName | **1.1.47** |
+| AndroidManifest versionCode | **1147** |
+| web/about.js APP_VERSION | 1.1.47 |
+| web/index.html #aboutVer | 1.1.47 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.46.apk` |
-| 大小 | 661744 字节 |
-| SHA-256 | `709ea531676fc6b670719d8ff80647de6c9e40a58e2556f7b2e4941223b1e6ac` |
-| 出包时间 | 2026-11-06 21:30 |
-| 包内版本（aapt2） | 1.1.46 / 1146 |
+| 文件 | `apk/xxmu-helper-v1.1.47.apk` |
+| 大小 | 665840 字节 |
+| SHA-256 | `96cfdfb498a27665bc50a9f9223f46fce3020d85f102343f1e8cca37e3e19d2b` |
+| 出包时间 | 2026-11-06 22:06 |
+| 包内版本（aapt2） | 1.1.47 / 1147 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -48,27 +48,43 @@
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.46**，线上还是 **1.1.43** —— 新版本**还没发**。
+> 本地已到 **1.1.47**，线上还是 **1.1.43** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `308abf1` |
+| 分支 | main @ `4e13f0b` |
 | origin/main | `30caf86` |
-| 领先远程 | 20 个提交 |
-| 未提交改动 | 0 个文件 |
+| 领先远程 | 21 个提交 |
+| 未提交改动 | 11 个文件 |
 
 最近提交：
 
 ```
+4e13f0b docs: 提交后重新生成 STATE（本地 1.1.46 / 线上 1.1.43）
 308abf1 perf(update): v1.1.46 检查更新去掉 1.5s 白等 + 更新说明只写学生视角（线上 notes 已热更）
 a493af8 docs: 提交后重新生成 STATE（本地 1.1.45 / 线上 1.1.43）
 6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
 6293cf9 perf(cdn): v1.1.44 版本化 APK URL + Worker/Pages 双层边缘缓存 + 官网静态缓存（服务端热更，未出 APK）
 f758dad docs: STATE 终态（线上 1.1.43）
-738fdee docs: 上线终态 STATE（线上 1.1.43 / 与远程内容一致）
+```
+
+未提交：
+
+```
+M STATE.md
+ M android/AndroidManifest.xml
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M tools/check_web.js
+ M tools/verify_apk.py
+ M web/about.js
+ M web/app.js
+ M web/auth.js
+ M web/index.html
+?? tools/test_download_host.js
 ```
 
 ## 5. 常用命令（复制即用）
@@ -116,6 +132,7 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **v1.1.41 课程提醒三档五条（真机）**：①学习页 → 课程提醒 → 设置…
 - [ ] **v1.1.42 教程排版四条（真机）**：①重看「我的 → 使用教程」，逐页翻到第 5 页…
 - [ ] **v1.1.45 管理名单三条（真机）**：①名单是否按收录时间从新到老…
+- [ ] **v1.1.47 下载入口归一（真机，优先级最高）**：①在一台校园网 DNS…
 - [ ] **v1.1.46 检查更新提速（真机）**：①从点图标到更新弹窗出现…
 - [ ] **等用户点头才做**：收紧学号准入（只收 11 位、20xx 年份开头）。
 
