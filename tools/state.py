@@ -181,9 +181,14 @@ def remote_tree_state():
             parts = meta.split()
             if len(parts) >= 3:
                 local[path] = parts[2]
-        out['files'] = len(local)
-        out['bad'] = [p for p in local if remote.get(p) != local[p]]
-        out['extra'] = [p for p in remote if p not in local]
+        # STATE.md 是自指文档：它把「远程 HEAD」写进自己，重生成后本地 HEAD
+        # 里的 STATE.md 必然与远程那份不同，而远程那份又记着上一个 HEAD。
+        # 比 tree 时排除它，否则每次跑 state.py 都会把「代码已对齐」误报成
+        # 「不一致 2 个文件」，而且永远收敛不了。它不参与「代码推没推上去」的判据。
+        SKIP = set(['STATE.md'])
+        out['files'] = len([p for p in local if p not in SKIP])
+        out['bad'] = [p for p in local if p not in SKIP and remote.get(p) != local[p]]
+        out['extra'] = [p for p in remote if p not in local and p not in SKIP]
         out['same'] = not out['bad'] and not out['extra'] and len(local) > 0
         out['ok'] = True
     except Exception as e:                                   # noqa: BLE001
@@ -413,7 +418,8 @@ def main():
     ra = g.get('remote_api') or {}
     if ra.get('ok'):
         w('| 远程 main（API 实读） | `%s` |' % (ra['head'] or '未取'))
-        w('| 与远程内容 | **%s**（逐文件比 %s 个 blob sha：不一致 %d / 远程多出 %d） |'
+        w('| 与远程内容 | **%s**（逐文件比 %s 个 blob sha：不一致 %d / 远程多出 %d；'
+          'STATE.md 自指，不计入） |'
           % ('一致' if ra['same'] else '不一致', ra['files'],
              len(ra['bad']), len(ra['extra'])))
     else:
