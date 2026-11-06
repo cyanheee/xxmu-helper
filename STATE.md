@@ -55,37 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `a493af8` |
+| 分支 | main @ `308abf1` |
 | origin/main | `30caf86` |
-| 领先远程 | 19 个提交 |
-| 未提交改动 | 13 个文件 |
+| 领先远程 | 20 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+308abf1 perf(update): v1.1.46 检查更新去掉 1.5s 白等 + 更新说明只写学生视角（线上 notes 已热更）
 a493af8 docs: 提交后重新生成 STATE（本地 1.1.45 / 线上 1.1.43）
 6f285a2 feat(admin): v1.1.45 名单按收录时间从新到老 + 异常学号标记（只出本地包，未上线）
 6293cf9 perf(cdn): v1.1.44 版本化 APK URL + Worker/Pages 双层边缘缓存 + 官网静态缓存（服务端热更，未出 APK）
 f758dad docs: STATE 终态（线上 1.1.43）
 738fdee docs: 上线终态 STATE（线上 1.1.43 / 与远程内容一致）
-f526676 chore: 上线后重新生成 STATE（线上 1.1.43 / 领先 0）+ 完整 tree 对齐工具
-```
-
-未提交：
-
-```
-M android/AndroidManifest.xml
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/release_all.py
- M tools/verify_apk.py
- M web/about.js
- M web/app.js
- M web/index.html
-?? apk/
-?? tools/check_notes.js
-?? tools/set_notes.py
 ```
 
 ## 5. 常用命令（复制即用）
