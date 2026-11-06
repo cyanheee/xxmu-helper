@@ -165,10 +165,36 @@ def bump_in_text(path, old_ver, new_ver, extra_patterns=()):
 
 
 def old_version():
-    """从 manifest 读「当前磁盘上的」版本号——发版前它就是旧的。"""
-    mani = io.open(os.path.join(ROOT, 'android', 'AndroidManifest.xml'), encoding='utf-8').read()
-    m = re.search(r'android:versionName="([^"]+)"', mani)
-    return m.group(1) if m else ''
+    """取「线上当前版本」——发版时要被替换掉的旧版本号。
+
+    以前这里读 manifest，前提是「发版前 manifest 还是旧版」。但现在流程是
+    先 bump_ver + build_apk 出包、隔好几轮才说「上线」，manifest 早已是新版：
+    读它会得到 == apk['ver']，第 4 步直接打印「无需替换」，README 徽章
+    永远停在上线前的那一版（v1.1.38 这次就差点漏掉）。
+    正确来源是 /v1/config 的 cfg.latest：那才是学生/官网当前看到的值。
+    读不到网络时退回 README 徽章里的版本号，再不行才用 manifest。
+    """
+    try:
+        _, body = http_get(BASE + '/v1/config', timeout=15)
+        v = (json.loads(body.decode('utf-8')).get('latest') or {}).get('version')
+        if v and re.match(r'^\d+\.\d+\.\d+$', str(v)):
+            return str(v)
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        rm = io.open(os.path.join(ROOT, 'README.md'), encoding='utf-8').read()
+        m = re.search(r'badge/version-(\d+\.\d+\.\d+)-', rm)
+        if m:
+            return m.group(1)
+    except Exception:                                            # noqa: BLE001
+        pass
+    try:
+        mani = io.open(os.path.join(ROOT, 'android', 'AndroidManifest.xml'),
+                       encoding='utf-8').read()
+        m = re.search(r'android:versionName="([^"]+)"', mani)
+        return m.group(1) if m else ''
+    except Exception:                                            # noqa: BLE001
+        return ''
 
 
 # ---------------------------------------------------------------- GitHub
@@ -248,6 +274,11 @@ def main():
             '改 docs/handoff/tutorial-contract.json 与 web/tut.js 后重跑')
     print('  教程契约检查通过')
 
+    # ★ 必须在切 KV **之前**抓旧版本号：第 2 步一发布，/v1/config 就返回新版，
+    #   第 4 步再读线上会得到 == apk['ver']，README 徽章就漏替换了。
+    prev_ver = old_version()
+    print('  线上当前版本（替换基准）：%s' % (prev_ver or '读不到'))
+
     # ---------- 2. 发布到 KV ----------
     step(2, total, '发布到 Cloudflare KV')
     args = [sys.executable, 'tools/publish_apk.py', '--apk', apk_path]
@@ -272,7 +303,7 @@ def main():
 
     # ---------- 4. 官网 ----------
     step(4, total, '更新官网文档里的版本号')
-    ov = old_version()
+    ov = prev_ver
     if ov and ov != apk['ver']:
         n1 = bump_in_text('server/pages/dist/index.html', ov, apk['ver'])
         n2 = bump_in_text('README.md', ov, apk['ver'])
@@ -280,7 +311,7 @@ def main():
         print('  index.html 替换 %d 处，README 替换 %d 处（%s → %s）'
               % (n1, n2, ov, apk['ver']))
     else:
-        print('  磁盘版本号已是 %s，无需替换' % apk['ver'])
+        print('  线上版本已是 %s（或读不到），无需替换' % apk['ver'])
 
     # ---------- 5. 提交 ----------
     step(5, total, '提交到本地 Git')
