@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 19:10
+> 生成时间：2026-11-06 19:38
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.41** |
-| AndroidManifest versionCode | **1141** |
-| web/about.js APP_VERSION | 1.1.41 |
-| web/index.html #aboutVer | 1.1.41 |
+| AndroidManifest versionName | **1.1.42** |
+| AndroidManifest versionCode | **1142** |
+| web/about.js APP_VERSION | 1.1.42 |
+| web/index.html #aboutVer | 1.1.42 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.41.apk` |
-| 大小 | 620458 字节 |
-| SHA-256 | `35cdaa70abaa33d545659bbad3b8aaa4947919b3bd10f071e49d4a870b41f2af` |
-| 出包时间 | 2026-11-06 19:07 |
-| 包内版本（aapt2） | 1.1.41 / 1141 |
+| 文件 | `apk/xxmu-helper-v1.1.42.apk` |
+| 大小 | 624554 字节 |
+| SHA-256 | `1555429ba2b032e4b8f5d66531a424f61be26fcc69ad8259f850e7098de9d099` |
+| 出包时间 | 2026-11-06 19:29 |
+| 包内版本（aapt2） | 1.1.42 / 1142 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -48,27 +48,44 @@
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.41**，线上还是 **1.1.38** —— 新版本**还没发**。
+> 本地已到 **1.1.42**，线上还是 **1.1.38** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `492a041` |
+| 分支 | main @ `31956ac` |
 | origin/main | `2f06dac` |
-| 领先远程 | 6 个提交 |
-| 未提交改动 | 0 个文件 |
+| 领先远程 | 7 个提交 |
+| 未提交改动 | 13 个文件 |
 
 最近提交：
 
 ```
+31956ac docs: 提交后重新生成 STATE（本地 1.1.41 / 线上 1.1.38）
 492a041 feat(reminder): v1.1.41 课程提醒三档（响铃/静默/短信草稿）+ 试一下预览
 e5b1a3e docs: 提交后重新生成 STATE（本地 1.1.40 / 线上 1.1.38）
 b7962d2 feat(settings): v1.1.40 独立设置页 + 6 套图标方案（图标待用户选，未替换 res）
 b7019d6 docs: 提交后重新生成 STATE（本地 1.1.39 / 线上 1.1.38）
 cd31085 feat(theme): v1.1.39 深色模式（三档主题/跟随系统/首屏不闪白/关 WebView 自动反色）
-2769498 chore: 发版后重新生成 STATE（线上 1.1.38 / 领先 0）
+```
+
+未提交：
+
+```
+M HANDOFF.md
+ M android/AndroidManifest.xml
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M tools/check_web.js
+ M tools/release_all.py
+ M tools/verify_apk.py
+ M web/about.js
+ M web/app.css
+ M web/index.html
+ M web/tut.js
+?? docs/handoff/tutorial-contract.json
 ```
 
 ## 5. 常用命令（复制即用）
@@ -115,6 +132,7 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **v1.1.40 独立设置页四条（真机）**：①「我的」点设置能否进二级页…
 - [ ] **图标选定后**：等用户回「用 N 号图标」，跑…
 - [ ] **v1.1.41 课程提醒三档五条（真机）**：①学习页 → 课程提醒 → 设置…
+- [ ] **v1.1.42 教程排版四条（真机）**：①重看「我的 → 使用教程」，逐页翻到第 5 页…
 
 ### 三、可以做（纯本地，不需要任何外部条件）
 - [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍…

@@ -16,6 +16,12 @@
   7. 在 GitHub 上建 Release 并挂上 APK
   8. 最后再验一遍：官网 / 与 /v1/config、GitHub Release 附件 SHA
 
+v1.1.42 起第 1 步预检多一道：跑 tools/check_tutorial.js。
+用户原话「使用教程什么的每次版本更新，如果有功能性变化这个也需要更新」。
+契约表 docs/handoff/tutorial-contract.json 列了 App 现在的功能，
+教程声称覆盖的清单对不上、某页还标着旧版本、或还在教已删的「结束并结算」，
+这里就 die()，不许带着过时教程发出去。
+
 为什么要这一个脚本：发版涉及五六个不同系统（KV、Pages、git、GitHub Release、
 本地桌面副本），任何一处漏掉都会造成「官网说 A、App 提示 B、GitHub 挂 C」的
 不一致。这个项目已经因为「三处版本号不同步」踩过一次，所以收成一条命令，
@@ -227,6 +233,20 @@ def main():
     if a.dry_run:
         print('\n--dry-run：到此为止，不做任何写操作')
         return 0
+
+    # ---------- 1b. 教程必须跟着功能走（v1.1.42） ----------
+    # 放在 --dry-run 之后、任何写操作之前。契约表里的功能变了没更教程，
+    # 或者教程还在教已删掉的「结束并结算」，这一步就 die()，不许发版。
+    step(1, total, '预检：使用教程与功能清单一致')
+    node = r'C:\Program Files\nodejs\node.exe'
+    if not os.path.exists(node):
+        node = 'node'   # 交给 PATH
+    ok, out = sh([node, 'tools/check_tutorial.js'], check=False)
+    if not ok:
+        print(out.strip()[-800:])
+        die('教程契约检查没过：功能变了但教程没跟着更。'
+            '改 docs/handoff/tutorial-contract.json 与 web/tut.js 后重跑')
+    print('  教程契约检查通过')
 
     # ---------- 2. 发布到 KV ----------
     step(2, total, '发布到 Cloudflare KV')

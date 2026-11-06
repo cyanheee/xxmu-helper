@@ -260,6 +260,47 @@ console.log('  tut init 幂等守卫           =', /if \(inited\) return;/.test(
 if (refs(tut, 'replayMode') < 3) fail('tut.js 的 replay 又去覆盖翻页回调了（重看一遍教程后永远进不了登录引导）');
 if (!/if \(inited\) return;/.test(tut)) fail('tut.js 的 init 没有幂等守卫（双跑会叠两份监听器）');
 
+/* ---- v1.1.42：教程必须跟着功能走（用户原话「每次版本更新，如果有功能性变化这个也需要更新」） ----
+ * 只在这里钉「排版防线」，功能覆盖/口径/新鲜度由 check_tutorial.js 真跑一遍内容来验：
+ * 契约表（docs/handoff/tutorial-contract.json）↔ tut.js 的 TUT_FEATURES/covers/since。
+ * 用 child_process 同步调用，任一处不一致 check_web 就 exit 1，
+ * release_all.py 的预检也会再跑一次，发版时绕不过去。 */
+console.log('\nv1.1.42 checkpoints（教程排版 + 内容跟着功能走）:');
+/* 注意：这段插在 has() / cssTxt 定义（本文件更下面）之前，
+ * 不能引用任何后置 const —— TDZ 会让整份体检在第一行就抛 ReferenceError。
+ * 所以这里自己按需读一次文件，只依赖本段之前就有的 read()/fail()。 */
+const tutCss = read('web/app.css');
+const tutHas = (needle, label) => {
+  const ok = tut.indexOf(needle) >= 0 || tutCss.indexOf(needle) >= 0;
+  console.log('  ' + String(label).padEnd(30) + '=', ok);
+  if (!ok) fail('缺少 ' + label + '（' + needle + '）');
+};
+tutHas("className = 'tut-view'", 'tut.js 把 strip 装进 .tut-view（修真机相邻页漏字）');
+tutHas('view.appendChild(strip)', 'strip 真的被 append 进裁切层');
+tutHas('TUT_CONTENT_VER', '教程有内容版本号');
+tutHas('TUT_FEATURES', '教程声明了覆盖的功能清单');
+tutHas('covers:', '每页标了自己讲哪些功能');
+tutHas('since:', '每页标了最后更新版本');
+tutHas('.tut-view{', 'app.css 有 .tut-view 裁切层');
+if (/will-change:\s*transform/.test(tutCss)) fail('tut-strip 上还有 will-change（合成层会绕开祖先裁切）');
+if (!/\.tut-view\{[^}]*padding:0/s.test(tutCss)) fail('.tut-view 自己不该有 padding');
+if ((tut.match(/ttl:/g) || []).length < 6) fail('教程页数变少了（内容被删短？）');
+/* 过时文案的硬判据：结算早删了、学期设置早搬走了，教程不许再教。
+ * ★ 必须剥掉注释再查 —— 文件头说明里就写了「v1.1.16 已删结算」，
+ *   直接 indexOf 会被自己写的修复说明命中（本项目第二次栽在这上面）。 */
+const tutCode = tut.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+if (/结束并结算/.test(tutCode)) fail('教程还在教「结束并结算」（v1.1.16 已删结算）');
+if (/「我的 → 学期设置」/.test(tutCode)) fail('教程还在指向「我的 → 学期设置」（v1.1.40 已搬进设置页）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'check_tutorial.js')],
+    { encoding: 'utf8' });
+  const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | ');
+  console.log('  教程契约检查          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('教程契约检查未通过：' + tail);
+}
+
 /* B. 契约 / 状态 */
 console.log('  license isActivated 校验格式 =', /function whoami\(\)[\s\S]{0,200}\^\\d\{6,20\}\$/.test(lic));
 console.log('  license whoami 已收紧       =', /\^\\d\{6,20\}\$/.test(lic));

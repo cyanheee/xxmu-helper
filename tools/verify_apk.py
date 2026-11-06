@@ -138,7 +138,10 @@ NEW_JS_SYMBOLS = {
     # v1.1.11：声明必须能独立工作（不联网、读不到 pref 当没看过）
     "assets/disc.js": ["xxmu_disc_done", "function afterUnlock", "function replay",
                        "replayMode", "function gateLocked"],
-    "assets/tut.js": ["xxmu_tut_done", "afterUnlock", "replay", "replayMode"],
+    "assets/tut.js": ["xxmu_tut_done", "afterUnlock", "replay", "replayMode",
+                      # v1.1.42 教程排版 + 内容契约
+                      "className = 'tut-view'", "view.appendChild(strip)",
+                      "TUT_CONTENT_VER", "TUT_FEATURES", "covers:", "since:"],
     "assets/wiki.js": ["photosSection", "fbSection", "startUpload",
                        "composeFeedback", "__onPhotoUploaded",
                        # v1.1.8 失败态不再退化成「暂无内容」
@@ -175,7 +178,9 @@ NEW_JS_SYMBOLS = {
     "assets/reminder.js": ["xxmu_remind_mode", "MODES = ['alarm', 'silent', 'sms']",
                            "mode: md", "rmPreview", "Host.previewReminder",
                            "Host.openSmsDraft"],
-    "assets/app.css": [".rm-mode{", ".rm-mode.on{"],
+    "assets/app.css": [".rm-mode{", ".rm-mode.on{",
+                       # v1.1.42 教程裁切层
+                       ".tut-view{"],
 }
 
 ok = True

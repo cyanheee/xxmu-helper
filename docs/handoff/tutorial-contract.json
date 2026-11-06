@@ -1,0 +1,45 @@
+{
+  "_why": "用户原话：使用教程什么的每次版本更新，如果有功能性变化这个也需要更新。这份表是「App 现在有哪些学生能看见的功能」的唯一清单。加/改/删功能时改这里，tools/check_tutorial.js 会拿它跟 web/tut.js 的 TUT_FEATURES / covers / since 对照，漏更就 exit 1，发版预检也会跑。",
+  "_rules": [
+    "新增学生可见功能 → 往 features 加一条，并在 tut.js 对应页 covers 里带上、把该页 since 和文件头 TUT_CONTENT_VER 更新",
+    "删掉功能 → 从 features 删掉，同时删掉教程里教它的那句话（check_tutorial.js 有禁用词检查）",
+    "改了入口路径 → 改 mustMention 里的说法，教程文案必须同步",
+    "只改内部实现、学生看不出来 → 不用动这份表"
+  ],
+  "version": 2,
+  "features": [
+    { "id": "overview",        "since": "1.1.6",  "label": "为什么做这个 / 不收集成绩" },
+    { "id": "schedule",        "since": "1.1.6",  "label": "课表：登录教务抓课表、切周" },
+    { "id": "freeroom",        "since": "1.1.38", "label": "空闲教室：青果 SB12 真实数据（校区→教学楼→周次→时段）" },
+    { "id": "homework",        "since": "1.1.24", "label": "学习通作业/考试四态与分组" },
+    { "id": "mytodo",          "since": "1.1.22", "label": "我的待办（本地存）" },
+    { "id": "focus",           "since": "1.1.26", "label": "专注计时（番茄钟/白噪音）" },
+    { "id": "reminder_modes",  "since": "1.1.41", "label": "课程提醒三档：响铃/静默/短信草稿 + 试一下" },
+    { "id": "water",           "since": "1.1.16", "label": "饮水机：绑定解锁、定量放水、自动停、无结算" },
+    { "id": "elec",            "since": "1.1.37", "label": "宿舍空调剩余度数印在入口卡、跳官方缴费" },
+    { "id": "wiki",            "since": "1.1.6",  "label": "校园 WIKI / 实景 / 留言板" },
+    { "id": "settings",        "since": "1.1.40", "label": "独立设置页（外观/学期/更新）" },
+    { "id": "theme",           "since": "1.1.39", "label": "深色模式三档、跟随系统" },
+    { "id": "update",          "since": "1.0.0",  "label": "内置更新：提示 + App 内下载安装" },
+    { "id": "privacy",         "since": "1.1.6",  "label": "边界：不碰密码、不代办充值支付、不收集成绩" },
+    { "id": "start",           "since": "1.1.6",  "label": "开始使用：两个账号可跳过、反馈入口" }
+  ],
+  "mustMention": [
+    "我的 → 设置",
+    "静默",
+    "短信草稿",
+    "空闲教室",
+    "宿舍空调",
+    "定量",
+    "深色",
+    "不收集",
+    "使用教程"
+  ],
+  "forbidden": [
+    "结束并结算",
+    "「我的 → 学期设置」",
+    "开通会员",
+    "右上角「空教室」可以查哪个教室现在没课",
+    "余额和订单都在这一页能看到"
+  ]
+}

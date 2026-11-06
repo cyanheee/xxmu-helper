@@ -993,11 +993,19 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   padding:22px 20px 16px; overflow:hidden;
   animation:onbIn .22s ease-out;
 }
-/* 容器裁切：strip 横排 6 屏宽，位移 -100% * idx */
+/* 容器裁切：strip 横排 6 屏宽，位移 -100% * idx
+ *
+ * v1.1.42 修真机排版：原来 strip 直接放在有 20px 左右 padding 的 .tut-box 里，
+ * overflow:hidden 只裁 padding-box **外缘**，padding 区本身仍然可见 ——
+ * 于是相邻页的行首/行末各露一竖条在白卡两边（用户截图里的「下-」「成绩」
+ * 「源。」，左下那块浅蓝是上一页 tip 的底色）。
+ * 现在裁切交给一层**没有 padding** 的 .tut-view，padding 只留给外层卡片。
+ * 同时去掉 will-change：部分国产 ROM 的 WebView 会为它单独建合成层，
+ * 祖先的 overflow 裁切在合成层上失效，桌面 headless 看不出来、真机才漏。 */
+.tut-view{overflow:hidden;width:100%;padding:0;margin:0}
 .tut-strip{
   display:flex; width:100%;
   transition:transform .26s cubic-bezier(.22,.7,.3,1);
-  will-change:transform;
 }
 .tut-pg{
   flex:0 0 100%; width:100%; padding-right:2px;
