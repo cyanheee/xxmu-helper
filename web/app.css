@@ -423,6 +423,21 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 /* v1.1.35：精确闹钟被系统关掉时的提示（提醒会晚几分钟） */
 .rm-warn{color:var(--warn);margin-top:4px}
 
+/* ---------------- 课程提醒方式（v1.1.41） ----------------
+ * 三档和外观三档同一套视觉语言：整行可点、选中描边 + ✓。
+ * 说明文字跟在按钮下面，选哪档就写哪档的规矩，尤其把
+ * 「短信不自动发、不读通讯录、收件人自己选」写清楚。 */
+.rm-mode-row{margin:10px 0 2px}
+.rm-modes{display:flex;flex-direction:column;gap:8px;padding:4px 0 2px}
+.rm-mode{display:flex;align-items:center;justify-content:space-between;
+  margin:0;text-align:left;font-size:14px;padding:11px 14px;
+  background:var(--surface2);color:var(--fg)}
+.rm-mode.on{border:1.5px solid var(--accent);color:var(--accent);
+  background:var(--accent-soft);font-weight:650}
+.rm-mode-tick{font-size:15px;font-weight:700;min-width:18px;text-align:center}
+.rm-mode-hint{margin:10px 2px 4px;font-size:11.5px;color:var(--mute)}
+#rmPreview{margin-top:8px}
+
 /* ---------------- 分段切换 / 胶囊 ---------------- */
 .seg{display:flex;background:var(--seg-bg);border-radius:12px;padding:3px;margin:4px 0 10px}
 .seg button{flex:1;border:0;background:none;border-radius:9px;padding:8px 0;

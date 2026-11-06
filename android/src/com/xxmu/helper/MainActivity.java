@@ -1106,6 +1106,22 @@ public class MainActivity extends Activity {
             }
         }
 
+        /** v1.1.41：「试一下」——不挂闹钟，立刻出一条当前方式的提醒。
+         *  用户能当场比出响铃/静默/短信哪档合意，不用改手机时间等真闹钟。 */
+        @JavascriptInterface
+        public void previewReminder(String mode, String name, String room, int mins) {
+            ReminderReceiver.show(MainActivity.this,
+                    name == null ? "高等数学（示例）" : name,
+                    room == null ? "A101" : room,
+                    mins, mode);
+        }
+
+        /** 短信那档的「试一下」直接把系统短信编辑页拉起来（正文写好、收件人空着）。 */
+        @JavascriptInterface
+        public void openSmsDraft(String name, String room, int mins) {
+            ReminderReceiver.openSmsDraft(MainActivity.this, name, room, mins);
+        }
+
         /**
          * 精确闹钟能不能用（Android 12+ 用户可以关掉「闹钟和提醒」特殊权限）。
          * 关掉后提醒仍然会响，但可能晚几分钟——前端据此给一句诚实提示，

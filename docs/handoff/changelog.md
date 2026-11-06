@@ -7,6 +7,50 @@
 
 ---
 
+### v1.1.41（2026-11-06）—— 课程提醒三档：响铃 / 静默 / 短信草稿（**只出本地包，未上线**）
+
+用户原话（追加在设置页需求后面）：「还有课前提醒，不一定非要是闹钟，
+可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
+按项目既有边界（不自动代发、不动钱、不读通讯录）拍板做成三档可选，
+不是把闹钟换成短信，也不是给一个「要不要响」的开关。
+
+**三档**
+- `alarm` 响铃：IMPORTANCE_HIGH + heads-up + 声音，沿用旧 channel
+  `xxmu_class_reminder`，**老用户升级行为完全不变**。
+- `silent` 静默：IMPORTANCE_LOW，不响不震不弹，只在下拉通知栏出现。
+- `sms` 短信草稿：通知用静默载体，点开 `ACTION_SENDTO smsto:` 拉起系统
+  短信编辑页，`sms_body` 预填「【河医大助手】课程名，N 分钟后上课，教室 X。」
+  **收件人空着、「发送」由用户点**。不申请 SEND_SMS、不读通讯录、
+  不用 SmsManager，`check_web.js` 四条反向断言钉住这条边界。
+- 新增「试一下当前方式」：不挂闹钟，当场出一条当前方式的提醒
+  （短信档直接开编辑页）。没有它，用户只能改手机时间等下一节课，根本比不出哪档合意。
+
+**三个真坑（都是「文件齐 + 静态全绿」照样会错的那类）**
+1. **NotificationChannel 的 importance 创建后改不了**。共用同一个 channel
+   再动态调低，系统会忽略，结果「选了静默照样响」且无任何报错。
+   所以静默另开 `xxmu_class_reminder_silent`；构造只写一处，靠
+   `MODE_ALARM.equals(mode) ? ... : ...` 选 id 与重要性，避免两处各写一遍改岔。
+2. **mode 必须逐项写进 build() 的 JSON**。Java 侧把这份列表原样落盘，
+   手机重启后 `BootReceiver → ReminderScheduler.restore` 重挂时按它重建
+   PendingIntent；不带 mode 就会退回默认响铃，用户选的静默白选。
+   `optString("mode", MODE_ALARM)` 让老列表缺字段时照常响，不因升级变哑。
+3. **脏 pref 绝不能把人静默**。`mode()` 与 Java 的 `norm()` 双侧把
+   空值/乱码/旧值一律回落 `alarm` —— 「拦错了还能自救」这条老规矩在
+   提醒上也成立：错了最多多响一次，不能从此一条都不响。
+
+链路四端（沿用 v1.1.35 那次事故定下的规矩）：前端三档状态机 + `build()` 带 mode →
+`Host.previewReminder` / `Host.openSmsDraft` 两个新桥 →
+`ReminderReceiver` 读 `mode` 分支 → `ReminderScheduler` 落盘。
+`test_remind_modes.js` 54 条断言（三档纯函数、build 契约、双 channel、SMS 边界、
+前端接线），老 `test_reminder.js` 同步补 shim 的 `mode()` 与 3 条断言到 47 项。
+
+验证（三层分开说，无真机）：① 编译/签名通过（证书仍与 v1.1.1 一致）；
+② `check_web.js` 全 PASS、17 套离线测试 0 FAIL、`verify_apk.py` 四件套全过；
+③ **真机未验证**：静默是否真的不响、短信编辑页能否拉起、通知渠道在系统设置里
+   的重要性、Doze 下三档是否都准时。线上仍是 v1.1.38（回读确认），学生不弹更新。
+
+---
+
 ### v1.1.40（2026-11-06）—— 独立设置页 + 6 套图标方案（**只出本地包，未上线；图标等用户选**）
 
 用户发来「我的」页截图（外观混在 6 行列表里、学期设置单独一张卡、底下还散着

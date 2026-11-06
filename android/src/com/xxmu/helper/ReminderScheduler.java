@@ -84,6 +84,10 @@ final class ReminderScheduler {
                 it.putExtra("name", o.optString("name", ""));
                 it.putExtra("room", o.optString("room", ""));
                 it.putExtra("mins", o.optInt("mins", 15));
+                /* v1.1.41：提醒方式一起落盘。前端 build() 每项都带 mode，
+                 * optString 默认 alarm —— 老版本存的列表里没有这个字段，
+                 * 重挂时照常响铃，不会因为升级就变成静默。 */
+                it.putExtra("mode", o.optString("mode", ReminderReceiver.MODE_ALARM));
                 int flags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
                 PendingIntent p = PendingIntent.getBroadcast(
                         ctx, keep.length() + 1, it,

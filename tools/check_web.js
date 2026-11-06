@@ -1271,6 +1271,62 @@ for (let i = 1; i <= 6; i++) {
   if (!fs.readdirSync(iconDir).some(n => n.startsWith(pre))) fail('缺第 ' + i + ' 套图标方案目录');
 }
 
+// ---- v1.1.41：课程提醒方式三档（响铃 / 静默 / 短信草稿）----
+/* 用户原话「不一定非要是闹钟，可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
+ * 四端都要在：前端三档状态机、build() 带 mode、Java 双 channel、
+ * 短信只开编辑页不自动发。少一端就表现为「选了静默照样响」或「选了短信没反应」，
+ * 而静态体检全绿照样可能全没生效。 */
+console.log('\nv1.1.41 checkpoints（课程提醒三档）:');
+const rmJava = read('android/src/com/xxmu/helper/ReminderReceiver.java');
+const rmSched = read('android/src/com/xxmu/helper/ReminderScheduler.java');
+const rmMain = read('android/src/com/xxmu/helper/MainActivity.java');
+
+has(reminder, "const KEY_MODE = 'xxmu_remind_mode'", 'reminder.js 有 mode 的 pref 键');
+has(reminder, "MODES = ['alarm', 'silent', 'sms']", '三档顺序固定');
+has(reminder, 'function mode(m)', 'mode() 纯函数（脏值回落 alarm）');
+has(reminder, 'mode: md', 'build() 每项带 mode（重启重挂不退回响铃）');
+has(reminder, 'function buildModes(onPick)', '有方式三档按钮');
+has(reminder, "tryBtn.id = 'rmPreview'", '有「试一下」按钮');
+has(reminder, 'Host.previewReminder', '非短信档调 Java 预览通知');
+has(reminder, 'Host.openSmsDraft', '短信档调 Java 拉起编辑页');
+has(reminder, "MODE_LABEL[mode()]", '状态字写明当前方式');
+has(reminder, '不读通讯录', '文案写明不读通讯录');
+if (/setInterval\s*\(/.test(reminder)) fail('reminder.js 出现 setInterval（闹钟必须在 Java 侧）');
+
+/* 双 channel：importance 创建后改不了，静默必须另开一个。 */
+has(rmJava, 'CHANNEL_SILENT = "xxmu_class_reminder_silent"', '静默有独立 channel id');
+has(rmJava, 'NotificationManager.IMPORTANCE_LOW', '静默 IMPORTANCE_LOW');
+has(rmJava, 'NotificationManager.IMPORTANCE_HIGH', '响铃 IMPORTANCE_HIGH');
+has(rmJava, 'getStringExtra("mode")', 'Receiver 读广播里的 mode');
+has(rmJava, 'public static String norm(String m)', '脏 mode 在 Java 侧也回落 alarm');
+has(rmJava, 'Intent.ACTION_SENDTO', '短信用 ACTION_SENDTO（系统编辑页）');
+has(rmJava, 'Uri.parse("smsto:")', 'smsto: 不带号码（收件人空着）');
+has(rmJava, 'sms_body', '只预填正文');
+has(rmJava, 'PendingIntent.getActivity(context', '短信 PendingIntent 指向 Activity');
+has(rmJava, 'static void openSmsDraft', '「试一下」能直接开短信编辑页');
+has(rmSched, 'putExtra("mode", o.optString("mode", ReminderReceiver.MODE_ALARM))',
+  'Scheduler 把 mode 原样落盘（缺字段回落 alarm）');
+has(rmMain, 'public void previewReminder(', 'MainActivity 有 previewReminder 桥');
+has(rmMain, 'public void openSmsDraft(', 'MainActivity 有 openSmsDraft 桥');
+has(cssTxt, '.rm-mode{', 'app.css 有方式三档样式');
+has(idx, 'id="remindSet"', '课程提醒设置入口仍在');
+
+/* 反向断言：这几条是边界，不是功能点。 */
+if (/SmsManager|sendTextMessage|sendMultipartTextMessage/.test(rmJava)) {
+  fail('ReminderReceiver 里出现自动发短信的 API（App 只开编辑页，不该代发）');
+}
+if (/android\.permission\.SEND_SMS/.test(mani)) fail('manifest 申请了 SEND_SMS（不该）');
+if (/READ_CONTACTS|WRITE_CONTACTS/.test(mani)) fail('manifest 申请了通讯录权限（不该）');
+if (/putExtra\("address"/.test(rmJava)) fail('短信预填了收件人（不该）');
+/* 静默不能和响铃共用一个 channel 再动态改 importance —— 系统会忽略，
+ * 表现是「选了静默照样响」且没有任何报错。 */
+const chOne = /CHANNEL_ALARM\s*=\s*"([^"]+)"/.exec(rmJava);
+const chTwo = /CHANNEL_SILENT\s*=\s*"([^"]+)"/.exec(rmJava);
+if (!chOne || !chTwo || chOne[1] === chTwo[1]) fail('静默与响铃共用了同一个通知 channel');
+if ((rmJava.match(/new NotificationChannel\(/g) || []).length !== 1) {
+  fail('NotificationChannel 构造应只在一处（靠变量选 id/重要性），两处各写一遍容易改岔');
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

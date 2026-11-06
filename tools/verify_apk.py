@@ -68,6 +68,12 @@ NEW_DEX_SYMBOLS = [
     "recycleQuietly",
     # v1.1.9：选包回调也搬后台线程 + try-with-resources + 失败删半截文件
     "xxmu-pickapk",
+    # v1.1.41 课程提醒三档：Java 侧符号必须真的编进 dex
+    "xxmu_class_reminder_silent",
+    "openSmsDraft",
+    "previewReminder",
+    "MODE_SILENT",
+    "MODE_SMS",
     # v1.1.39 主题系统：Java 侧符号必须真的编进 dex（只改注释不会出现）
     "isSystemDark",
     "setAppTheme",
@@ -165,6 +171,11 @@ NEW_JS_SYMBOLS = {
                           "id=\"themeInline\"", "src=\"theme.js\"", "THEME.init()"],
     "assets/theme.js": ["function mount(containerId)", "dropTransient",
                         "data-theme-state", "transient: !!transient"],
+    # v1.1.41 课程提醒三档
+    "assets/reminder.js": ["xxmu_remind_mode", "MODES = ['alarm', 'silent', 'sms']",
+                           "mode: md", "rmPreview", "Host.previewReminder",
+                           "Host.openSmsDraft"],
+    "assets/app.css": [".rm-mode{", ".rm-mode.on{"],
 }
 
 ok = True

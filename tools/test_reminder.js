@@ -49,6 +49,9 @@ function loadCalc(env) {
      mins() 自己的 pref 读取与 0~120 兜底不在本测试范围内。 */
   const code = [
     'function mins() { return 15; }',
+    // v1.1.41：build() 每项都带 mode；老测试用固定 alarm，不测三档状态机
+    //（三档单独在 test_remind_modes.js 里跑）。
+    "function mode() { return 'alarm'; }",
     cut('startTimeOf'),
     cut('courseDate'),
     cut('build'),
@@ -117,6 +120,8 @@ ok(list.every(x => x.at > now), '产出里没有已过去的时刻');
 ok(list.every((x, i) => i === 0 || list[i - 1].at <= x.at), '按时间升序');
 ok(list.every(x => typeof x.name === 'string' && typeof x.room === 'string' && typeof x.mins === 'number'),
   '每项都有 name/room/mins');
+ok(list.every(x => x.mode === 'alarm'), 'v1.1.41：每项都带 mode（重启重挂不退回默认）');
+ok(list.every(x => ['alarm', 'silent', 'sms'].indexOf(x.mode) >= 0), 'mode 只能是三档之一');
 /* 「提前 15 分钟」应落到 07:45 */
 const first = list[0];
 const fm = new Date(first.at);
