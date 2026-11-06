@@ -633,6 +633,13 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .adm-item:first-child{border-top:0}
 .adm-id{flex:0 0 auto;font-size:12.5px;color:var(--mute);
   font-variant-numeric:tabular-nums}
+/* v1.1.45：学号下面补收录时间，管理员能直接核对「新收录从新到老」 */
+.adm-id-wrap{display:flex;flex-direction:column;gap:2px;flex:0 0 auto;min-width:0}
+.adm-at{font-size:10px;color:var(--mute);font-variant-numeric:tabular-nums;
+  white-space:nowrap;opacity:.85}
+.adm-odd{flex:0 0 auto;font-size:10px;color:var(--warn);
+  background:var(--kb-bg);border:1px solid var(--kb-line);
+  border-radius:7px;padding:2px 7px;white-space:nowrap}
 .adm-code{flex:1;min-width:0;font-size:13.5px;font-weight:650;letter-spacing:.4px;
   font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
   color:var(--accent);word-break:break-all;cursor:pointer}
@@ -705,7 +712,13 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   text-overflow:ellipsis;white-space:nowrap;max-width:40vw}
 .adm-audit-sub{flex:1;min-width:0;font-size:11.5px;color:var(--fg2);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right}
+/* v1.1.45：名单行加了「收录时间」和「格式异常」两块后，窄屏容易把
+ * 停用/详情按钮挤到第二行。给学号列一个固定宽度、按钮组不收缩，
+ * 让状态标签区去吸收剩余空间（它本来就能 flex-wrap）。 */
 .adm-item{align-items:flex-start;flex-wrap:wrap}
+.adm-item .adm-id-wrap{flex:0 0 116px;max-width:116px}
+.adm-item .adm-cp{flex:0 0 auto}
+.adm-item .adm-tags{flex:1 1 90px;min-width:90px}
 #admDetailCard .big-row{font-size:13px}
 .adm-stat b.warn{color:var(--warn)}
 

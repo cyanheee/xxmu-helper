@@ -2434,10 +2434,37 @@ const AdminUI = (() => {
     });
   }
 
+  /* v1.1.45：和后端 handleList 同一套判据（新收录从新到老）。
+   * 前端再排一次是为了兼容还没更新的服务端 / 缓存里的旧响应；
+   * at=0（老记录没时间）统一垫底，at 相同按 id 保持稳定。 */
+  function listNewFirst(a, b) {
+    const x = Number(a && a.at) || 0, y = Number(b && b.at) || 0;
+    if (x !== y) return y - x;
+    return String(a && a.id || '').localeCompare(String(b && b.id || ''));
+  }
+  /* 学号形状判据：本校在册学号是 11 位、以 2025/2026 这类年份开头。
+   * 只用来在名单里「标出来给人看」，**不拦、不改、不删数据** —— 激活接口
+   * 只要求 6~20 位纯数字，服务端历史上就收过 12 位 1 开头的手填号，
+   * 那是真实用户填进来的，管理员需要看见它、而不是被系统悄悄吞掉。 */
+  function looksOddId(id) {
+    const s = String(id || '');
+    return s.length !== 11 || !/^20\d{2}/.test(s);
+  }
+  function fmtAt(at) {
+    const n = Number(at) || 0;
+    if (n <= 0) return '';
+    try {
+      const d = new Date(n * 1000);
+      const p = x => String(x).padStart(2, '0');
+      return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+        + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+    } catch (e) { return ''; }
+  }
+
   function renderList() {
     const box = $('admList');
     if (!box) return;
-    let rows = LIST;
+    let rows = LIST.slice().sort(listNewFirst);
     if (FILTER === 'granted') rows = rows.filter(r => !r.revoked);
     if (FILTER === 'revoked') rows = rows.filter(r => r.revoked);
     if (FIND) rows = rows.filter(r => r.id.indexOf(FIND) >= 0);
@@ -2457,10 +2484,18 @@ const AdminUI = (() => {
     }
     rows.forEach(r => {
       const row = el('div', 'adm-item');
-      const id = el('span', 'adm-id', r.id);
-      row.appendChild(id);
+      const idWrap = el('div', 'adm-id-wrap');
+      idWrap.appendChild(el('span', 'adm-id', r.id));
+      const when = fmtAt(r.at);
+      if (when) idWrap.appendChild(el('span', 'adm-at', when));
+      else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
+      row.appendChild(idWrap);
       const tags = el('span', 'adm-tags');
       tags.appendChild(el('span', r.revoked ? 'adm-bad' : 'adm-ok', r.revoked ? '已停用' : '正常'));
+      /* 形状异常的号只标出来，说明为什么它跟别人不一样，不做任何拦截 */
+      if (looksOddId(r.id)) {
+        tags.appendChild(el('span', 'adm-odd', '格式异常（手填）'));
+      }
       if (r.note) tags.appendChild(el('span', 'adm-note', r.note));
       row.appendChild(tags);
       /* 每行一个开关：正常→停用，已停用→解封。

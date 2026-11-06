@@ -1415,6 +1415,28 @@ if (!fs.existsSync(path.join(root, 'server', 'pages', 'dist', '_headers')))
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
 }
 
+// ---- v1.1.45：管理名单按收录时间从新到老 + 异常学号标记 ----
+console.log('\nv1.1.45 checkpoints（名单排序）:');
+has(worker, 'if (a.at !== b.at) return b.at - a.at', '后端按 at 降序（不是 id 字典序）');
+has(worker, 'return a.id.localeCompare(b.id)', '同 at 按 id 稳定排序');
+has(app, 'function listNewFirst(a, b)', '前端有同款排序函数');
+has(app, 'LIST.slice().sort(listNewFirst)', 'renderList 真的用它排了');
+has(app, 'function looksOddId(id)', '有异常形状判据（只标不拦）');
+has(app, "'adm-odd', '格式异常（手填）'", '异常号在行里标出来');
+has(app, "'adm-at'", '行里显示收录时间');
+has(worker, "return bad('学号格式不对')", '激活判据没被改成拦异常号');
+if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
+  fail('后端名单又退回按学号字典序（12026 会重新霸占第一）');
+}
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_admin_list.js')], { encoding: 'utf8' });
+  console.log('  名单排序行为测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('名单排序行为测试未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

@@ -89,6 +89,9 @@ NEW_JS_SYMBOLS = {
                           "\\d{6,20}"],
     "assets/app.js": ["kbMismatchAck", "kbMismatchToastShown", "APKDL",
                       "__onApkProgress", "重试下载",
+                      # v1.1.45 管理名单
+                      "function listNewFirst(a, b)", "function looksOddId(id)",
+                      "格式异常（手填）", "LIST.slice().sort(listNewFirst)",
                       # v1.1.5 作业状态：这一批全是「静默失败」型 bug ——
                       # 解析不到就 status=''，然后被当成「已完成」，不报错不报警。
                       "isDoneStatus", "status_known",
@@ -181,7 +184,9 @@ NEW_JS_SYMBOLS = {
                            "Host.openSmsDraft"],
     "assets/app.css": [".rm-mode{", ".rm-mode.on{",
                        # v1.1.42 教程裁切层
-                       ".tut-view{"],
+                       ".tut-view{",
+                       # v1.1.45 名单排序/异常标记
+                       ".adm-odd{", ".adm-at{", ".adm-id-wrap{"],
 }
 
 ok = True
