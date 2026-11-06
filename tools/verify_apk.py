@@ -144,6 +144,12 @@ NEW_JS_SYMBOLS = {
                        "(?=[^>]*padding-bottom:\\s*5px)(?=[^>]*clear:\\s*both)",
                        "function diagReset", "function keepSample", "LAST.err"],
     "assets/onboard.js": ["__onLoginSuccess = function (chk)", "oldKb(chk)"],
+    # v1.1.38：全校空闲教室。这三条是「空教室能不能真出来」的要害：
+    # 前瞻切块（普通 split 会吃掉 <tr> 开标签，第 1 节永远丢失）、
+    # 靠 style 背景色判占用（天格里没有一个字）、学期编码 xq_m 必须是 0 = 第一学期。
+    "assets/free.js": ["const KFREE = (() => {", "?=<tr",
+                      "background-color", "function parseMatrix",
+                      "menucode_current', 'SB12"],
 }
 
 ok = True

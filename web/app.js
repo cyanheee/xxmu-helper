@@ -1502,17 +1502,55 @@ function setLoginState(text, cls) {
   el0.className = cls || '';
 }
 
+/* 教务登录状态。
+ *
+ * v1.1.38 修了一个从 v1.0 就在骗人的判据：原来只看 `Host.cookies().length > 20`。
+ * 问题是青果**没登录时也会下发一个 43 字符的 JSESSIONID**，于是这个判断永远为真，
+ * 「我的」页永远显示「已登录」。用户按这个状态去点同步才发现白等一场，
+ * 而界面上没有任何一行能让他明白「其实没登进去」。
+ *
+ * 现在要两个证据同时成立才算登录：
+ *   ① CookieManager 里有教务域的 cookie（必要条件，但不充分）；
+ *   ② 真的从教务拿到过一次数据 —— 课表同步成功，或空闲教室查成功，
+ *      记在 pref 'xxmu_kb_ok'（毫秒时间戳）。
+ * 只有 ① 没有 ② 时显示「未验证」，这才是当时真实的状态。
+ */
+const LOGIN_OK_KEY = 'xxmu_kb_ok';
+
+function markLoginOk() {
+  if (hasHost() && Host.setPref) Host.setPref(LOGIN_OK_KEY, String(Date.now()));
+}
+
+function loginOkAt() {
+  const s = (hasHost() && Host.getPref) ? (Host.getPref(LOGIN_OK_KEY) || '') : '';
+  const n = parseInt(s, 10);
+  return n > 0 ? n : 0;
+}
+
 function refreshLoginUI() {
   if (!hasHost()) {
     setLoginState('浏览器预览', '');
-    document.getElementById('whoami').textContent = '（需在 App 内使用）';
+    const w0 = document.getElementById('whoami');
+    if (w0) w0.textContent = '（需在 App 内使用）';
     return;
   }
   const ck = Host.cookies ? Host.cookies() : '';
   const u = currentUser();
-  document.getElementById('whoami').textContent = u || '--';
-  if (ck && ck.length > 20) setLoginState('已登录', 'ok');
-  else setLoginState('未登录', 'warn');
+  const w = document.getElementById('whoami');
+  if (w) w.textContent = u || '--';
+
+  if (!ck || ck.length < 20) {
+    setLoginState('未登录', 'warn');
+    return;
+  }
+  const at = loginOkAt();
+  if (!at) {
+    setLoginState('未验证', 'warn');
+    return;
+  }
+  const days = Math.floor((Date.now() - at) / 86400000);
+  if (days <= 0) setLoginState('已登录', 'ok');
+  else setLoginState('已登录 · ' + days + ' 天前用过', 'ok');
 }
 
 /* 本机账号卡片：显示的是「软件的卡密账号」，不是教务账号。
@@ -1739,6 +1777,8 @@ function syncSchedule(showResult) {
         if (showResult) showTip('解析成功但写入缓存失败。');
         return;
       }
+      markLoginOk();     // 真的拿到教务数据了，这才叫登录成功
+      refreshLoginUI();
       load();
       if (showResult) {
         /* v1.1.8：toast 不能只说「N 门课」。
@@ -1778,6 +1818,10 @@ window.__XXMU_REFRESH_LOGIN = refreshLoginUI;
 document.getElementById('btnLogout').onclick = () => {
   if (!hasHost() || !Host.clearCookies) return;
   Host.clearCookies();
+  /* 登录凭证清了，那条「上次成功用过」的记录也必须一起清。
+   * 否则下次登录页显示的还是「已登录 · 3 天前用过」——cookie 已经没了，
+   * 两个证据只剩一个，状态就是假的。 */
+  try { if (Host.setPref) Host.setPref(LOGIN_OK_KEY, '0'); } catch (e) {}
   setTimeout(refreshLoginUI, 200);
 };
 
@@ -4165,7 +4209,7 @@ const CampusUI = (() => {
 
     /* ---- 其他入口 ---- */
     const rf = document.getElementById('rowFree');
-    if (rf) rf.onclick = () => openFreeSheet();
+    if (rf) rf.onclick = () => KFREE.open();
     const rc = document.getElementById('rowChaoxing');
     if (rc) rc.onclick = () => openChaoxing('', '学习通', null);
     const re = document.getElementById('rowEams');
@@ -4252,14 +4296,14 @@ window.__onWaterCapture = function (jsonText) {
   } catch (e) {}
 };
 
-/* ===== 空教室 =====
+/* ===== 空教室（本机估算版）=====
  *
- * 口径必须说清楚（页面上也写了）：本机只看得到自己课表里出现过的教室，
- * 所以结果是「我课表里这些教室中，某天某几节没课的」。别的班的课看不到，
- * 只能当参考。要准确结果用「空闲教室查询」跳教务系统。
+ * v1.1.38 起这只是**备选**：主入口走 KFREE（web/free.js），拿教务系统的
+ * 空闲节次表，结果是全校真实的。本文件这套只在自己课表里出现过的教室上推算，
+ * 别的班的课看不到，所以是估算。
  *
- * 交互：先选星期，再选时段（上午/下午/晚上，或全天）。默认选今天是周几、
- * 时段按当前时间猜 —— 用户点进来通常就是想「现在/今天哪能自习」。
+ * 保留它的理由：教务连不上 / 没登录 / 学校后台哪天又抽风的时候，
+ * 有个能用的东西总比一句「查询失败」强。界面里叫「用本机课表估算」。
  */
 let FREE_DAY = 0;    // 0=今天；1..7
 let FREE_SEG = -1;   // -1=按当前时间猜
@@ -4286,7 +4330,10 @@ function freeDefaultSeg() {
   return 2;
 }
 
-function openFreeSheet() {
+/** 本机估算版（原来叫 openFreeSheet）。
+ *  v1.1.38 把主入口让给了 KFREE.open()，这个名字留着是因为两个旧按钮
+ *  （课表页顶部 #btnFree、校园页 #rowFree）都还指着它，改起来容易漏。 */
+function openFreeLocal() {
   const week = curWeek;
   const day = freeTargetDay();
   const segs = freeSegs();
@@ -4298,8 +4345,8 @@ function openFreeSheet() {
   body.innerHTML = '';
 
   body.appendChild(el('p', 'hint',
-    '本机只知道自己课表里出现过的教室（共 ' + FREE.allRooms().length +
-    ' 间）。下面是这些教室里没课的 —— 别的班的课看不到，仅供参考。'));
+    '这是在你自己课表里出现过的 ' + FREE.allRooms().length +
+    ' 间教室上推算的，别的班的课看不到，只是估算。要全校真实的用「空闲教室（教务）」。'));
 
   /* ---- 星期选择 ---- */
   const dchips = el('div', 'chips');
@@ -4307,7 +4354,7 @@ function openFreeSheet() {
     const d = i + 1;
     const b = el('button', '', nm);
     if (d === day) b.classList.add('on');
-    b.onclick = () => { FREE_DAY = d; openFreeSheet(); };
+    b.onclick = () => { FREE_DAY = d; openFreeLocal(); };
     dchips.appendChild(b);
   });
   body.appendChild(dchips);
@@ -4317,7 +4364,7 @@ function openFreeSheet() {
   segs.forEach((s, i) => {
     const b = el('button', '', s.t);
     if (i === si) b.classList.add('on');
-    b.onclick = () => { FREE_SEG = i; openFreeSheet(); };
+    b.onclick = () => { FREE_SEG = i; openFreeLocal(); };
     schips.appendChild(b);
   });
   body.appendChild(schips);
@@ -4369,8 +4416,8 @@ function openFreeSheet() {
     body.appendChild(g2);
   }
 
-  const jump = el('button', 'btn', '去教务系统查准确的空闲教室');
-  jump.onclick = () => openFreeInEams();
+  const jump = el('button', 'btn', '去教务系统查全校空闲教室');
+  jump.onclick = () => KFREE.open();
   body.appendChild(jump);
 
   document.getElementById('sheet').classList.add('on');
@@ -4720,7 +4767,7 @@ window.__onUnlocked = function () {
  * 页面能看、点什么都没反应，控制台里只有一行 find null。 */
 (function bindFreeBtn() {
   const b = document.getElementById('btnFree');
-  if (b) b.onclick = () => openFreeSheet();
+  if (b) b.onclick = () => KFREE.open();
 })();
 
 About.init();

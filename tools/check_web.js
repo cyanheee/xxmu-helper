@@ -32,7 +32,8 @@ if (lb[1] !== '河医大助手') fail('manifest 的 android:label 不是「河�
  * 写死的名字只用来排序（让输出顺序稳定、好看的排前面）。 */
 const KNOWN_ORDER = ['index.html', 'app.js', 'about.js', 'license.js', 'sync.js', 'water.js',
   'auth.js', 'wiki.js', 'guide.js', 'jsQR.js', 'onboard.js', 'disc.js', 'tut.js',
-  'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js', 'app.css'];
+  'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js',
+  'free.js', 'app.css'];
 const webDir = path.join(root, 'web');
 const names = fs.readdirSync(webDir)
   .filter(f => /\.(html|js|css)$/i.test(f) && fs.statSync(path.join(webDir, f)).isFile())
@@ -1098,6 +1099,47 @@ if (!/if \(document\.hidden\) return;/.test(elec)) fail('elec.js 定时器没判
 if (!/\.elec-entry-num\{/.test(cssTxt)) fail('app.css 缺少入口卡数字样式 .elec-entry-num');
 if (!/\.elec-entry-refresh\{/.test(cssTxt)) fail('app.css 缺少入口卡刷新按钮样式 .elec-entry-refresh');
 if (!/\.elec-entry-right\{/.test(cssTxt)) fail('app.css 缺少入口卡右侧布局 .elec-entry-right');
+
+// ---- v1.1.38：全校空闲教室（青果 SB12）+ 教务登录页在手机上能看见表单 + 登录状态不再误报 ----
+/* 三件事都在这一版：
+ * ① free.js 走「校区 → 教学楼 → 房间 → 整栋一周矩阵」，矩阵页是 GBK、<TABLE> 大写、
+ *    天格里没有一个字、只能靠 style 里的 background-color:red 判有没有课；
+ * ② 青果登录页是桌面布局（.login-info-div 760px），412px 视口里表单落在屏幕外，
+ *    用户说的「打不开、一直加载」其实是「表单看不见」；
+ * ③ 青果**未登录时也下发 43 字符的 JSESSIONID**，只看 cookie 长度的判据永远显示「已登录」。 */
+console.log('\nv1.1.38 checkpoints（全校空闲教室 / 登录页 / 登录状态）:');
+const free = read('web/free.js');
+has(idx, 'src="free.js"', 'index.html 引了 free.js');
+has(free, 'const KFREE = (() => {', 'free.js 模块包裹');
+has(free, "const HOST = 'https://qgjw.xxmu.edu.cn'", 'free.js 固定教务域名');
+has(free, "'/frame/droplist/getDropLists.action'", 'free.js 用 droplist 接口');
+has(free, "'/kbbp/dykb.fjsickkxzcjc_data.jsp'", 'free.js 用 SB12 数据页');
+has(free, 'function parseMatrix', 'free.js 有 parseMatrix');
+has(free, 'function matrixBody', 'free.js 有 matrixBody');
+has(free, 'function reasonOf', 'free.js 有 reasonOf（把服务端 alert 原话带出来）');
+has(free, 'function freeAt', 'free.js 有 freeAt');
+has(free, 'function freeList', 'free.js 有 freeList');
+/* 下面四条是这一版最容易写反/写错的地方，逐条钉住： */
+has(free, '?=<tr', '切教室块必须用前瞻（普通 split 会吃掉开标签，第 1 节永远查不到）');
+has(free, 'background-color', '判占用靠 style 里的背景色（天格里没有文字）');
+if (!/<table/i.test(free)) fail('free.js 判表格没忽略大小写（青果是 <TABLE> 大写）');
+has(free, "xq_m", 'free.js 的 xq_m 字段（学期编码：年,0 = 第一学期）');
+has(free, 'applyDefault', '缓存命中时也要补默认教学楼（否则 selLF 为空会查到全校）');
+if (/xnxq=2026,1/.test(free)) fail('free.js 把第一学期写成了 2026,1（应为 2026,0）');
+has(app, 'function markLoginOk', 'app.js 有 markLoginOk（真的拿到教务数据才算登录成功）');
+has(app, "'未验证'", '登录状态有「未验证」这一档（只有 cookie 不算登录成功）');
+has(app, 'const LOGIN_OK_KEY', 'app.js 有 LOGIN_OK_KEY');
+has(app, 'KFREE.open()', '入口按钮走 KFREE.open()');
+has(app, 'function openFreeLocal', '本机课表推算保留为 openFreeLocal（降级方案）');
+/* 反向：入口到「空教室」这件事，只能有一个真入口。
+ * app.js 里若还留着 openFreeSheet 这个名字，说明改名没改全，会有一处指向不存在的函数。 */
+if (/function openFreeSheet/.test(app)) fail('app.js 还留着 openFreeSheet（v1.1.38 起叫 openFreeLocal）');
+if (!/\.room-grid\{/.test(cssTxt)) fail('app.css 缺少 .room-grid');
+if (!/\.room-card\{/.test(cssTxt)) fail('app.css 缺少 .room-card');
+if (!/\.room-f\{/.test(cssTxt)) fail('app.css 缺少 .room-f');
+const webAct = read('android/src/com/xxmu/helper/WebActivity.java');
+has(webAct, 'FIT_JS', 'WebActivity 有 FIT_JS（把桌面布局缩进手机视口）');
+has(webAct, 'v.evaluateJavascript(FIT_JS', 'WebActivity 在 onPageFinished 里真调了 FIT_JS');
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

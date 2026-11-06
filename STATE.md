@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 12:17
+> 生成时间：2026-11-06 15:06
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.37** |
-| AndroidManifest versionCode | **1137** |
-| web/about.js APP_VERSION | 1.1.37 |
-| web/index.html #aboutVer | 1.1.37 |
+| AndroidManifest versionName | **1.1.38** |
+| AndroidManifest versionCode | **1138** |
+| web/about.js APP_VERSION | 1.1.38 |
+| web/index.html #aboutVer | 1.1.38 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.37.apk` |
-| 大小 | 599857 字节 |
-| SHA-256 | `7ae07ad7597fb21d9a0b28125b3b6936dad041cdd54e056755ac683dc4eac5a1` |
-| 出包时间 | 2026-11-06 12:10 |
-| 包内版本（aapt2） | 1.1.37 / 1137 |
+| 文件 | `apk/xxmu-helper-v1.1.38.apk` |
+| 大小 | 612205 字节 |
+| SHA-256 | `c8540b667a62bdc49cce345821ac36a2cb75357af7c34b44461d74ed172dd1d5` |
+| 出包时间 | 2026-11-06 15:03 |
+| 包内版本（aapt2） | 1.1.38 / 1138 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -46,26 +46,46 @@
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
+> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
+
+> 本地已到 **1.1.38**，线上还是 **1.1.37** —— 新版本**还没发**。
+> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `3387acc` |
-| origin/main | `3387acc` |
+| 分支 | main @ `a05665d` |
+| origin/main | `a05665d` |
 | 与远程内容 | **一致**（没推的东西） |
-| 未提交改动 | 0 个文件 |
+| 未提交改动 | 14 个文件 |
 
 最近提交：
 
 ```
+a05665d chore: 发版后重新生成 STATE（线上 1.1.37 / 领先 0）
 3387acc release: v1.1.37 (code 1137)
 31a1480 release: v1.1.23 (code 1123)
 a27fb2b release: v1.1.23 (code 1123)
 ed58183 chore: 项目搬到 桌面\\xxmuhelper\\ + 新增 tools/deliver.py 固定交付落点
 3c4e02b chore: 项目搬到桌面 xxmuhelper\xxmu-app，重新生成 STATE
-9ae5ebc chore: STATE 重新生成（推送后）
+```
+
+未提交：
+
+```
+M android/AndroidManifest.xml
+ M android/src/com/xxmu/helper/WebActivity.java
+ M docs/compare-henubox.md
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M tools/check_web.js
+ M tools/verify_apk.py
+ M web/about.js
+ M web/app.css
+ M web/app.js
+ M web/index.html
+?? tools/fixtures/
 ```
 
 ## 5. 常用命令（复制即用）
@@ -96,7 +116,6 @@ python tools/state.py                   # 重新生成本文件
 
 ### 一、等用户的
 - [ ] **备份签名密钥** `android/xxmu.jks`（pass `xxmu123`）到网盘/邮箱。
-- [ ] **XXMU 有没有登录后的空闲教室查询入口**。有的话给我那个页面的 URL…
 
 ### 二、等真机（没有设备，一律不能声称已验证）
 - [ ] **青果登录页 `input#username` 在真机 WebView 的 `onPageFinished` 时序下能否稳定读到**。
@@ -108,6 +127,7 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **v1.1.26 专注计时在真机上的三件事**：①切后台/锁屏 10 分钟后回来…
 - [ ] **v1.1.28 停车场机制的手感**：学习页头部三个小按钮（待办 / 番茄钟 / 刷新）…
 - [ ] **v1.1.30~v1.1.37 宿舍空调八条**：①自己的学号能否查到绑定房间…
+- [ ] **v1.1.38 教务登录页缩放在真机上的观感**：手机点「登录教务」，表单是否完整可见…
 
 ### 三、可以做（纯本地，不需要任何外部条件）
 - [ ] **各版本 UI 在矮视口下的复查**：用 492×700 这类尺寸逐页过一遍…

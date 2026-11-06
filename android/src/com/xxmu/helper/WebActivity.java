@@ -63,6 +63,38 @@ public class WebActivity extends Activity {
      */
     public static final String EXTRA_GRAB = "grab";
 
+    /**
+     * v1.1.38：把桌面版页面塞进手机屏宽。
+     *
+     * 青果登录页是纯桌面布局：表单容器 .login-info-div 固定 760px 宽，
+     * 整页 scrollWidth 1280px。手机 WebView 视口只有 412px，于是**账号密码框
+     * 落在屏幕右边看不见**，用户看到的是左边那张插画 + 一大片蓝底空白，
+     * 主观感受就是「打不开 / 一直加载」（真机截图 + headless 逐宽度渲染均已证实）。
+     *
+     * 修法：按「最宽的那个容器」算缩放比，同时给 html 和 body 设 zoom。
+     * 为什么不用 meta viewport 的 initial-scale：青果页面自带
+     * `content="width=device-width, initial-scale=1.0"`，且它的 px 是写死的
+     * 桌面像素，改 initial-scale 只会等比缩小字，容器仍然 760px 溢出。
+     * 为什么两个元素都设 zoom：只设 html 时，body 上如果有自己的 width
+     * 声明会二次覆盖（实测 0.54 倍后仍有 210px 溢出）。
+     *
+     * 判据用「元素宽度」而不是「document.scrollWidth」：整页宽度在缩放后会
+     * 立刻回落，拿它当基准会陷入反复缩小的自激。
+     */
+    private static final String FIT_JS =
+            "(function(){try{"
+            + "var vw=window.innerWidth||0;if(!vw)return '';"
+            + "var sels=['.login-info-div','.login-div','.login-table','#login-info-div','body>table','.top-div'];"
+            + "var max=0;for(var i=0;i<sels.length;i++){var e=null;"
+            + "try{e=document.querySelector(sels[i])}catch(x){e=null}"
+            + "if(!e)continue;var w=e.getBoundingClientRect().width;if(w>max)max=w;}"
+            + "if(!max||max<=vw+1)return '';"
+            + "var z=(vw/max).toFixed(4);"
+            + "document.documentElement.style.zoom=z;"
+            + "try{document.body.style.zoom=z}catch(x){}"
+            + "return z;"
+            + "}catch(e){return ''}})()";
+
     /** 读 location 与 localStorage 里的 token，返回一个 JSON 字符串 */
     private static final String CAPTURE_JS =
             "JSON.stringify({u:String(location.href),"
@@ -318,6 +350,15 @@ public class WebActivity extends Activity {
 
             @Override
             public void onPageFinished(WebView v, String u) {
+                /* v1.1.38：先纠正桌面版页面的宽度，再判登录。
+                 * 青果登录页 760px 宽的表单在 412px 视口里被推到屏幕外，
+                 * 用户看不到账号密码框（详见 FIT_JS 注释）。
+                 * 走 evaluateJavascript 而不是注入 <meta>：页面已经加载完，
+                 * 改 meta 不会重排，改 zoom 才会立刻生效。 */
+                try {
+                    v.evaluateJavascript(FIT_JS, null);
+                } catch (Throwable ignored) {
+                }
                 if (detectLogin && isLoggedInUrl(u)) {
                     CookieManager.getInstance().flush();
                     if (grabSel != null) {
