@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.xxmu.helper"
-    android:versionCode="1138"
-    android:versionName="1.1.38">
+    android:versionCode="1139"
+    android:versionName="1.1.39">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -66,7 +66,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode"
             android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

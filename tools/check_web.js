@@ -33,7 +33,7 @@ if (lb[1] !== '河医大助手') fail('manifest 的 android:label 不是「河�
 const KNOWN_ORDER = ['index.html', 'app.js', 'about.js', 'license.js', 'sync.js', 'water.js',
   'auth.js', 'wiki.js', 'guide.js', 'jsQR.js', 'onboard.js', 'disc.js', 'tut.js',
   'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js',
-  'free.js', 'app.css'];
+  'free.js', 'theme.js', 'app.css'];
 const webDir = path.join(root, 'web');
 const names = fs.readdirSync(webDir)
   .filter(f => /\.(html|js|css)$/i.test(f) && fs.statSync(path.join(webDir, f)).isFile())
@@ -1140,6 +1140,84 @@ if (!/\.room-f\{/.test(cssTxt)) fail('app.css 缺少 .room-f');
 const webAct = read('android/src/com/xxmu/helper/WebActivity.java');
 has(webAct, 'FIT_JS', 'WebActivity 有 FIT_JS（把桌面布局缩进手机视口）');
 has(webAct, 'v.evaluateJavascript(FIT_JS', 'WebActivity 在 onPageFinished 里真调了 FIT_JS');
+
+// ---- v1.1.39：主题系统（三档：跟随系统 / 浅色 / 深色）----
+/* 这一版有四端必须同时在：head 里先跑的 theme.js、app.css 的深色变量块、
+ * 「我的」页的入口、Java 侧的状态栏/系统夜间模式接线。缺任何一端都表现为
+ * 「切了没反应」或「深色下白卡片花脸」，而静态体检全绿照样可能全没生效 ——
+ * v1.1.35 课程提醒就是这样空转了八个版本，所以这里按「链路每一端」钉。 */
+console.log('\nv1.1.39 checkpoints（主题系统 / 深色模式）:');
+const theme = read('web/theme.js');
+const themeCss = read('web/app.css');
+const mainTheme = read('android/src/com/xxmu/helper/MainActivity.java');
+const webActTheme = read('android/src/com/xxmu/helper/WebActivity.java');
+
+/* ① head 顺序：theme.js 必须在 app.css 之前，否则首屏先画浅色再变深（闪白）。 */
+const iThemeScript = idx.indexOf('src="theme.js"');
+const iCssLink = idx.indexOf('href="app.css"');
+has(idx, 'src="theme.js"', 'index.html 引了 theme.js');
+if (iThemeScript >= 0 && iCssLink >= 0 && iThemeScript > iCssLink) {
+  fail('theme.js 排在 app.css 之后（深色用户冷启动会先闪一帧白）');
+}
+if (!/THEME\.init\(\)/.test(idx)) fail('index.html 没有调 THEME.init()（入口行与系统变化不生效）');
+has(idx, 'id="rowTheme"', '「我的」页有外观入口行');
+has(idx, 'id="themeState"', '外观入口有当前状态字');
+
+/* ② theme.js 三档判定：auto 存空串、resolve 是纯函数、系统真值走 Java。 */
+has(theme, "var KEY = 'xxmu_theme'", '主题 pref 键');
+has(theme, 'function resolve(m, sys)', 'resolve 纯函数（三档 × 系统亮暗）');
+has(theme, "Host.isSystemDark", '系统夜间模式读 Java 的 uiMode（不靠 prefers-color-scheme）');
+has(theme, "Host.setAppTheme(dark)", '切主题时通知 Java 改状态栏/底色');
+has(theme, "setAttribute('data-theme', t)", '把 data-theme 写到 <html>');
+has(theme, "window.__onThemeSys = function", '暴露 __onThemeSys 供 onConfigurationChanged 回调');
+has(theme, 'var prev = window.__onResume;', '__onResume 链式保留 elec.js（不能整个覆盖）');
+has(theme, "if (prev) prev();", '链式真的调了前一个 __onResume');
+has(theme, "/* 首屏：立刻生效，不等 DOMContentLoaded，不等 app.js。 */\n  apply();",
+  'theme.js 首屏立即 apply（不等 DOMContentLoaded）');
+has(theme, "document.addEventListener('DOMContentLoaded'",
+  'DOM 就绪后补画入口状态字（head 阶段 #themeState 还不存在）');
+has(theme, 'paint: paint,', 'paint 已导出（测试能单独验补画）');
+/* 反向：绝不能退回「只靠 prefers-color-scheme」——定制 ROM 上它经常不跟系统走。
+ * 判据是 sysDark() 函数体里 Host.isSystemDark 必须出现在 matchMedia **之前**
+ * （matchMedia 允许作为浏览器兜底存在，所以不能用「出现 matchMedia 就 FAIL」）。 */
+const sysFn = theme.slice(theme.indexOf('function sysDark()'),
+                          theme.indexOf('function current()'));
+if (sysFn.indexOf('Host.isSystemDark') < 0 ||
+    sysFn.indexOf('Host.isSystemDark') > sysFn.indexOf('window.matchMedia')) {
+  fail('theme.js 的 sysDark 没优先用 Host.isSystemDark（matchMedia 只能当兜底）');
+}
+
+/* ③ app.css：深色块 + 变量收敛。深色只换变量，组件规则不许另写一整套。 */
+has(themeCss, 'html[data-theme="dark"]{', 'app.css 有深色变量块');
+has(themeCss, 'color-scheme:dark;', '深色块声明 color-scheme（表单/滚动条跟着变深）');
+has(themeCss, '--bg:#0e1320;', '深色有独立底色');
+has(themeCss, '.th-opt{', 'app.css 有外观选项样式');
+/* 白名单外的中性硬编码若残留在组件里，深色下会变成「白卡片浮在深底上」。
+ * 变量定义行（--xxx:#yyy;）不算，注释里提到颜色也不算。 */
+const NEUTRAL_OK = new Set([
+  '#fff', '#2563eb', '#3b82f6', '#4f46e5', '#60a5fa', '#4b7bec', '#2f5fe0',
+  '#ea580c', '#f59e0b', '#e8f0fe', '#16233a', '#4a5666', '#5b6884',
+]);
+let stray = [];
+themeCss.split(/\r?\n/).forEach((ln, i) => {
+  const l = ln.trim();
+  if (/^--[\w-]+\s*:/.test(l) || l.startsWith('/*') || l.startsWith('*')) return;
+  (l.match(/#[0-9a-fA-F]{3,8}\b/g) || []).forEach(c => {
+    if (!NEUTRAL_OK.has(c.toLowerCase())) stray.push((i + 1) + ':' + c);
+  });
+});
+if (stray.length) fail('app.css 组件里残留中性硬编码（深色会花脸）：' + stray.slice(0, 8).join(' '));
+
+/* ④ Java 侧：桥 + 首屏底色 + 系统变化 + 关掉 WebView 自动反色。 */
+has(mainTheme, 'public boolean isSystemDark()', 'MainActivity 有 isSystemDark（uiMode 真值）');
+has(mainTheme, 'public void setAppTheme(final boolean dark)', 'Host 有 setAppTheme 桥');
+has(mainTheme, 'private void applyAppTheme(boolean dark)', 'MainActivity 有 applyAppTheme（改状态栏/底色）');
+has(mainTheme, 'applyAppTheme(themeDarkNow());', 'onCreate 在 loadUrl 之前按已存主题设首屏底色');
+has(mainTheme, 'public void onConfigurationChanged(', 'MainActivity 处理系统夜间模式变化');
+has(mani, 'keyboardHidden|uiMode', 'manifest 的 configChanges 含 uiMode（切系统主题不重建丢状态）');
+has(mainTheme, 's.setAlgorithmicDarkeningAllowed(false)', 'MainActivity 关掉 WebView 自动反色（33+）');
+has(mainTheme, 's.setForceDark(WebSettings.FORCE_DARK_OFF)', 'MainActivity 关掉 WebView 自动反色（29~32）');
+has(webActTheme, 'setAlgorithmicDarkeningAllowed(false)', 'WebActivity 也关掉自动反色（教务登录页不被反色）');
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

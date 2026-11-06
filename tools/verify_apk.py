@@ -68,6 +68,11 @@ NEW_DEX_SYMBOLS = [
     "recycleQuietly",
     # v1.1.9：选包回调也搬后台线程 + try-with-resources + 失败删半截文件
     "xxmu-pickapk",
+    # v1.1.39 主题系统：Java 侧符号必须真的编进 dex（只改注释不会出现）
+    "isSystemDark",
+    "setAppTheme",
+    "applyAppTheme",
+    "themeDarkNow",
 ]
 
 # 本版必须能在前端资产里找到的字符串（改的是 JS）
@@ -150,6 +155,13 @@ NEW_JS_SYMBOLS = {
     "assets/free.js": ["const KFREE = (() => {", "?=<tr",
                       "background-color", "function parseMatrix",
                       "menucode_current', 'SB12"],
+    # v1.1.39 主题系统：新资产 + 深色变量块 + 入口接线
+    "assets/theme.js": ["xxmu_theme", "function resolve(m, sys)",
+                        "Host.isSystemDark", "Host.setAppTheme(dark)",
+                        "__onThemeSys", "var prev = window.__onResume"],
+    "assets/app.css": ["html[data-theme=\"dark\"]{", "color-scheme:dark;",
+                       "--bg:#0e1320", ".th-opt{"],
+    "assets/index.html": ["id=\"rowTheme\"", "src=\"theme.js\"", "THEME.init()"],
 }
 
 ok = True

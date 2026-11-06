@@ -342,6 +342,19 @@ public class WebActivity extends Activity {
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
         s.setJavaScriptCanOpenWindowsAutomatically(true);
 
+        /* v1.1.39：内嵌教务/学习通页面也关掉系统的自动反色。
+         * 青果登录页本来就是按桌面 760px 写的、靠 FIT_JS 缩放，再被 WebView
+         * 反一遍色后输入框与提示文字的对比度会乱掉（表单「看得见但读不清」）。
+         * 官方页面按它自己的配色显示，不参与 App 的深浅主题。 */
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                s.setAlgorithmicDarkeningAllowed(false);
+            } else if (android.os.Build.VERSION.SDK_INT >= 29) {
+                s.setForceDark(WebSettings.FORCE_DARK_OFF);
+            }
+        } catch (Throwable ignored) {
+        }
+
         web.setWebViewClient(new WebViewClient() {
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, String u) {

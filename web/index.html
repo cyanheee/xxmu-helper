@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ffffff">
 <title>河医大助手</title>
+<!-- v1.1.39：必须在 app.css 之前跑完，深色用户冷启动才不会先闪一帧白。
+     theme.js 会读已存的主题 + 系统夜间模式，把 data-theme 写到 <html> 上。 -->
+<script src="theme.js"></script>
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
@@ -467,6 +470,7 @@
     </div>
 
     <div class="card">
+      <div class="row click" id="rowTheme"><span>外观</span><span class="v dim" id="themeState">跟随系统 ›</span></div>
       <div class="row click" id="rowTut"><span>使用教程</span><span class="v dim">六页看完 ›</span></div>
       <div class="row click" id="rowGuide"><span>使用帮助</span><span class="v dim">这个 App 怎么用 ›</span></div>
       <div class="row click" id="rowDisc"><span>使用声明</span><span class="v dim">以官方为准 ›</span></div>
@@ -801,7 +805,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.38</div>
+      <div class="about-ver" id="aboutVer">v1.1.39</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
@@ -1035,5 +1039,6 @@
 <script src="elec.js"></script>
 <script src="free.js"></script>
 <script src="app.js"></script>
+<script>if (window.THEME && THEME.init) THEME.init();</script>
 </body>
 </html>

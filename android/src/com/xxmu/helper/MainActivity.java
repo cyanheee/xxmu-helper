@@ -402,6 +402,24 @@ public class MainActivity extends Activity {
                     .putString(key, value == null ? "" : value).apply();
         }
 
+        /* ---- v1.1.39 主题：两个桥，都只做「读一个状态 / 改一次 UI」，不碰网络不碰文件 ---- */
+
+        /** 系统夜间模式的真值来自 Configuration.uiMode，不靠 WebView 的
+         *  prefers-color-scheme（定制 ROM 上两者经常不一致）。 */
+        @JavascriptInterface
+        public boolean isSystemDark() {
+            return MainActivity.this.isSystemDark();
+        }
+
+        /** 由 theme.js 在首屏 / 切主题 / 系统变化时调用。
+         *  @JavascriptInterface 跑在 JavaBridge 线程，改 UI 必须 post 回主线程。 */
+        @JavascriptInterface
+        public void setAppTheme(final boolean dark) {
+            runOnUiThread(new Runnable() {
+                public void run() { MainActivity.this.applyAppTheme(dark); }
+            });
+        }
+
         @JavascriptInterface
         public boolean removePref(String key) {
             if (key == null || key.length() == 0) return false;
@@ -2088,6 +2106,24 @@ public class MainActivity extends Activity {
         s.setTextZoom(100);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
 
+        /* v1.1.39：关掉 WebView 的自动反色。
+         * 系统开夜间模式时，Android 10+ 的 WebView 会自己把页面反一遍色；
+         * 我们自己写了 html[data-theme="dark"]，两套叠在一起的结果是
+         * 「深底上的浅卡片被反成黑卡片」，比不做主题还难看。
+         * 颜色只允许由 app.css 的变量决定。
+         * 两个 API 互斥，且 targetSdk 33 上 setForceDark 已是 no-op ——
+         * 所以按版本只调其中一个：29~32 用 setForceDark(OFF)，33+ 用
+         * setAlgorithmicDarkeningAllowed(false)。低版本执行到会 NoSuchMethodError，
+         * 整个包 try/catch 兜住。 */
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                s.setAlgorithmicDarkeningAllowed(false);
+            } else if (android.os.Build.VERSION.SDK_INT >= 29) {
+                s.setForceDark(WebSettings.FORCE_DARK_OFF);
+            }
+        } catch (Throwable ignored) {
+        }
+
         // 第三方 cookie 必须在 WebView 创建之后设置，且第一个参数不能为 null
         // （早期版本误传 null，直接在 onCreate 抛 NullPointerException 导致闪退）
         if (android.os.Build.VERSION.SDK_INT >= 21) {
@@ -2100,30 +2136,82 @@ public class MainActivity extends Activity {
 
         web.setWebViewClient(new WebViewClient());
         web.setWebChromeClient(new Chrome());
-        // 页面底色，避免冷启动时先闪一下白底再变浅灰蓝
-        web.setBackgroundColor(0xFFF4F6FB);
         web.addJavascriptInterface(new Host(), "Host");
+
+        /* v1.1.39：首屏底色要在 loadUrl **之前**按已存的主题设好。
+         * 否则深色用户冷启动会先看到一帧浅色再变深（「闪一下白」）。
+         * 这里读的是和 theme.js 同一个 pref；theme.js 在 <head> 里再设一次
+         * data-theme，两边判据一致，不需要等 JS 跑起来。 */
+        applyAppTheme(themeDarkNow());
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
+    }
 
-        // 状态栏/导航栏跟随页面配色，深色图标。
-        // 之前没有主题，系统套的是默认带 ActionBar 的深色主题，
-        // 于是页面顶上压了一条与 App 风格无关的通栏标题（用户说的「太丑」就是它）。
+    /** 系统夜间模式的真值（Java 侧唯一判据，JS 的 prefers-color-scheme 可能不跟系统走）。 */
+    public boolean isSystemDark() {
+        try {
+            int m = getResources().getConfiguration().uiMode
+                    & android.content.res.Configuration.UI_MODE_NIGHT_MASK;
+            return m == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** 读本机存的三档主题，算出「现在是深色吗」。auto 存空串 / 乱码都当跟随系统。 */
+    private boolean themeDarkNow() {
+        String m = "";
+        try { m = getSharedPreferences(PREFS, MODE_PRIVATE).getString("xxmu_theme", ""); }
+        catch (Throwable ignored) { }
+        if ("dark".equals(m)) return true;
+        if ("light".equals(m)) return false;
+        return isSystemDark();
+    }
+
+    /** 一次性把「状态栏 / 导航栏 / WebView 底色」对齐到当前主题。
+     *  由 onCreate（首屏）和 Host.setAppTheme（JS 切换/系统变化）两条路调用。 */
+    private void applyAppTheme(boolean dark) {
+        try {
+            if (web != null) web.setBackgroundColor(dark ? 0xFF0E1320 : 0xFFF4F6FB);
+        } catch (Throwable ignored) { }
         try {
             android.view.Window w = getWindow();
-            w.setStatusBarColor(0xFFFFFFFF);
-            w.setNavigationBarColor(0xFFFFFFFF);
+            int bar = dark ? 0xFF171E2D : 0xFFFFFFFF;
+            w.setStatusBarColor(bar);
+            w.setNavigationBarColor(bar);
             if (android.os.Build.VERSION.SDK_INT >= 23) {
-                w.getDecorView().setSystemUiVisibility(
-                        android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+                android.view.View v = w.getDecorView();
+                int f = v.getSystemUiVisibility();
+                /* 浅底要深色图标（LIGHT_* 置位），深底要浅色图标（LIGHT_* 清掉）。 */
+                if (dark) {
+                    f &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                        f &= ~android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                    }
+                } else {
+                    f |= android.view.View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                    if (android.os.Build.VERSION.SDK_INT >= 26) {
+                        f |= android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                    }
+                }
+                v.setSystemUiVisibility(f);
             }
-            if (android.os.Build.VERSION.SDK_INT >= 26) {
-                int f = w.getDecorView().getSystemUiVisibility()
-                        | android.view.View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-                w.getDecorView().setSystemUiVisibility(f);
+        } catch (Throwable ignored) { }
+    }
+
+    /* v1.1.39：系统夜间模式变了，Activity 不重建（manifest 的 configChanges 含 uiMode），
+     * 由这里通知页面重算一次颜色，避免切系统主题后 App 还是旧配色、也不丢当前页面状态。
+     * 用 evaluateJavascript 而不是 loadUrl("javascript:")——后者会把返回值当导航。 */
+    @Override
+    public void onConfigurationChanged(android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        try {
+            applyAppTheme(themeDarkNow());
+            if (web != null) {
+                web.evaluateJavascript(
+                        "(function(){try{window.__onThemeSys&&window.__onThemeSys()}catch(e){}})()", null);
             }
-        } catch (Throwable ignored) {
-        }
+        } catch (Throwable ignored) { }
     }
 
     @Override

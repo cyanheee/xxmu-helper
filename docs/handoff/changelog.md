@@ -1,9 +1,65 @@
-﻿# 每一版改了什么
+# 每一版改了什么
 
 > 从 HANDOFF.md 第 8 节拆出来，内容原样保留（每版的踩坑细节都在这）。
 > **现在在哪**看 [STATE.md](../../STATE.md)（一页，自动生成）；
 > **架构与稳定的坑**看 [HANDOFF.md](../../HANDOFF.md)；**待办**看 [todo.md](todo.md)。
 > 顺序是**新 -> 旧**（最新的在最上面），新版本请插到下面那条分隔线之后。
+
+---
+
+### v1.1.39（2026-11-06）—— 主题系统 / 深色模式（**只出本地包，未上线**）
+
+用户只说了「继续河医大助手项目」，按既定规矩：**改代码、出包、放桌面都可以，
+但不切 `cfg.latest`**。线上仍是 v1.1.38（实际 `GET /v1/config` 回读确认过）。
+取的是 HENUBox 对比里剩下的第一项 A-3（主题系统）。
+
+**为什么不能只加一段 `html[data-theme=dark]` 就完事**：`app.css` 里有 113 处
+硬编码颜色，其中只有 12 个在 `:root` 变量里。直接盖一层深色变量，卡片、
+底栏、输入框、徽标、状态条、半框仍然全是白底浅灰字 —— 深色下会变成
+「白卡片浮在深底上」的花脸。这一版先把中性字面量收敛成 47 个语义变量
+（`--tap` / `--seg-bg` / `--kb-*` / `--mask` / `--tabs-bg` …），
+**浅色值逐条等于原字面量**，再由深色块只换值、不改任何组件规则。
+品牌蓝紫渐变、渐变上的白字、马卡龙课程色块在两种主题里保持一致。
+迁移脚本每条替换都带命中数断言 + 白名单外的中性硬编码残留检查。
+
+四端接线（缺一端就是「切了没反应」，v1.1.35 课程提醒空转八版的教训）：
+1. `web/theme.js` 在 `<head>`、`app.css` **之前**加载，首屏绘制前就把
+   `data-theme` 写到 `<html>`，并把 `theme-color` / Java 状态栏对齐 —— 深色
+   用户冷启动不闪白。三档 `auto/light/dark` 存 `xxmu_theme`，auto 存空串，
+   脏值归一化回 auto。`resolve(m, sys)` 是纯函数，6 个组合有固定断言。
+2. `MainActivity.isSystemDark()` 读 `Configuration.uiMode`（`UI_MODE_NIGHT_YES`）
+   作为系统真值，**不靠 `prefers-color-scheme`** —— 定制 ROM 上后者经常不跟系统走；
+   `matchMedia` 只当浏览器兜底。`Host.setAppTheme` 桥改状态栏 / 导航栏 /
+   WebView 底色；`onCreate` 在 `loadUrl` 之前按已存主题先设一次底色。
+   `configChanges` 加 `uiMode`，系统切夜间模式时 `onConfigurationChanged` 回调
+   `window.__onThemeSys` 重算颜色，不重建 Activity、不丢当前页面状态。
+3. **必须关掉 WebView 的自动反色**：系统开深色时 WebView 会自己把页面反一遍，
+   和我们写的深色 CSS 叠成「深底上的浅卡片被反成黑卡片」。33+ 用
+   `setAlgorithmicDarkeningAllowed(false)`、29~32 用 `setForceDark(FORCE_DARK_OFF)`
+   （两个 API 互斥，targetSdk 33 上前者才是生效的那个），`WebActivity` 同样关掉，
+   否则青果登录页表单对比度会乱。
+4. 入口在「我的 → 外观」，复用全局 `#sheet` / `closeSheet()`，三行整行可点。
+
+**两个真时序坑（都是行为测试跑出来的，静态锚点抓不住）**：
+- `#themeState` 在 `<head>` 阶段还不存在，首屏那次 `paint()` 必然扑空。
+  只靠 body 末尾的 `THEME.init()` 补，一旦别处脚本异常没跑到，状态字就
+  永远停在 HTML 里静态写的「跟随系统」，和用户上次选的「深色」对不上。
+  现在加 `DOMContentLoaded` 兜底重画，`test_theme.js` 用 `headOnly` 开关
+  真实模拟「DOM 还没解析」并单独触发这一次补画。
+- `elec.js` 已经挂了 `window.__onResume` 用来回前台刷空调度数。主题也要挂，
+  **整个覆盖会把空调那条冲掉**。改成 `var prev = window.__onResume` 链式保留，
+  测试断言 `prev` 真的被调到。
+
+验证（三层分开说，没有真机）：
+① 编译 / 解析通过 —— `build_apk.py` 全链路绿，`apksigner` 证书与 v1.1.1 一致；
+② 静态 + 行为验证 —— `check_web.js` 全 PASS（新增 v1.1.39 锚点组），
+   16 套离线测试 0 FAIL（新增 `test_theme.js` 73 条断言），
+   `verify_apk.py` 四件套全过（新增 4 个 dex 符号 + 3 个资产锚点）；
+③ **真机未验证** —— 状态栏图标明暗、WebView 自动反色是否真被关掉、
+   深色下逐页观感、切系统夜间模式时是否真的不闪，都要装到手机上看。
+
+发版说明 `apk/v1.1.39.notes.txt` 已按「累积更新 + 不写管理员功能 + 老实交代」
+写好留档；说「上线」时直接拿它走 `release_all.py` 三件套。
 
 ---
 
