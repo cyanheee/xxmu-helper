@@ -33,7 +33,7 @@ if (lb[1] !== '河医大助手') fail('manifest 的 android:label 不是「河�
 const KNOWN_ORDER = ['index.html', 'app.js', 'about.js', 'license.js', 'sync.js', 'water.js',
   'auth.js', 'wiki.js', 'guide.js', 'jsQR.js', 'onboard.js', 'disc.js', 'tut.js',
   'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js',
-  'free.js', 'app.css'];
+  'free.js', 'theme.js', 'app.css'];
 const webDir = path.join(root, 'web');
 const names = fs.readdirSync(webDir)
   .filter(f => /\.(html|js|css)$/i.test(f) && fs.statSync(path.join(webDir, f)).isFile())
@@ -259,6 +259,47 @@ console.log('  tut replayMode              =', refs(tut, 'replayMode'), 'refs');
 console.log('  tut init 幂等守卫           =', /if \(inited\) return;/.test(tut));
 if (refs(tut, 'replayMode') < 3) fail('tut.js 的 replay 又去覆盖翻页回调了（重看一遍教程后永远进不了登录引导）');
 if (!/if \(inited\) return;/.test(tut)) fail('tut.js 的 init 没有幂等守卫（双跑会叠两份监听器）');
+
+/* ---- v1.1.42：教程必须跟着功能走（用户原话「每次版本更新，如果有功能性变化这个也需要更新」） ----
+ * 只在这里钉「排版防线」，功能覆盖/口径/新鲜度由 check_tutorial.js 真跑一遍内容来验：
+ * 契约表（docs/handoff/tutorial-contract.json）↔ tut.js 的 TUT_FEATURES/covers/since。
+ * 用 child_process 同步调用，任一处不一致 check_web 就 exit 1，
+ * release_all.py 的预检也会再跑一次，发版时绕不过去。 */
+console.log('\nv1.1.42 checkpoints（教程排版 + 内容跟着功能走）:');
+/* 注意：这段插在 has() / cssTxt 定义（本文件更下面）之前，
+ * 不能引用任何后置 const —— TDZ 会让整份体检在第一行就抛 ReferenceError。
+ * 所以这里自己按需读一次文件，只依赖本段之前就有的 read()/fail()。 */
+const tutCss = read('web/app.css');
+const tutHas = (needle, label) => {
+  const ok = tut.indexOf(needle) >= 0 || tutCss.indexOf(needle) >= 0;
+  console.log('  ' + String(label).padEnd(30) + '=', ok);
+  if (!ok) fail('缺少 ' + label + '（' + needle + '）');
+};
+tutHas("className = 'tut-view'", 'tut.js 把 strip 装进 .tut-view（修真机相邻页漏字）');
+tutHas('view.appendChild(strip)', 'strip 真的被 append 进裁切层');
+tutHas('TUT_CONTENT_VER', '教程有内容版本号');
+tutHas('TUT_FEATURES', '教程声明了覆盖的功能清单');
+tutHas('covers:', '每页标了自己讲哪些功能');
+tutHas('since:', '每页标了最后更新版本');
+tutHas('.tut-view{', 'app.css 有 .tut-view 裁切层');
+if (/will-change:\s*transform/.test(tutCss)) fail('tut-strip 上还有 will-change（合成层会绕开祖先裁切）');
+if (!/\.tut-view\{[^}]*padding:0/s.test(tutCss)) fail('.tut-view 自己不该有 padding');
+if ((tut.match(/ttl:/g) || []).length < 6) fail('教程页数变少了（内容被删短？）');
+/* 过时文案的硬判据：结算早删了、学期设置早搬走了，教程不许再教。
+ * ★ 必须剥掉注释再查 —— 文件头说明里就写了「v1.1.16 已删结算」，
+ *   直接 indexOf 会被自己写的修复说明命中（本项目第二次栽在这上面）。 */
+const tutCode = tut.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+if (/结束并结算/.test(tutCode)) fail('教程还在教「结束并结算」（v1.1.16 已删结算）');
+if (/「我的 → 学期设置」/.test(tutCode)) fail('教程还在指向「我的 → 学期设置」（v1.1.40 已搬进设置页）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'check_tutorial.js')],
+    { encoding: 'utf8' });
+  const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | ');
+  console.log('  教程契约检查          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('教程契约检查未通过：' + tail);
+}
 
 /* B. 契约 / 状态 */
 console.log('  license isActivated 校验格式 =', /function whoami\(\)[\s\S]{0,200}\^\\d\{6,20\}\$/.test(lic));
@@ -1140,6 +1181,209 @@ if (!/\.room-f\{/.test(cssTxt)) fail('app.css 缺少 .room-f');
 const webAct = read('android/src/com/xxmu/helper/WebActivity.java');
 has(webAct, 'FIT_JS', 'WebActivity 有 FIT_JS（把桌面布局缩进手机视口）');
 has(webAct, 'v.evaluateJavascript(FIT_JS', 'WebActivity 在 onPageFinished 里真调了 FIT_JS');
+
+// ---- v1.1.39：主题系统（三档：跟随系统 / 浅色 / 深色）----
+/* 这一版有四端必须同时在：head 里先跑的 theme.js、app.css 的深色变量块、
+ * 「我的」页的入口、Java 侧的状态栏/系统夜间模式接线。缺任何一端都表现为
+ * 「切了没反应」或「深色下白卡片花脸」，而静态体检全绿照样可能全没生效 ——
+ * v1.1.35 课程提醒就是这样空转了八个版本，所以这里按「链路每一端」钉。 */
+console.log('\nv1.1.39 checkpoints（主题系统 / 深色模式）:');
+const theme = read('web/theme.js');
+const themeCss = read('web/app.css');
+const mainTheme = read('android/src/com/xxmu/helper/MainActivity.java');
+const webActTheme = read('android/src/com/xxmu/helper/WebActivity.java');
+
+/* ① head 顺序：theme.js 必须在 app.css 之前，否则首屏先画浅色再变深（闪白）。 */
+const iThemeScript = idx.indexOf('src="theme.js"');
+const iCssLink = idx.indexOf('href="app.css"');
+has(idx, 'src="theme.js"', 'index.html 引了 theme.js');
+if (iThemeScript >= 0 && iCssLink >= 0 && iThemeScript > iCssLink) {
+  fail('theme.js 排在 app.css 之后（深色用户冷启动会先闪一帧白）');
+}
+if (!/THEME\.init\(\)/.test(idx)) fail('index.html 没有调 THEME.init()（入口行与系统变化不生效）');
+/* v1.1.40 起外观三档直接铺进独立设置页，id="rowTheme" 那一行已删。
+ * 旧的入口行锚点必须跟着删 —— 「删功能忘了删锚点」会让检查永远红。 */
+has(idx, 'id="themeInline"', '设置页有外观三档容器');
+has(idx, 'data-theme-state', '状态字用 data-theme-state 批量同步');
+
+/* ② theme.js 三档判定：auto 存空串、resolve 是纯函数、系统真值走 Java。 */
+has(theme, "var KEY = 'xxmu_theme'", '主题 pref 键');
+has(theme, 'function resolve(m, sys)', 'resolve 纯函数（三档 × 系统亮暗）');
+has(theme, "Host.isSystemDark", '系统夜间模式读 Java 的 uiMode（不靠 prefers-color-scheme）');
+has(theme, "Host.setAppTheme(dark)", '切主题时通知 Java 改状态栏/底色');
+has(theme, "setAttribute('data-theme', t)", '把 data-theme 写到 <html>');
+has(theme, "window.__onThemeSys = function", '暴露 __onThemeSys 供 onConfigurationChanged 回调');
+has(theme, 'var prev = window.__onResume;', '__onResume 链式保留 elec.js（不能整个覆盖）');
+has(theme, "if (prev) prev();", '链式真的调了前一个 __onResume');
+has(theme, "/* 首屏：立刻生效，不等 DOMContentLoaded，不等 app.js。 */\n  apply();",
+  'theme.js 首屏立即 apply（不等 DOMContentLoaded）');
+has(theme, "document.addEventListener('DOMContentLoaded'",
+  'DOM 就绪后补画入口状态字（head 阶段 #themeState 还不存在）');
+has(theme, 'paint: paint,', 'paint 已导出（测试能单独验补画）');
+/* 反向：绝不能退回「只靠 prefers-color-scheme」——定制 ROM 上它经常不跟系统走。
+ * 判据是 sysDark() 函数体里 Host.isSystemDark 必须出现在 matchMedia **之前**
+ * （matchMedia 允许作为浏览器兜底存在，所以不能用「出现 matchMedia 就 FAIL」）。 */
+const sysFn = theme.slice(theme.indexOf('function sysDark()'),
+                          theme.indexOf('function current()'));
+if (sysFn.indexOf('Host.isSystemDark') < 0 ||
+    sysFn.indexOf('Host.isSystemDark') > sysFn.indexOf('window.matchMedia')) {
+  fail('theme.js 的 sysDark 没优先用 Host.isSystemDark（matchMedia 只能当兜底）');
+}
+
+/* ③ app.css：深色块 + 变量收敛。深色只换变量，组件规则不许另写一整套。 */
+has(themeCss, 'html[data-theme="dark"]{', 'app.css 有深色变量块');
+has(themeCss, 'color-scheme:dark;', '深色块声明 color-scheme（表单/滚动条跟着变深）');
+has(themeCss, '--bg:#0e1320;', '深色有独立底色');
+has(themeCss, '.th-opt{', 'app.css 有外观选项样式');
+/* 白名单外的中性硬编码若残留在组件里，深色下会变成「白卡片浮在深底上」。
+ * 变量定义行（--xxx:#yyy;）不算，注释里提到颜色也不算。 */
+const NEUTRAL_OK = new Set([
+  '#fff', '#2563eb', '#3b82f6', '#4f46e5', '#60a5fa', '#4b7bec', '#2f5fe0',
+  '#ea580c', '#f59e0b', '#e8f0fe', '#16233a', '#4a5666', '#5b6884',
+]);
+let stray = [];
+themeCss.split(/\r?\n/).forEach((ln, i) => {
+  const l = ln.trim();
+  if (/^--[\w-]+\s*:/.test(l) || l.startsWith('/*') || l.startsWith('*')) return;
+  (l.match(/#[0-9a-fA-F]{3,8}\b/g) || []).forEach(c => {
+    if (!NEUTRAL_OK.has(c.toLowerCase())) stray.push((i + 1) + ':' + c);
+  });
+});
+if (stray.length) fail('app.css 组件里残留中性硬编码（深色会花脸）：' + stray.slice(0, 8).join(' '));
+
+/* ④ Java 侧：桥 + 首屏底色 + 系统变化 + 关掉 WebView 自动反色。 */
+has(mainTheme, 'public boolean isSystemDark()', 'MainActivity 有 isSystemDark（uiMode 真值）');
+has(mainTheme, 'public void setAppTheme(final boolean dark)', 'Host 有 setAppTheme 桥');
+has(mainTheme, 'private void applyAppTheme(boolean dark)', 'MainActivity 有 applyAppTheme（改状态栏/底色）');
+has(mainTheme, 'applyAppTheme(themeDarkNow());', 'onCreate 在 loadUrl 之前按已存主题设首屏底色');
+has(mainTheme, 'public void onConfigurationChanged(', 'MainActivity 处理系统夜间模式变化');
+has(mani, 'keyboardHidden|uiMode', 'manifest 的 configChanges 含 uiMode（切系统主题不重建丢状态）');
+has(mainTheme, 's.setAlgorithmicDarkeningAllowed(false)', 'MainActivity 关掉 WebView 自动反色（33+）');
+has(mainTheme, 's.setForceDark(WebSettings.FORCE_DARK_OFF)', 'MainActivity 关掉 WebView 自动反色（29~32）');
+has(webActTheme, 'setAlgorithmicDarkeningAllowed(false)', 'WebActivity 也关掉自动反色（教务登录页不被反色）');
+
+// ---- v1.1.40：独立设置页 + 6 套图标方案 ----
+console.log('\nv1.1.40 checkpoints（设置页 / 图标方案）:');
+const genIcons = read('tools/gen_icons.py');
+const applyIcon = read('tools/apply_icon.py');
+
+/* ① 设置页是二级页：DOM、层级、返回、入口，四处缺一就是「点不动或退不回来」。 */
+has(idx, '<section id="tab-settings" class="tab">', '有独立设置页 section');
+has(idx, 'id="rowSettings"', '「我的」页有设置入口');
+has(idx, 'id="settingsBack"', '设置页有返回按钮');
+has(idx, 'id="themeInline"', '设置页里有外观三档容器');
+has(app, "settings: 'me'", 'TAB_PARENT 把 settings 挂到 me（返回键/底栏自动接管）');
+has(app, "settings: ['设置'", 'PAGE_HEAD 有设置页标题');
+has(app, "switchTab('settings')", '入口真的跳设置页');
+has(app, "switchTab('me')", '返回箭头回「我的」');
+/* ② 被搬走的 DOM 只留一份：既要在 settings 段里，又不能还留在 me 段里。 */
+const meSeg = idx.slice(idx.indexOf('id="tab-me"'), idx.indexOf('id="tab-settings"'));
+const setSeg = idx.slice(idx.indexOf('id="tab-settings"'), idx.indexOf('id="tab-guide"'));
+[['id="setStart"', '学期设置'], ['id="rowUpd"', '检查更新'],
+ ['id="resync"', '重读数据'], ['id="themeInline"', '外观三档']].forEach(pair => {
+  if (setSeg.indexOf(pair[0]) < 0) fail(pair[1] + '没搬进设置页');
+  if (meSeg.indexOf(pair[0]) >= 0) fail(pair[1] + '还留在「我的」页（出现两份）');
+});
+if (/id="rowTheme"/.test(idx)) fail('还留着重复的外观行（设置页里已直接铺开三档）');
+has(idx, 'data-theme-state', '状态字用 data-theme-state 批量同步');
+has(theme, 'function mount(containerId)', 'theme.js 能把三档直接铺进设置页');
+has(theme, 'function dropTransient()', '半框重开只丢临时组（不弄丢设置页常驻三档）');
+has(theme, 'transient: !!transient', 'register 区分常驻/临时两组');
+if (/\.th-inline\{/.test(themeCss) === false) fail('app.css 缺 .th-inline（设置页三档样式）');
+
+/* ③ 图标方案：只生成给用户挑，不擅自换 android/res。 */
+has(genIcons, 'SCHEMES = [', 'gen_icons.py 有 6 套方案表');
+has(genIcons, 'launcher-%d.png', '生成多尺寸 launcher');
+has(genIcons, 'icon.svg', '生成 SVG 源');
+has(genIcons, '_总览.png', '生成总览图');
+has(genIcons, 'thumb_rgba', '总览按 alpha 合成（四角不留黑块）');
+has(applyIcon, 'def backup()', '换图标前先备份');
+has(applyIcon, 'if a != b:', '替换后逐字节 hash 校验');
+has(applyIcon, '--restore', '支持从备份回滚');
+/* 反向：生成方案时绝不能碰 res（用户还没选）。 */
+if (/os\.path\.join\(RES/.test(genIcons)) fail('gen_icons.py 碰了 android/res（用户还没选，不许擅自换）');
+/* 只禁止「真的往 res 里写文件」，不禁止注释里提到 ic_launcher 这个词
+ * —— 上一版把注释也算进去，误报过一次。 */
+if (/shutil\.copyfile\([^)]*RES/.test(genIcons)) fail('gen_icons.py 往 android/res 写了文件');
+const iconDir = path.join(root, 'design', 'icons');
+if (!fs.existsSync(path.join(iconDir, '_总览.png'))) fail('design/icons/_总览.png 不存在（先跑 gen_icons.py）');
+for (let i = 1; i <= 6; i++) {
+  const pre = String(i).padStart(2, '0') + '_';
+  if (!fs.readdirSync(iconDir).some(n => n.startsWith(pre))) fail('缺第 ' + i + ' 套图标方案目录');
+}
+/* v1.1.43：用户选了 F（6 号 夜空河字）。CURRENT.txt 必须存在且指向它，
+ * android/res 里 5 档密度都要在，且与 design/icons 里那份逐字节一致。
+ * 只验「文件存在」不够 —— 换了方案忘了跑 build 就会包里还是旧图标。 */
+console.log('\nv1.1.43 checkpoints（当前图标方案 F）:');
+const curIcon = fs.existsSync(path.join(iconDir, 'CURRENT.txt'))
+  ? read('design/icons/CURRENT.txt') : '';
+has(curIcon, '06_夜空河字', 'CURRENT.txt 声明当前用的是 F 号（夜空河字）');
+[['mipmap-mdpi', 48], ['mipmap-hdpi', 72], ['mipmap-xhdpi', 96],
+ ['mipmap-xxhdpi', 144], ['mipmap-xxxhdpi', 192]].forEach(pair => {
+  const rp = 'android/res/' + pair[0] + '/ic_launcher.png';
+  const sp = 'design/icons/06_夜空河字/launcher-' + pair[1] + '.png';
+  if (!fs.existsSync(path.join(root, rp))) { fail('缺 ' + rp); return; }
+  const a = fs.readFileSync(path.join(root, rp));
+  const b = fs.readFileSync(path.join(root, sp));
+  if (Buffer.compare(a, b) !== 0) fail(rp + ' 与 F 号源图不一致（换完方案没同步？）');
+});
+console.log('  5 档密度与 F 号源图逐字节一致 = true');
+has(read('tools/verify_apk.py'), 'def check_launcher(apk)', 'verify_apk 有图标逐像素校验');
+// ---- v1.1.41：课程提醒方式三档（响铃 / 静默 / 短信草稿）----
+/* 用户原话「不一定非要是闹钟，可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
+ * 四端都要在：前端三档状态机、build() 带 mode、Java 双 channel、
+ * 短信只开编辑页不自动发。少一端就表现为「选了静默照样响」或「选了短信没反应」，
+ * 而静态体检全绿照样可能全没生效。 */
+console.log('\nv1.1.41 checkpoints（课程提醒三档）:');
+const rmJava = read('android/src/com/xxmu/helper/ReminderReceiver.java');
+const rmSched = read('android/src/com/xxmu/helper/ReminderScheduler.java');
+const rmMain = read('android/src/com/xxmu/helper/MainActivity.java');
+
+has(reminder, "const KEY_MODE = 'xxmu_remind_mode'", 'reminder.js 有 mode 的 pref 键');
+has(reminder, "MODES = ['alarm', 'silent', 'sms']", '三档顺序固定');
+has(reminder, 'function mode(m)', 'mode() 纯函数（脏值回落 alarm）');
+has(reminder, 'mode: md', 'build() 每项带 mode（重启重挂不退回响铃）');
+has(reminder, 'function buildModes(onPick)', '有方式三档按钮');
+has(reminder, "tryBtn.id = 'rmPreview'", '有「试一下」按钮');
+has(reminder, 'Host.previewReminder', '非短信档调 Java 预览通知');
+has(reminder, 'Host.openSmsDraft', '短信档调 Java 拉起编辑页');
+has(reminder, "MODE_LABEL[mode()]", '状态字写明当前方式');
+has(reminder, '不读通讯录', '文案写明不读通讯录');
+if (/setInterval\s*\(/.test(reminder)) fail('reminder.js 出现 setInterval（闹钟必须在 Java 侧）');
+
+/* 双 channel：importance 创建后改不了，静默必须另开一个。 */
+has(rmJava, 'CHANNEL_SILENT = "xxmu_class_reminder_silent"', '静默有独立 channel id');
+has(rmJava, 'NotificationManager.IMPORTANCE_LOW', '静默 IMPORTANCE_LOW');
+has(rmJava, 'NotificationManager.IMPORTANCE_HIGH', '响铃 IMPORTANCE_HIGH');
+has(rmJava, 'getStringExtra("mode")', 'Receiver 读广播里的 mode');
+has(rmJava, 'public static String norm(String m)', '脏 mode 在 Java 侧也回落 alarm');
+has(rmJava, 'Intent.ACTION_SENDTO', '短信用 ACTION_SENDTO（系统编辑页）');
+has(rmJava, 'Uri.parse("smsto:")', 'smsto: 不带号码（收件人空着）');
+has(rmJava, 'sms_body', '只预填正文');
+has(rmJava, 'PendingIntent.getActivity(context', '短信 PendingIntent 指向 Activity');
+has(rmJava, 'static void openSmsDraft', '「试一下」能直接开短信编辑页');
+has(rmSched, 'putExtra("mode", o.optString("mode", ReminderReceiver.MODE_ALARM))',
+  'Scheduler 把 mode 原样落盘（缺字段回落 alarm）');
+has(rmMain, 'public void previewReminder(', 'MainActivity 有 previewReminder 桥');
+has(rmMain, 'public void openSmsDraft(', 'MainActivity 有 openSmsDraft 桥');
+has(cssTxt, '.rm-mode{', 'app.css 有方式三档样式');
+has(idx, 'id="remindSet"', '课程提醒设置入口仍在');
+
+/* 反向断言：这几条是边界，不是功能点。 */
+if (/SmsManager|sendTextMessage|sendMultipartTextMessage/.test(rmJava)) {
+  fail('ReminderReceiver 里出现自动发短信的 API（App 只开编辑页，不该代发）');
+}
+if (/android\.permission\.SEND_SMS/.test(mani)) fail('manifest 申请了 SEND_SMS（不该）');
+if (/READ_CONTACTS|WRITE_CONTACTS/.test(mani)) fail('manifest 申请了通讯录权限（不该）');
+if (/putExtra\("address"/.test(rmJava)) fail('短信预填了收件人（不该）');
+/* 静默不能和响铃共用一个 channel 再动态改 importance —— 系统会忽略，
+ * 表现是「选了静默照样响」且没有任何报错。 */
+const chOne = /CHANNEL_ALARM\s*=\s*"([^"]+)"/.exec(rmJava);
+const chTwo = /CHANNEL_SILENT\s*=\s*"([^"]+)"/.exec(rmJava);
+if (!chOne || !chTwo || chOne[1] === chTwo[1]) fail('静默与响铃共用了同一个通知 channel');
+if ((rmJava.match(/new NotificationChannel\(/g) || []).length !== 1) {
+  fail('NotificationChannel 构造应只在一处（靠变量选 id/重要性），两处各写一遍容易改岔');
+}
 
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);

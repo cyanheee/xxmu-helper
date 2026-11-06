@@ -1,9 +1,236 @@
-﻿# 每一版改了什么
+# 每一版改了什么
 
 > 从 HANDOFF.md 第 8 节拆出来，内容原样保留（每版的踩坑细节都在这）。
 > **现在在哪**看 [STATE.md](../../STATE.md)（一页，自动生成）；
 > **架构与稳定的坑**看 [HANDOFF.md](../../HANDOFF.md)；**待办**看 [todo.md](todo.md)。
 > 顺序是**新 -> 旧**（最新的在最上面），新版本请插到下面那条分隔线之后。
+
+---
+
+### v1.1.43（2026-11-06）—— 应用图标换成 F 号「夜空河字」（**只出本地包，未上线**）
+
+用户回「图标要F吧」。上一轮给了 6 套方案但明确不擅自换 `android/res`，
+这句就是明确授权，所以这轮只做替换，别的功能一行不改。
+
+- 跑 `python -X utf8 tools/apply_icon.py 6`：先把旧的 `mipmap-hdpi` 备份到
+  `design/icons/_backup/20261106-193938/`，再把 48/72/96/144/192 五档
+  `launcher-*.png` 覆盖进去，每份逐字节 hash 校验，写 `CURRENT.txt` 记选号。
+  `--restore` 可一键回滚。
+- `tools/check_web.js` 新增 v1.1.43 锚点：`CURRENT.txt` 必须指向 `06_夜空河字`，
+  5 档 res 与方案源图逐字节一致。
+- **`tools/verify_apk.py` 从四件套升成五件套**，新增 `check_launcher()`：
+  包内 5 档图标与 `CURRENT.txt` 声明的方案**逐像素**一致。
+  为什么不能比 zip 字节：aapt2 会对 PNG 做 crunch（重新压缩），
+  包内 3106/4927/6601/9800/13007 字节都和源 PNG 不同，但像素差为 0。
+  这正是「验形态而不是验存在」「SHA 只判同一个文件、不判内容」的又一例。
+  顺手把 worker 锚点段的编号从 `[5]` 改成 `[6]`（原来两个 `[5]`）。
+
+图标是纯资源替换、没有功能性变化，按 `tutorial-contract.json` 的规则
+（「只改内部实现、学生看不出来 → 不用动这份表」）教程不用更，契约表保持 version 2。
+
+验证（三层分开说，无真机）：① 编译/签名通过，证书仍与 v1.1.1 一致；
+② `check_web.js` 全 PASS、教程契约 38 项全过、18 套离线测试 0 FAIL、
+`verify_apk.py` 五件套全过（5 档逐像素 OK）；
+③ **真机未验证**：桌面 launcher 里的实际显示、48px 下「河」字笔画有没有糊、
+各家 ROM 的圆角 mask 裁切。线上仍是 v1.1.38（回读确认），学生不弹更新。
+
+---
+
+### v1.1.42（2026-11-06）—— 教程排版修复 + 内容追上功能 + 发版硬卡口（**只出本地包，未上线**）
+
+用户发来真机截图：教程翻到「校园：WIKI、实景、留言」那页，白卡左右各露出
+相邻页的文字碎片（右「下-」「成绩」「两个」「饮水」，左「源。」等），
+左下角还有一块浅蓝。同时提了一句要求：「使用教程什么的每次版本更新，
+如果有功能性变化这个也需要更新」。
+
+**① 排版根因（截图就是验收标准）**
+`.tut-box` 有 20px 左右 padding，`overflow:hidden` 只裁 **padding-box 外缘**，
+padding 区本身仍然可见 —— 横排 strip 里相邻页的两头正好落进去。
+左下浅蓝是上一页 `.tut-tip` 的底色。桌面 headless 看不出来，真机才漏。
+修法：裁切交给一层**没有 padding** 的 `.tut-view`（`tut.js` 里
+`view.appendChild(strip)`），外层卡片继续保留自己的 padding 和兜底 overflow；
+同时去掉 `.tut-strip` 的 `will-change:transform` —— 部分国产 ROM 的 WebView
+会为它单独建合成层，祖先的 overflow 裁切在合成层上失效。
+
+**② 内容追到当前版本**
+旧教程停在 v1.1.6，还在教「接水 → 结束并结算」（v1.1.16 已删结算）、
+「我的 → 学期设置」（v1.1.40 已搬进设置页）、「右上角空教室可以查哪个教室
+现在没课」（v1.1.38 起是青果 SB12 教务真实数据）——学生照着做只会找不到按钮。
+重写成 7 页：概述 / 课表与空闲教室 / 学习与待办·专注·提醒三档 /
+接水与空调 / WIKI / 设置与深色 / 开始使用。每页带 `since` 和 `covers`。
+
+**③ 把「靠人记」变成硬卡口**
+- `docs/handoff/tutorial-contract.json`：App 现在 15 项学生可见功能的唯一清单，
+  带 `since` / `mustMention`（入口路径说法）/ `forbidden`（已删功能的话术）。
+- `web/tut.js`：`TUT_CONTENT_VER` + `TUT_FEATURES` + 每页 `covers`/`since`。
+- `tools/check_tutorial.js`（38 条断言）：契约表与教程声明**双向**对照、
+  每个 feature 至少被一页 cover、每页 since 不早于它讲的功能里最晚的版本、
+  必提词 / 禁用词 / 排版防线。用 `vm` 真跑一遍 PAGES，不靠正则抠字符串。
+- `check_web.js` 同步调它；**`release_all.py` 第 1 步预检也调它** ——
+  说「上线」时教程没更就 `die()`，发不出去。
+- 探针实测：故意把契约表 `version` 改脏 → `exit 1 [FAIL]`；还原 → `exit 0 [PASS]`，
+  文件 hash 与探针前一致。这道卡口确实红过，不是摆设。
+
+**两个当场修的检查器自身缺陷**（都是「检查写窄了会制造假红」）：
+- 禁用词 `indexOf` 把「没有广告，没有『开通会员』」这句**否定式**表述判成过时宣传
+  → 改成逐行剔掉「没有/不含/不/无需 + 词」的语境再判。
+- `check_web.js` 新锚点组插在 `has()` / `cssTxt` 定义之前，两次触发 const 的 TDZ
+  （`ReferenceError: Cannot access ... before initialization`）；
+  过时文案断言又被**自己写在文件头的修复说明**命中（本项目第二次栽在这上面）
+  → 前者改为本段自读文件，后者剥注释后再查。
+
+验证（三层分开说，无真机）：① 编译/签名通过，证书仍与 v1.1.1 一致；
+② `check_web.js` 全 PASS、18 套离线测试 0 FAIL、`verify_apk.py` 四件套全过；
+③ **真机未验证**：七页左右滑手感、圆点位置、不同 ROM 上裁切是否都干净。
+线上仍是 v1.1.38（回读确认），学生不弹更新。
+
+---
+
+### v1.1.41（2026-11-06）—— 课程提醒三档：响铃 / 静默 / 短信草稿（**只出本地包，未上线**）
+
+用户原话（追加在设置页需求后面）：「还有课前提醒，不一定非要是闹钟，
+可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
+按项目既有边界（不自动代发、不动钱、不读通讯录）拍板做成三档可选，
+不是把闹钟换成短信，也不是给一个「要不要响」的开关。
+
+**三档**
+- `alarm` 响铃：IMPORTANCE_HIGH + heads-up + 声音，沿用旧 channel
+  `xxmu_class_reminder`，**老用户升级行为完全不变**。
+- `silent` 静默：IMPORTANCE_LOW，不响不震不弹，只在下拉通知栏出现。
+- `sms` 短信草稿：通知用静默载体，点开 `ACTION_SENDTO smsto:` 拉起系统
+  短信编辑页，`sms_body` 预填「【河医大助手】课程名，N 分钟后上课，教室 X。」
+  **收件人空着、「发送」由用户点**。不申请 SEND_SMS、不读通讯录、
+  不用 SmsManager，`check_web.js` 四条反向断言钉住这条边界。
+- 新增「试一下当前方式」：不挂闹钟，当场出一条当前方式的提醒
+  （短信档直接开编辑页）。没有它，用户只能改手机时间等下一节课，根本比不出哪档合意。
+
+**三个真坑（都是「文件齐 + 静态全绿」照样会错的那类）**
+1. **NotificationChannel 的 importance 创建后改不了**。共用同一个 channel
+   再动态调低，系统会忽略，结果「选了静默照样响」且无任何报错。
+   所以静默另开 `xxmu_class_reminder_silent`；构造只写一处，靠
+   `MODE_ALARM.equals(mode) ? ... : ...` 选 id 与重要性，避免两处各写一遍改岔。
+2. **mode 必须逐项写进 build() 的 JSON**。Java 侧把这份列表原样落盘，
+   手机重启后 `BootReceiver → ReminderScheduler.restore` 重挂时按它重建
+   PendingIntent；不带 mode 就会退回默认响铃，用户选的静默白选。
+   `optString("mode", MODE_ALARM)` 让老列表缺字段时照常响，不因升级变哑。
+3. **脏 pref 绝不能把人静默**。`mode()` 与 Java 的 `norm()` 双侧把
+   空值/乱码/旧值一律回落 `alarm` —— 「拦错了还能自救」这条老规矩在
+   提醒上也成立：错了最多多响一次，不能从此一条都不响。
+
+链路四端（沿用 v1.1.35 那次事故定下的规矩）：前端三档状态机 + `build()` 带 mode →
+`Host.previewReminder` / `Host.openSmsDraft` 两个新桥 →
+`ReminderReceiver` 读 `mode` 分支 → `ReminderScheduler` 落盘。
+`test_remind_modes.js` 54 条断言（三档纯函数、build 契约、双 channel、SMS 边界、
+前端接线），老 `test_reminder.js` 同步补 shim 的 `mode()` 与 3 条断言到 47 项。
+
+验证（三层分开说，无真机）：① 编译/签名通过（证书仍与 v1.1.1 一致）；
+② `check_web.js` 全 PASS、17 套离线测试 0 FAIL、`verify_apk.py` 四件套全过；
+③ **真机未验证**：静默是否真的不响、短信编辑页能否拉起、通知渠道在系统设置里
+   的重要性、Doze 下三档是否都准时。线上仍是 v1.1.38（回读确认），学生不弹更新。
+
+---
+
+### v1.1.40（2026-11-06）—— 独立设置页 + 6 套图标方案（**只出本地包，未上线；图标等用户选**）
+
+用户发来「我的」页截图（外观混在 6 行列表里、学期设置单独一张卡、底下还散着
+「重新读取本地数据」），一句「把这些外观什么的，弄出来一个设置页放进去可以，
+我想换个好看点的图标，你给我生成几个方案，我来选」。两件事都落地。
+
+**① 独立设置页（`tab-settings`，挂在 `me` 下的二级页）**
+- 收拢三类「改这台手机怎么显示 / 怎么算」的东西：外观（三档主题直接铺开）、
+  课表与学期（开学日 / 总周数 / 保存）、数据与更新（检查更新 / 重读本地数据）。
+- 「我的」页只留一行「设置」入口 + 教程 / 帮助 / 声明 / 关于；管理员控制台不动。
+- **搬动时所有 DOM id 原样保留**（`setStart` / `setSave` / `rowUpd` / `resync` /
+  `startday` / `totalweeks`），所以 `app.js` 的学期绑定、`UpdateUI.init`、
+  `resync.onclick` 一行都不用改。`TAB_PARENT.settings='me'` + `PAGE_HEAD.settings`
+  让底栏高亮、返回箭头、物理返回键全自动。
+- 静态锚点用「DOM 切片」判据：这些 id 必须**出现在 settings 段且不再出现在 me 段**
+  —— 只验「存在」会放过「复制成两份同 id DOM」这个老坑。
+- 外观三档不再要点开半框：`theme.js` 抽 `buildOptions()` + `mount(containerId)`，
+  设置页内嵌与半框共用同一套 DOM 结构。`register(..., transient)` 区分常驻/临时组，
+  `dropTransient()` 只清半框那组 —— 否则「开过一次外观再回设置页」常驻三档就被
+  清空、再也不刷新。状态字改 `[data-theme-state]` 批量同步（设置入口行一处）。
+- `test_theme.js` 补到 111 条断言，含「半框重开两次后设置页三档仍能切」这条回归。
+
+**② 6 套图标方案（只给选，不擅自换）**
+- `tools/gen_icons.py` 纯 PIL 绘制，零外部依赖：每套给 preview-512.png、
+  icon.svg、launcher-48/72/96/144/192.png；`_总览.png` 3×2 带编号名字；
+  `怎么选.txt`。项目内 `design/icons/` 留一份进 git，桌面 `图标方案\` 给用户挑。
+- 6 套：A 河字蓝紫渐变（现有精修）/ B 课表网格 / C 医药十字 /
+  D 极简线河 / E 三道河流 / F 夜空河字（呼应深色模式）。
+- `tools/apply_icon.py <1~6>`：先备份现有 mipmap 到 `design/icons/_backup/<时间戳>/`，
+  再逐份**逐字节 hash 校验**，写 `CURRENT.txt` 记选号，支持 `--restore` 与 `--dry`。
+  按目录名匹配密度，不靠文件大小猜（v1.1.15 那次就是猜错版本）。
+- **`gen_icons.py` 绝不碰 `android/res`**：用户没选之前换图标属于擅自扩大范围。
+  `check_web.js` 有反向断言钉住这条。
+
+**两个当场发现并修掉的小问题**：
+- 总览图第一版四角是黑的：把 RGBA 缩略图直接 `paste(RGB)` 到 RGB 底图，
+  透明角被当黑色。改成按自身 alpha 合成 —— 「图生成了」不等于「图能给人看」。
+- 图标脚本里两行死代码（`for_x = None`、`if False else m`）清掉，重生成后
+  总览 SHA 与修前完全一致，证明产物没漂。
+
+验证（三层分开说，无真机）：① `build_apk.py` 全链路绿、签名证书仍与 v1.1.1 一致；
+② `check_web.js` 全 PASS（v1.1.40 锚点组）、16 套离线测试 0 FAIL、
+`verify_apk.py` 四件套全过；③ **真机未验证**：设置页在矮视口的手感、
+三档在真机上的观感、图标换进 launcher 后的实际显示，都要装上看。
+线上仍是 v1.1.38（`GET /v1/config` 回读确认），学生不弹更新。
+
+---
+
+### v1.1.39（2026-11-06）—— 主题系统 / 深色模式（**只出本地包，未上线**）
+
+用户只说了「继续河医大助手项目」，按既定规矩：**改代码、出包、放桌面都可以，
+但不切 `cfg.latest`**。线上仍是 v1.1.38（实际 `GET /v1/config` 回读确认过）。
+取的是 HENUBox 对比里剩下的第一项 A-3（主题系统）。
+
+**为什么不能只加一段 `html[data-theme=dark]` 就完事**：`app.css` 里有 113 处
+硬编码颜色，其中只有 12 个在 `:root` 变量里。直接盖一层深色变量，卡片、
+底栏、输入框、徽标、状态条、半框仍然全是白底浅灰字 —— 深色下会变成
+「白卡片浮在深底上」的花脸。这一版先把中性字面量收敛成 47 个语义变量
+（`--tap` / `--seg-bg` / `--kb-*` / `--mask` / `--tabs-bg` …），
+**浅色值逐条等于原字面量**，再由深色块只换值、不改任何组件规则。
+品牌蓝紫渐变、渐变上的白字、马卡龙课程色块在两种主题里保持一致。
+迁移脚本每条替换都带命中数断言 + 白名单外的中性硬编码残留检查。
+
+四端接线（缺一端就是「切了没反应」，v1.1.35 课程提醒空转八版的教训）：
+1. `web/theme.js` 在 `<head>`、`app.css` **之前**加载，首屏绘制前就把
+   `data-theme` 写到 `<html>`，并把 `theme-color` / Java 状态栏对齐 —— 深色
+   用户冷启动不闪白。三档 `auto/light/dark` 存 `xxmu_theme`，auto 存空串，
+   脏值归一化回 auto。`resolve(m, sys)` 是纯函数，6 个组合有固定断言。
+2. `MainActivity.isSystemDark()` 读 `Configuration.uiMode`（`UI_MODE_NIGHT_YES`）
+   作为系统真值，**不靠 `prefers-color-scheme`** —— 定制 ROM 上后者经常不跟系统走；
+   `matchMedia` 只当浏览器兜底。`Host.setAppTheme` 桥改状态栏 / 导航栏 /
+   WebView 底色；`onCreate` 在 `loadUrl` 之前按已存主题先设一次底色。
+   `configChanges` 加 `uiMode`，系统切夜间模式时 `onConfigurationChanged` 回调
+   `window.__onThemeSys` 重算颜色，不重建 Activity、不丢当前页面状态。
+3. **必须关掉 WebView 的自动反色**：系统开深色时 WebView 会自己把页面反一遍，
+   和我们写的深色 CSS 叠成「深底上的浅卡片被反成黑卡片」。33+ 用
+   `setAlgorithmicDarkeningAllowed(false)`、29~32 用 `setForceDark(FORCE_DARK_OFF)`
+   （两个 API 互斥，targetSdk 33 上前者才是生效的那个），`WebActivity` 同样关掉，
+   否则青果登录页表单对比度会乱。
+4. 入口在「我的 → 外观」，复用全局 `#sheet` / `closeSheet()`，三行整行可点。
+
+**两个真时序坑（都是行为测试跑出来的，静态锚点抓不住）**：
+- `#themeState` 在 `<head>` 阶段还不存在，首屏那次 `paint()` 必然扑空。
+  只靠 body 末尾的 `THEME.init()` 补，一旦别处脚本异常没跑到，状态字就
+  永远停在 HTML 里静态写的「跟随系统」，和用户上次选的「深色」对不上。
+  现在加 `DOMContentLoaded` 兜底重画，`test_theme.js` 用 `headOnly` 开关
+  真实模拟「DOM 还没解析」并单独触发这一次补画。
+- `elec.js` 已经挂了 `window.__onResume` 用来回前台刷空调度数。主题也要挂，
+  **整个覆盖会把空调那条冲掉**。改成 `var prev = window.__onResume` 链式保留，
+  测试断言 `prev` 真的被调到。
+
+验证（三层分开说，没有真机）：
+① 编译 / 解析通过 —— `build_apk.py` 全链路绿，`apksigner` 证书与 v1.1.1 一致；
+② 静态 + 行为验证 —— `check_web.js` 全 PASS（新增 v1.1.39 锚点组），
+   16 套离线测试 0 FAIL（新增 `test_theme.js` 73 条断言），
+   `verify_apk.py` 四件套全过（新增 4 个 dex 符号 + 3 个资产锚点）；
+③ **真机未验证** —— 状态栏图标明暗、WebView 自动反色是否真被关掉、
+   深色下逐页观感、切系统夜间模式时是否真的不闪，都要装到手机上看。
+
+发版说明 `apk/v1.1.39.notes.txt` 已按「累积更新 + 不写管理员功能 + 老实交代」
+写好留档；说「上线」时直接拿它走 `release_all.py` 三件套。
 
 ---
 

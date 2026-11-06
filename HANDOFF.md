@@ -65,7 +65,7 @@ xxmu-app/
 │   ├── water.js              # 胖乖生活饮水机协议 + 空教室计算（导出 WATER / FREE）
 │   ├── chaoxing.js           # 学习通只读：课程→作业/考试；pickStatus 状态位提取（v1.1.5 重写）
 │   ├── onboard.js            # 首次启动引导（登录待办清单）
-│   ├── tut.js                # 首次使用教程，六页横滑（v1.1.6）
+│   ├── tut.js                # 首次使用教程，七页横滑；v1.1.42 起内容受契约表约束
 │   └── jsQR.js               # 256KB，二维码解码（UMD，file:// 下可用）
 ├── core/                     # 数据抓取 + 解析（PC 端 Python 脚本）
 │   ├── kingo.py    (124 行)  # 青果教务：验证码登录 / cookie / 拉课表 HTML
@@ -263,6 +263,10 @@ apksigner sign --ks xxmu.jks --ks-pass pass:xxmu123 --key-pass pass:xxmu123 \
 
 **改前端后的固定动作**：`python tools/build_apk.py` 会自动同步并重打包。手动同步用 `python tools/sync_assets.py`。
 
+**改功能时必须同步改教程（v1.1.42 起是硬卡口）**：用户原话「使用教程什么的每次版本更新，如果有功能性变化这个也需要更新」。以前只写在交接文档里靠人记，结果教程停在 v1.1.6，还在教「接水→结束并结算」（结算早已删）和「我的 → 学期设置」（已搬进设置页）。
+现在有两层：`docs/handoff/tutorial-contract.json` 是「App 现在有哪些学生能看见的功能」的唯一清单（含 `since` / `mustMention` / `forbidden`）；`web/tut.js` 里 `TUT_CONTENT_VER` / `TUT_FEATURES` / 每页 `covers` + `since` 声明教程覆盖了什么。`node tools/check_tutorial.js` 逐项对照，任一不一致 exit 1；`check_web.js` 会调它，`release_all.py` 的第 1 步预检也会调它（**没更教程发不出去**）。
+动作顺序：改功能 → 改契约表 → 改 `tut.js` 的 PAGES → `TUT_CONTENT_VER` 与契约表 `version` 一起 +1 → 跑 `node tools/check_tutorial.js`。
+
 **版本号要改三处**：`android/AndroidManifest.xml` 的 `versionCode`/`versionName`、`web/about.js:12` 的 `APP_VERSION`，以及 `index.html` 里 `#aboutVer` 的静态文案。虽然后者会被 about.js 覆盖，但不改会让源文件和实际显示不一致。
 
 **发布 ≠ 出包**：`tools/publish_apk.py` 会切 `cfg.latest`，学生一开 App 就弹更新。只有用户明确说「上线 / 发版 / 发布 / 更新给他们」才是授权；只说「继续写 / 修一下 / 做好」都不是，那种情况用 `--no-publish`（只写 blob/meta，不动 `cfg`）。历史事故：v1.1.15 按惯性发布了，而那一轮的原话只是「继续写河医大助手项目」，后来回滚，1.1.15 从未上过线。
@@ -285,6 +289,7 @@ apksigner sign --ks xxmu.jks --ks-pass pass:xxmu123 --key-pass pass:xxmu123 \
 | `node tools/test_api_contract.js` | 服务端 `json()` 键 vs 前端读的字段、`res.rows`/`res.list` 双字段容错、`/v1/photo`+`/v1/feedback` 的 GET/POST 方法区分、接口存在性双向对账 | `[PASS] 通过 14 项，失败 0 项` |
 | `node tools/test_disc.js` | `disc.js` 使用声明层状态机 23 条断言（首次自动弹 260ms / 已看过不弹 / ✕ 与按钮等价 / gate 立着不转教程 / 解锁后转教程 / replay 不写 pref 不转教程 / pref 抛异常当没看过 / 无 Host 走 localStorage） | `[PASS] 通过 23 项，失败 0 项` |
 | `python tools/verify_apk.py` | 出包后五件套（默认挑 `apk/` 下最新包）：assets 逐字节 / dex 符号 / badging / 签名证书 / **worker.js 七个锚点 + pages 的 `x-xxmu-ip` 转发** | `[PASS] 五件套全部通过` |
+| `node tools/check_tutorial.js` | **v1.1.42 新增，改功能后必跑**：契约表 ↔ `tut.js` 的功能覆盖 / 每页 `since` 新鲜度 / 入口口径 / 禁用词 / 教程排版防线。被 `check_web.js` 与 `release_all.py` 预检调用 | `[PASS] 教程契约 N 项全过` |
 
 
 ### 两份审计报告怎么用
