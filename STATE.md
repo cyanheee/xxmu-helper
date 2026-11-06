@@ -55,37 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `31956ac` |
+| 分支 | main @ `732d8ee` |
 | origin/main | `2f06dac` |
-| 领先远程 | 7 个提交 |
-| 未提交改动 | 13 个文件 |
+| 领先远程 | 8 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+732d8ee fix(tutorial): v1.1.42 修横排漏字 + 内容追上功能 + 发版教程契约硬卡口
 31956ac docs: 提交后重新生成 STATE（本地 1.1.41 / 线上 1.1.38）
 492a041 feat(reminder): v1.1.41 课程提醒三档（响铃/静默/短信草稿）+ 试一下预览
 e5b1a3e docs: 提交后重新生成 STATE（本地 1.1.40 / 线上 1.1.38）
 b7962d2 feat(settings): v1.1.40 独立设置页 + 6 套图标方案（图标待用户选，未替换 res）
 b7019d6 docs: 提交后重新生成 STATE（本地 1.1.39 / 线上 1.1.38）
-cd31085 feat(theme): v1.1.39 深色模式（三档主题/跟随系统/首屏不闪白/关 WebView 自动反色）
-```
-
-未提交：
-
-```
-M HANDOFF.md
- M android/AndroidManifest.xml
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/release_all.py
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/index.html
- M web/tut.js
-?? docs/handoff/tutorial-contract.json
 ```
 
 ## 5. 常用命令（复制即用）
