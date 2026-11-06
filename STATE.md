@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 22:30
+> 生成时间：2026-11-06 22:34
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -53,8 +53,8 @@
 | 项 | 值 |
 |---|---|
 | 分支 | main @ `41afc47` |
-| 远程 main（API 实读） | `2e691fb` |
-| 与远程内容 | **不一致**（逐文件比 209 个 blob sha：不一致 2 / 远程多出 0） |
+| 远程 main（API 实读） | `875a6c7` |
+| 与远程内容 | **不一致**（逐文件比 208 个 blob sha：不一致 1 / 远程多出 0；STATE.md 自指，不计入） |
 | 未提交改动 | 2 个文件 |
 
 最近提交：

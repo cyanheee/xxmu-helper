@@ -173,14 +173,15 @@ def remote_tree_state():
             return out
         remote = dict((e['path'], e['sha']) for e in tree.get('tree', [])
                       if e.get('type') == 'blob')
+        # 口径必须与 push_full_tree.py 一致：它用 `git hash-object <工作区文件>`
+        # 推内容，所以这里也按工作区文件算 sha，而不是 `git ls-tree HEAD`。
+        # 否则改了文件没提交时，推送工具推的是新内容、这里比的是旧 HEAD，
+        # 会把「已经推上去了」误报成不一致。清单仍用 ls-tree（天然排除
+        # .gitignore 命中的文件，与推送工具同一个清单）。
         local = {}
-        for line in sh([GIT, 'ls-tree', '-r', 'HEAD']).split('\n'):
-            if not line or '\t' not in line:
-                continue
-            meta, path = line.split('\t', 1)
-            parts = meta.split()
-            if len(parts) >= 3:
-                local[path] = parts[2]
+        for path in sh([GIT, 'ls-tree', '-r', '--name-only', 'HEAD']).split('\n'):
+            if path:
+                local[path] = sh([GIT, 'hash-object', path.replace('/', os.sep)])
         # STATE.md 是自指文档：它把「远程 HEAD」写进自己，重生成后本地 HEAD
         # 里的 STATE.md 必然与远程那份不同，而远程那份又记着上一个 HEAD。
         # 比 tree 时排除它，否则每次跑 state.py 都会把「代码已对齐」误报成
