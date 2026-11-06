@@ -55,37 +55,20 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `e5b1a3e` |
+| 分支 | main @ `492a041` |
 | origin/main | `2f06dac` |
-| 领先远程 | 5 个提交 |
-| 未提交改动 | 14 个文件 |
+| 领先远程 | 6 个提交 |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+492a041 feat(reminder): v1.1.41 课程提醒三档（响铃/静默/短信草稿）+ 试一下预览
 e5b1a3e docs: 提交后重新生成 STATE（本地 1.1.40 / 线上 1.1.38）
 b7962d2 feat(settings): v1.1.40 独立设置页 + 6 套图标方案（图标待用户选，未替换 res）
 b7019d6 docs: 提交后重新生成 STATE（本地 1.1.39 / 线上 1.1.38）
 cd31085 feat(theme): v1.1.39 深色模式（三档主题/跟随系统/首屏不闪白/关 WebView 自动反色）
 2769498 chore: 发版后重新生成 STATE（线上 1.1.38 / 领先 0）
-2f06dac docs: v1.1.38 发版说明 + README 徽章
-```
-
-未提交：
-
-```
-M android/AndroidManifest.xml
- M android/src/com/xxmu/helper/MainActivity.java
- M android/src/com/xxmu/helper/ReminderReceiver.java
- M android/src/com/xxmu/helper/ReminderScheduler.java
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
- M tools/check_web.js
- M tools/test_reminder.js
- M tools/verify_apk.py
- M web/about.js
- M web/app.css
- M web/index.html
 ```
 
 ## 5. 常用命令（复制即用）
