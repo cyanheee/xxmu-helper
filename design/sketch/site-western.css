@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    河医大助手 · 官网
    设计语言与 App 完全一致（web/app.css v1.1.53 西部涂鸦）：
    牛皮纸做底 + 淡棕方格 + 左侧红皮绳 + 墨线描边 + 硬偏移投影。
@@ -193,7 +193,7 @@ img{max-width:100%;display:block}
   transform:translateY(0);
   transition:transform .3s ease;
 }
-.phone img{width:100%;height:auto}
+.phone img,.phone svg.shot{width:100%;height:auto;display:block}
 .phone:hover{transform:translateY(-6px)}
 .phone:nth-child(2){transform:translateY(-14px)}
 .phone:nth-child(2):hover{transform:translateY(-20px)}

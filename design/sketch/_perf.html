@@ -1,0 +1,19 @@
+<!DOCTYPE html><html><head><meta charset="utf-8"></head><body>
+<iframe id="f" src="https://www.xxmuhelper.top/" style="width:380px;height:700px;border:0"></iframe>
+<pre id="out" style="font:11px monospace">measuring...</pre>
+<script>
+var f=document.getElementById('f');
+f.onload=function(){
+  setTimeout(function(){
+    try{
+      var p=f.contentWindow.performance;
+      var nav=p.getEntriesByType('navigation')[0];
+      var res=p.getEntriesByType('resource');
+      var lines=['nav: ttfb='+Math.round(nav.responseStart)+' domContentLoaded='+Math.round(nav.domContentLoadedEventEnd)+' load='+Math.round(nav.loadEventEnd)];
+      lines.push('resources='+res.length);
+      res.forEach(function(r){ lines.push('  '+r.name.split('/').pop().slice(0,28)+'  start='+Math.round(r.startTime)+' dur='+Math.round(r.duration)+' size='+r.transferSize); });
+      document.getElementById('out').textContent=lines.join('\n');
+    }catch(e){ document.getElementById('out').textContent='ERR '+e; }
+  },3000);
+};
+</script></body></html>

@@ -13,10 +13,10 @@
 # 404 分支不缓存（_worker.js 里已排除）。
 
 /
-  Cache-Control: public, max-age=300, s-maxage=300
+  Cache-Control: public, max-age=86400, s-maxage=86400
 
 /index.html
-  Cache-Control: public, max-age=300, s-maxage=300
+  Cache-Control: public, max-age=86400, s-maxage=86400
 
 /img/*
   Cache-Control: public, max-age=86400, s-maxage=86400

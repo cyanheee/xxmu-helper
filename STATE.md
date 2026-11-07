@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-07 21:51
+> 生成时间：2026-11-07 22:00
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -34,58 +34,38 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.53** |
-| latest.code | 1153 |
+| latest.version | **1.1.54** |
+| latest.code | 1154 |
 | latest.size | 674032 |
-| latest.sha256 | `0afa771435d30291` |
-| latest.url | https://www.xxmuhelper.top/v1/apk?v=0afa771435d3 |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.53.apk |
+| latest.sha256 | `94d07073ce7227cb` |
+| latest.url | https://www.xxmuhelper.top/v1/apk?v=94d07073ce72 |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.54.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | False |
 | updPolicy | nag |
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
-
-> 本地已到 **1.1.54**，线上还是 **1.1.53** —— 新版本**还没发**。
-> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
+> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `5d098dd` |
-| 远程 main（API 实读） | `5d098dd` |
-| 与远程内容 | **不一致**（逐文件比 209 个 blob sha：不一致 13 / 远程多出 0；STATE.md 自指，不计入） |
-| 未提交改动 | 16 个文件 |
+| 分支 | main @ `d7716d8` |
+| 远程 main（API 实读） | `d7716d8` |
+| 与远程内容 | **一致**（逐文件比 266 个 blob sha：不一致 0 / 远程多出 0；STATE.md 自指，不计入） |
+| 未提交改动 | 0 个文件 |
 
 最近提交：
 
 ```
+d7716d8 release: v1.1.54 西部涂鸦主题（雾光紫）+ 官网同步上线
 5d098dd Merge remote-tracking branch 'origin/main'
 008b48e Merge remote-tracking branch 'origin/main'
 da3b8e1 wip(v1.1.49): 空闲教室乱码改写 looksReadable + 更新提示走 keep-alive 复用与冷启动预热
 f2e1025 docs: v1.1.48 上线状态（线上 1.1.48 / 1148 / 665840 / 55f0d962）
 5119580 sync: 对齐本地 v1.1.43 完整代码（API 通道，内容逐文件校验）
-4bdce63 sync: 对齐本地 v1.1.43 完整代码（API 通道，内容逐文件校验）
-```
-
-未提交：
-
-```
-M README.md
- M STATE.md
- M android/AndroidManifest.xml
- M server/pages/dist/img/logo.svg
- M server/pages/dist/img/shot-kb.svg
- M server/pages/dist/img/shot-learn.svg
- M server/pages/dist/img/shot-water.svg
- M server/pages/dist/index.html
- M tools/check_web.js
- M tools/test_theme.js
- M web/about.js
- M web/app.css
 ```
 
 ## 5. 常用命令（复制即用）
