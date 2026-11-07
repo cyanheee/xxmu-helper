@@ -68,6 +68,9 @@ const CORS = {
 const APK_TTL = 31536000;   // 版本化 URL，内容变则 URL 变，可永久缓存
 const HOME_TTL = 300;
 const IMG_TTL = 86400;
+/* v1.1.54: 换皮肤后边缘缓存里的旧首页与旧 SVG 会顶一天。
+ * 缓存键里带上这个 BUILD 串，改一次 BUILD 就等于整批失效。 */
+const BUILD = 'v1.1.54';
 
 async function cacheMatch(key) {
   try { return await caches.default.match(key); } catch (e) { return null; }
@@ -141,7 +144,7 @@ export default {
         const isHome = (p === '/' || p === '/index.html');
         const isImg = p.indexOf('/img/') === 0;
         if (request.method === 'GET' && (isHome || isImg)) {
-          const ck = new Request(u.origin + (isHome ? '/' : p), { method: 'GET' });
+          const ck = new Request(u.origin + (isHome ? '/' : p) + '?b=' + BUILD, { method: 'GET' });
           const hit = await cacheMatch(ck);
           if (hit) {
             const oh = new Headers(hit.headers);

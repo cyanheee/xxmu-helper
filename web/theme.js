@@ -1,4 +1,4 @@
-/* 河医大助手 - 主题（v1.1.39）
+﻿/* 河医大助手 - 主题（v1.1.39）
  *
  * 这个文件在 <head> 里、app.css **之前**加载，所以它必须先干两件事：
  *   ① 在首屏绘制之前把 data-theme 写到 <html> 上（深色用户冷启动不闪白）；
@@ -21,7 +21,7 @@
 window.THEME = (function () {
   var KEY = 'xxmu_theme';
   var AUTO = 'auto', LIGHT = 'light', DARK = 'dark';
-  var META_LIGHT = '#ffffff', META_DARK = '#0e1320';
+  var META_LIGHT = '#EFE2C8', META_DARK = '#241E1A';
   var LABEL = { auto: '跟随系统', light: '浅色', dark: '深色' };
 
   function hasHost() { return typeof Host !== 'undefined' && Host; }

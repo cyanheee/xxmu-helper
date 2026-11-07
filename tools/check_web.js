@@ -807,11 +807,22 @@ const badLinks = (site.match(/href\s*=\s*["'](https?:\/\/[^"']+)/gi) || [])
 console.log('  超链接均指向白名单域名            =', badLinks.length === 0);
 if (badLinks.length) fail('官网有不认识的超链接：' + badLinks.slice(0, 3).join(', '));
 
-/* app.css 的配色要和官网一致，否则「同一个产品两张脸」。 */
+/* app.css 的配色要和官网一致，否则「同一个产品两张脸」。
+ * v1.1.53 起两边都是「西部涂鸦本」：判据不再是某个色值，
+ * 而是「两边都用同一套纸/墨/砖红变量」，换皮肤只改这一处就够。 */
 const appCss = read('web/app.css');
-const sameAccent = appCss.indexOf('--accent:#2563eb') >= 0 && site.indexOf('#2563eb') >= 0;
-console.log('  官网与 App 共用同一强调色          =', sameAccent);
-if (!sameAccent) fail('官网的强调色要和 web/app.css 的 --accent(#2563eb) 一致');
+const tokOf = (src, name) => {
+  const m = src.match(new RegExp(name.replace(/[-]/g, '\\-') + '\\s*:\\s*([^;}]+)'));
+  return m ? m[1].trim() : null;
+};
+const SKIN_TOKENS = ['--paper', '--ink', '--accent', '--red', '--mist'];
+const skinDiff = SKIN_TOKENS.filter(k => {
+  const a = tokOf(appCss, k), b = tokOf(site, k);
+  return !a || !b || a.toLowerCase() !== b.toLowerCase();
+});
+const sameSkin = skinDiff.length === 0;
+console.log('  官网与 App 共用同一套西部涂鸦令牌  =', sameSkin, skinDiff.length ? ('差: ' + skinDiff.join(',')) : '');
+if (!sameSkin) fail('官网要和 web/app.css 用同一套西部涂鸦令牌（对不上：' + skinDiff.join(', ') + '）');
 
 // ---- v1.1.19：微信内置浏览器的下载提示 ----
 /* 真机实测：微信里点下载会被拦截，但会弹「在浏览器中打开」。
@@ -1233,7 +1244,7 @@ if (sysFn.indexOf('Host.isSystemDark') < 0 ||
 /* ③ app.css：深色块 + 变量收敛。深色只换变量，组件规则不许另写一整套。 */
 has(themeCss, 'html[data-theme="dark"]{', 'app.css 有深色变量块');
 has(themeCss, 'color-scheme:dark;', '深色块声明 color-scheme（表单/滚动条跟着变深）');
-has(themeCss, '--bg:#0e1320;', '深色有独立底色');
+has(themeCss, '--paper:#241E1A;', '深色有独立底色（沙漠夜空）');
 has(themeCss, '.th-opt{', 'app.css 有外观选项样式');
 /* 白名单外的中性硬编码若残留在组件里，深色下会变成「白卡片浮在深底上」。
  * 变量定义行（--xxx:#yyy;）不算，注释里提到颜色也不算。 */

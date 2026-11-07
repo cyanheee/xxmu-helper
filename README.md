@@ -11,7 +11,7 @@
 Timetable · Assignment countdown · Free classrooms · Water dispenser · Campus info
 
 [![Platform](https://img.shields.io/badge/platform-Android%207.0%2B-3ddc84?logo=android&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/version-1.1.48-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
+[![Version](https://img.shields.io/badge/version-1.1.50-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![QQ](https://img.shields.io/badge/QQ-572833261-12b7f5?logo=tencentqq&logoColor=white)](https://wpa.qq.com/msgrd?v=3&uin=572833261&site=qq&menu=yes)
 

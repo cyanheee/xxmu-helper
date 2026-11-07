@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-07 00:04
+> 生成时间：2026-11-07 21:51
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.49** |
-| AndroidManifest versionCode | **1149** |
-| web/about.js APP_VERSION | 1.1.49 |
-| web/index.html #aboutVer | 1.1.49 |
+| AndroidManifest versionName | **1.1.54** |
+| AndroidManifest versionCode | **1154** |
+| web/about.js APP_VERSION | 1.1.54 |
+| web/index.html #aboutVer | 1.1.54 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.49.apk` |
-| 大小 | 665840 字节 |
-| SHA-256 | `ab765d48dc2310b79a47c06f0d2adf6d12ed4c0205cd39ab833256da624acba9` |
-| 出包时间 | 2026-11-07 00:01 |
-| 包内版本（aapt2） | 1.1.49 / 1149 |
+| 文件 | `apk/xxmu-helper-v1.1.54.apk` |
+| 大小 | 674032 字节 |
+| SHA-256 | `94d07073ce7227cbf59b4bd68044c8850f2f13672769eb39ea195b9df6fdc42d` |
+| 出包时间 | 2026-11-07 21:45 |
+| 包内版本（aapt2） | 1.1.54 / 1154 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -34,58 +34,58 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.48** |
-| latest.code | 1148 |
-| latest.size | 665840 |
-| latest.sha256 | `55f0d9620409bbc5` |
-| latest.url | https://xxmu-auth.pages.dev/v1/apk?v=55f0d9620409 |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.48.apk |
+| latest.version | **1.1.53** |
+| latest.code | 1153 |
+| latest.size | 674032 |
+| latest.sha256 | `0afa771435d30291` |
+| latest.url | https://www.xxmuhelper.top/v1/apk?v=0afa771435d3 |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.53.apk |
 | min.code（强制淘汰线） | 0 |
-| enforceVer | True |
+| enforceVer | False |
 | updPolicy | nag |
 | qq | 1097668324 |
 | maxDev | 3 |
 
 > 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
 
-> 本地已到 **1.1.49**，线上还是 **1.1.48** —— 新版本**还没发**。
+> 本地已到 **1.1.54**，线上还是 **1.1.53** —— 新版本**还没发**。
 > （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `f2e1025` |
-| 远程 main（API 实读） | `5119580` |
-| 与远程内容 | **不一致**（逐文件比 209 个 blob sha：不一致 11 / 远程多出 0；STATE.md 自指，不计入） |
-| 未提交改动 | 13 个文件 |
+| 分支 | main @ `5d098dd` |
+| 远程 main（API 实读） | `5d098dd` |
+| 与远程内容 | **不一致**（逐文件比 209 个 blob sha：不一致 13 / 远程多出 0；STATE.md 自指，不计入） |
+| 未提交改动 | 16 个文件 |
 
 最近提交：
 
 ```
+5d098dd Merge remote-tracking branch 'origin/main'
+008b48e Merge remote-tracking branch 'origin/main'
+da3b8e1 wip(v1.1.49): 空闲教室乱码改写 looksReadable + 更新提示走 keep-alive 复用与冷启动预热
 f2e1025 docs: v1.1.48 上线状态（线上 1.1.48 / 1148 / 665840 / 55f0d962）
-2a6bc9b release: v1.1.48 (code 1148)
-ba3eab2 chore(state): 远程 tree 用 API 实读 + 与 push_full_tree 同口径（本地文件 hash），修掉「已对齐却报领先 24」
-41afc47 release: v1.1.47 (code 1147)
-ff7f2b5 docs: 提交后重新生成 STATE（本地 1.1.47 / 线上 1.1.43）
-8dd647e fix(update): v1.1.47 下载URL跟着双入口回退走 + 学生视角说明/教程/文档
+5119580 sync: 对齐本地 v1.1.43 完整代码（API 通道，内容逐文件校验）
+4bdce63 sync: 对齐本地 v1.1.43 完整代码（API 通道，内容逐文件校验）
 ```
 
 未提交：
 
 ```
-M STATE.md
+M README.md
+ M STATE.md
  M android/AndroidManifest.xml
- M android/src/com/xxmu/helper/Http.java
- M android/src/com/xxmu/helper/MainActivity.java
- M docs/handoff/changelog.md
- M docs/handoff/todo.md
+ M server/pages/dist/img/logo.svg
+ M server/pages/dist/img/shot-kb.svg
+ M server/pages/dist/img/shot-learn.svg
+ M server/pages/dist/img/shot-water.svg
+ M server/pages/dist/index.html
  M tools/check_web.js
- M tools/test_free.js
  M tools/test_theme.js
  M web/about.js
- M web/free.js
- M web/index.html
+ M web/app.css
 ```
 
 ## 5. 常用命令（复制即用）

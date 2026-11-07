@@ -1,4 +1,4 @@
-/* 主题系统的离线行为测试（v1.1.39）
+﻿/* 主题系统的离线行为测试（v1.1.39）
  *
  *   node tools/test_theme.js
  *
@@ -19,6 +19,13 @@ const vm = require('vm');
 
 const root = path.resolve(__dirname, '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+
+/* 从 theme.js 真源码里抠出两个状态栏色，测试跟着实现走。
+ * 换主题色（v1.1.50 素描纸）时这里不用再改第二遍。 */
+const themeSrc = read('web/theme.js');
+const mMeta = themeSrc.match(/META_LIGHT\s*=\s*'([^']+)'[^;]*META_DARK\s*=\s*'([^']+)'/);
+if (!mMeta) throw new Error('theme.js 里没找到 META_LIGHT / META_DARK');
+const META_LIGHT = mMeta[1], META_DARK = mMeta[2];
 
 let bad = 0, total = 0;
 function ok(cond, label, extra) {
@@ -57,7 +64,10 @@ function El(tag) {
 function makeEnv(sysDark, saved, headOnly) {
   const store = Object.assign({}, saved || {});
   const html = El('html');
-  const meta = El('meta'); meta.attrs['name'] = 'theme-color'; meta.attrs.content = '#ffffff';
+  /* v1.1.50：初始 meta 内容与断言目标都从 theme.js 真源码里读，
+   * 不再写死 #ffffff / #0e1320 —— 换主题色时测试不用跟着改。 */
+  const meta = El('meta'); meta.attrs['name'] = 'theme-color';
+  meta.attrs.content = META_LIGHT;
   const body = El('div'), name = El('b'), sheet = El('div');
   const inline = El('div');           // 设置页里常驻三档的容器
   const settingsState = El('span');   // 「我的」页设置入口的状态字
@@ -156,7 +166,7 @@ console.log('\n2. 首屏：data-theme / theme-color / Java 桥');
   const e = makeEnv(true, {});   // 系统深色 + 没设过主题
   ok(e.html.attrs['data-theme'] === 'dark', '系统深色且没设过 → html 上是 dark', e.html.attrs['data-theme']);
   ok(e.html.dataset.theme === 'dark', 'dataset.theme 同步');
-  ok(e.meta.attrs.content === '#0e1320', 'theme-color 改成深色', e.meta.attrs.content);
+  ok(e.meta.attrs.content === META_DARK, 'theme-color 改成深色', e.meta.attrs.content);
   ok(e.Host.__lastTheme === true, 'Host.setAppTheme(true) 真的调了');
   ok(e.T.mode() === 'auto', '没设过时 mode() = auto');
   ok(e.T.current() === 'dark', 'current() 是真正生效的 dark');
@@ -182,7 +192,7 @@ console.log('\n2a. 真实加载时序（head 阶段 DOM 还不存在）');
 {
   const e = makeEnv(true, { xxmu_theme: 'dark' }, true);   // 上次选了深色、系统也深色
   ok(e.html.attrs['data-theme'] === 'dark', 'head 阶段就已经把 html 设成 dark（不闪白）');
-  ok(e.meta.attrs.content === '#0e1320', 'head 阶段 meta 也改了');
+  ok(e.meta.attrs.content === META_DARK, 'head 阶段 meta 也改了');
   ok(e.Host.__lastTheme === true, 'head 阶段就通知了 Java');
   ok(e.els.themeState.textContent === '', '此刻 #themeState 还不存在（符合真实 DOM 时序）',
     JSON.stringify(e.els.themeState.textContent));
@@ -368,7 +378,12 @@ console.log('\n7b. app.css：深色块必须覆盖全部语义变量（漏一个
   /* 只有「颜色 / 阴影 / 遮罩」这类会花脸的变量才必须在深色里重给值。
    * --radius / --radius-sm 是尺寸，两种主题共用同一个值是对的，
    * 强行要求「全部变量都覆盖」是测试期望写宽了（第一版就误报过这两条）。 */
-  const SAME_IN_DARK = new Set(['--radius', '--radius-sm']);
+  /* v1.1.50 又加了三个「几何/笔触」令牌：线宽与两组手绘圆角。
+   * 它们和 --radius 一样属于尺寸，两种主题共用同一个值是对的 ——
+   * 放进白名单，否则会被误判成「深色漏了颜色」。 */
+  const SAME_IN_DARK = new Set([
+    '--radius', '--radius-sm', '--stroke-w', '--br-hand', '--br-hand-sm',
+  ]);
   const missing = lightVars.filter(v => !SAME_IN_DARK.has(v) && !darkVars.includes(v));
   ok(missing.length === 0,
     '浅色的 ' + (lightVars.length - SAME_IN_DARK.size) + ' 个颜色/阴影变量，深色全给了值',

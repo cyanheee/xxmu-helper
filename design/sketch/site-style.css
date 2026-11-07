@@ -1,0 +1,375 @@
+/* ============================================================
+   河医大助手 · 官网
+   设计语言与 App 完全一致（web/app.css v1.1.53 西部涂鸦本）：
+   牛皮纸做底 + 墨线描边 + 硬偏移投影 + 四角不等的手绘圆角。
+   强调色是砖红，五支笔轮换（砖红/牛仔蓝/沙金/仙人掌绿/赤陶）。
+   左上角贴彩色胶带、右上角一枚蹄铁星，像贴在牛皮纸上的草图。
+   全站零外部依赖：没有 CDN、没有字体请求，断网也能开。
+   ============================================================ */
+:root{
+  --paper:#EFE2C8;
+  --paper2:#FAF3E2;
+  --grid:#DCCBAB;
+  --ink:#2B2318;
+  --ink2:#5A4B36;
+  --pencil:#8E7E64;
+  --line:#D3C0A0;
+  --washi:#C9B48F;
+
+  --red:#B23B26;
+  --blue:#2C5C7A;
+  --yellow:#D9A32B;
+  --green:#4E7A48;
+  --purple:#8A5A3B;
+
+  --bg:var(--paper);
+  --surface:#FAF3E2;
+  --surface2:#F5EAD4;
+  --fg:var(--ink);
+  --fg2:var(--ink2);
+  --mute:var(--pencil);
+  --accent:var(--red);
+  --accent2:#8A5A3B;
+  --accent-soft:#F3DCCB;
+  --ok:#3F6B3C;
+  --warn:#B27A12;
+  --radius:6px;
+  --radius-sm:3px;
+  --shadow:2px 2px 0 var(--ink);
+  --shadow-lift:3px 3px 0 var(--ink);
+  --wrap:820px;
+
+  /* 手绘线：2px 墨线 + 不等圆角 */
+  --stroke:2px;
+  --br-hand:13px 5px 15px 6px / 6px 14px 5px 13px;
+  --br-hand-sm:9px 3px 10px 4px / 4px 10px 3px 9px;
+  --tape:var(--red);
+  --oncolor:#FDF6E6;
+  --clip-cap:rgba(43,35,24,.82);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{
+  margin:0;color:var(--fg);
+  background-color:var(--paper);
+  /* 牛皮纸：左侧一道红皮绳（双线） + 淡棕方格，和 App 同一张纸 */
+  background-image:
+    linear-gradient(90deg,
+      transparent 0 22px,
+      rgba(178,59,38,.45) 22px 23.5px,
+      transparent 23.5px 27px,
+      rgba(178,59,38,.45) 27px 28px,
+      transparent 28px),
+    repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 24px),
+    repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 24px);
+  background-position:0 0,-1px -1px,-1px -1px;
+  background-attachment:local,local,local;
+  font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;letter-spacing:.1px;
+  overflow-x:hidden;
+}
+a{color:var(--ink);text-decoration:none;border-bottom:2px dashed var(--washi)}
+a:hover{text-decoration:none;border-bottom:2px solid var(--red)}
+img{max-width:100%;display:block}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px}
+
+/* ---------------- 顶部 ---------------- */
+.top{padding:26px 0 4px}
+.brand{display:flex;align-items:center;gap:13px}
+.mark{
+  width:46px;height:46px;flex:0 0 auto;
+  border-radius:13px 5px 15px 6px / 6px 14px 5px 13px;
+  background:var(--red);
+  border:2px solid var(--ink);
+  color:var(--oncolor);font-size:21px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:2px 2px 0 var(--ink);
+  transform:rotate(-4deg);
+}
+.brand-txt h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.2px}
+.brand-txt p{margin:1px 0 0;font-size:12.5px;color:var(--pencil);
+  letter-spacing:1.2px;text-transform:uppercase}
+
+/* ---------------- Hero ---------------- */
+.hero{padding:40px 0 10px;display:grid;grid-template-columns:1fr;gap:30px}
+.hero-copy h2{
+  margin:0 0 16px;font-size:clamp(28px,6.6vw,42px);
+  line-height:1.22;font-weight:800;letter-spacing:-.8px;
+}
+/* 强调句：砖红字 + 沙金荧光笔，不做渐变字（牛皮纸上渐变是脏的） */
+.hero-copy h2 em{
+  font-style:normal;color:var(--red);
+  background:linear-gradient(transparent 62%, rgba(217,163,43,.42) 62%);
+  padding:0 2px;
+}
+.hero-copy .lead{margin:0 0 8px;font-size:16.5px;color:var(--fg2);max-width:32em}
+
+/* 亮点小标签 */
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+.pill{
+  font-size:12px;color:var(--ink);background:var(--paper2);
+  border:2px solid var(--ink);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
+  padding:5px 12px;box-shadow:1.5px 1.5px 0 var(--ink);
+  letter-spacing:.4px;font-weight:700;
+}
+.pill b{color:var(--red);font-weight:800}
+
+/* 下载卡：贴在纸上的便签，左上角一段红胶带 */
+.dl{
+  position:relative;
+  background:var(--surface);
+  border:var(--stroke) solid var(--ink);
+  border-radius:var(--br-hand);
+  padding:24px;box-shadow:4px 4px 0 var(--ink);
+  transform:rotate(-.3deg);
+}
+.dl::before{
+  content:'';position:absolute;top:-9px;left:22px;
+  width:52px;height:15px;background:var(--red);opacity:.92;
+  transform:rotate(-2.5deg);
+  border-left:1px dashed rgba(255,255,255,.55);
+  border-right:1px dashed rgba(255,255,255,.55);
+}
+.dl::after{
+  content:'✦';position:absolute;top:8px;right:12px;
+  font-size:12px;line-height:1;color:var(--red);opacity:.8;
+  transform:rotate(12deg);
+}
+.dl-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border:var(--stroke) solid var(--ink);
+  border-radius:var(--br-hand-sm);padding:16px 28px;
+  font:inherit;font-size:16px;font-weight:800;color:var(--oncolor);cursor:pointer;
+  background:var(--red);
+  box-shadow:3px 3px 0 var(--ink);
+  letter-spacing:1px;
+  flex:1 1 210px;text-decoration:none;
+  transition:transform .12s ease,box-shadow .12s ease;
+}
+.btn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 var(--ink);text-decoration:none}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn svg{flex:0 0 auto}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn-ghost{
+  flex:0 0 auto;background:var(--paper2);color:var(--ink);
+  box-shadow:3px 3px 0 var(--ink);border:var(--stroke) solid var(--ink);
+  padding:16px 22px;
+}
+.btn-ghost:hover{background:var(--yellow);box-shadow:2px 2px 0 var(--ink)}
+
+.meta{
+  display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;
+  padding-top:16px;border-top:2px dashed var(--washi);
+  font-size:13px;color:var(--pencil);
+}
+.meta b{color:var(--ink2);font-weight:800;font-variant-numeric:tabular-nums}
+.dot-ok{
+  display:inline-block;width:8px;height:8px;border-radius:50%;
+  background:var(--green);margin-right:6px;vertical-align:1px;
+  box-shadow:none;
+}
+.note{margin:14px 0 0;font-size:12.5px;color:var(--pencil);line-height:1.75}
+.note.warn{color:var(--warn)}
+
+/* 微信提示：牛皮便签 */
+#wxTip{
+  display:none;margin:14px 0 0;padding:15px 17px;
+  border:2px dashed var(--ink);background:var(--yellow);
+  border-radius:var(--br-hand-sm);
+  font-size:13px;line-height:1.8;color:var(--ink);
+  box-shadow:2px 2px 0 var(--ink);
+}
+#wxTip.show{display:block}
+#wxTip b{color:var(--red)}
+#wxTip .kbd{
+  display:inline-block;padding:2px 8px;margin:0 3px;border-radius:4px;
+  background:var(--paper2);border:1.5px solid var(--ink);white-space:nowrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--ink);
+}
+
+/* ---------------- 手机示意（右侧） ---------------- */
+.shots{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
+  align-items:end;
+}
+.phone{
+  position:relative;overflow:hidden;
+  border-radius:18px 6px 20px 7px / 7px 19px 6px 18px;
+  background:var(--paper2);
+  border:2px solid var(--ink);
+  box-shadow:3px 3px 0 var(--ink);
+  transform:translateY(0);
+  transition:transform .28s ease;
+}
+.phone img{width:100%;height:auto}
+.phone:hover{transform:translateY(-6px)}
+.phone:nth-child(2){transform:translateY(-14px) rotate(-1deg)}
+.phone:nth-child(2):hover{transform:translateY(-20px) rotate(-1deg)}
+.shots-cap{
+  grid-column:1/-1;text-align:center;font-size:12px;color:var(--pencil);
+  margin-top:6px;letter-spacing:.6px;
+}
+
+/* ---------------- 区块 ---------------- */
+section{padding:52px 0 0}
+.sec-h{
+  margin:0 0 6px;font-size:21px;font-weight:800;letter-spacing:-.2px;
+}
+.sec-h::before{
+  content:'✦';color:var(--red);font-size:15px;margin-right:6px;
+  font-weight:400;display:inline-block;transform:rotate(-10deg);
+}
+.sec-p{margin:0 0 24px;font-size:14.5px;color:var(--pencil)}
+
+/* 功能清单：左图标右文字，像钉在牛皮纸上的卡片 */
+.feat{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+.fcard{
+  position:relative;
+  background:var(--surface);border:2px solid var(--ink);
+  border-radius:var(--br-hand-sm);padding:18px;
+  box-shadow:2px 2px 0 var(--ink);
+  transition:transform .16s ease,box-shadow .16s ease;
+}
+.fcard::before{
+  content:'';position:absolute;top:-6px;left:14px;
+  width:34px;height:11px;background:var(--tape);opacity:.9;
+  transform:rotate(-3deg);
+}
+.fcard:nth-child(4n+1){--tape:var(--red)}
+.fcard:nth-child(4n+2){--tape:var(--blue);background:var(--surface2)}
+.fcard:nth-child(4n+3){--tape:var(--yellow)}
+.fcard:nth-child(4n+4){--tape:var(--green);background:var(--surface2)}
+.fcard:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.fcard .ic{
+  width:36px;height:36px;border-radius:8px 3px 9px 4px / 4px 9px 3px 8px;
+  background:var(--accent-soft);border:2px solid var(--ink);
+  display:flex;align-items:center;justify-content:center;margin-bottom:12px;
+  font-size:18px;transform:rotate(-2deg);
+}
+.fcard h3{margin:0 0 6px;font-size:15px;font-weight:800}
+.fcard p{margin:0;font-size:13px;color:var(--pencil);line-height:1.65}
+
+/* 步骤 */
+.steps{counter-reset:s;display:grid;gap:11px}
+.step{
+  counter-increment:s;position:relative;
+  background:var(--surface);border:2px solid var(--ink);
+  border-radius:var(--br-hand-sm);padding:15px 18px 15px 58px;
+  font-size:14px;color:var(--fg2);box-shadow:2px 2px 0 var(--ink);
+}
+.step::before{
+  content:counter(s);position:absolute;left:16px;top:13px;
+  width:28px;height:28px;border-radius:7px 2px 8px 3px / 3px 8px 2px 7px;
+  background:var(--red);color:var(--oncolor);
+  border:2px solid var(--ink);
+  font-size:13px;font-weight:800;
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(-3deg);
+}
+.step:nth-child(2n)::before{background:var(--blue)}
+.step:nth-child(3n)::before{background:var(--green)}
+.step:nth-child(5n)::before{background:var(--purple)}
+.step b{color:var(--fg);font-weight:800}
+
+/* FAQ */
+details{
+  background:var(--surface);border:2px solid var(--ink);
+  border-radius:var(--br-hand-sm);margin-bottom:10px;
+  box-shadow:2px 2px 0 var(--ink);overflow:hidden;
+}
+details summary{
+  cursor:pointer;padding:15px 18px;font-size:14.5px;font-weight:800;
+  list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center;
+}
+details summary::-webkit-details-marker{display:none}
+details summary::after{
+  content:'+';color:var(--red);font-size:20px;font-weight:700;line-height:1;
+  transition:transform .18s ease;flex:0 0 auto;
+}
+details[open] summary{background:var(--surface2)}
+details[open] summary::after{transform:rotate(45deg)}
+details .body{padding:0 18px 16px;font-size:13.5px;color:var(--fg2);line-height:1.78;
+  border-top:2px dashed var(--washi)}
+details .body p{margin:12px 0 8px}
+details .body p:last-child{margin-bottom:0}
+
+/* ---------------- 联系方式 ---------------- */
+.contact{
+  position:relative;
+  background:var(--surface);
+  border:var(--stroke) solid var(--ink);
+  border-radius:var(--br-hand);
+  padding:26px;box-shadow:4px 4px 0 var(--ink);
+  background-image:repeating-linear-gradient(45deg,rgba(43,35,24,.055) 0 1px,transparent 1px 7px);
+}
+.contact::before{
+  content:'';position:absolute;inset:7px;pointer-events:none;
+  border:1.5px dashed var(--washi);border-radius:9px 3px 10px 4px / 4px 10px 3px 9px;
+}
+.contact h2{margin:0 0 6px;font-size:19px;font-weight:800;letter-spacing:-.2px}
+.contact .sub{margin:0 0 20px;font-size:13.5px;color:var(--fg2)}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(226px,1fr));gap:12px}
+.clink{
+  display:flex;align-items:center;gap:13px;
+  background:var(--paper2);border:2px solid var(--ink);
+  border-radius:var(--br-hand-sm);padding:14px 16px;
+  color:inherit;text-decoration:none;
+  transition:transform .14s ease,box-shadow .14s ease;
+  box-shadow:2px 2px 0 var(--ink);
+}
+.clink:hover{
+  transform:translate(-1px,-1px);text-decoration:none;
+  box-shadow:3px 3px 0 var(--ink);
+}
+.clink .ci{
+  width:38px;height:38px;border-radius:8px 3px 9px 4px / 4px 9px 3px 8px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--accent-soft);border:2px solid var(--ink);font-size:18px;
+}
+.clink .ct{min-width:0;flex:1}
+.clink .ct b{display:block;font-size:14px;font-weight:800;line-height:1.3}
+.clink .ct span{display:block;font-size:12.5px;color:var(--pencil);margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clink .arr{color:var(--red);font-size:17px;flex:0 0 auto;font-weight:800}
+
+/* ---------------- 页脚 ---------------- */
+footer{
+  margin-top:56px;padding:28px 0 44px;border-top:2px dashed var(--ink);
+  font-size:12.5px;color:var(--pencil);line-height:1.95;
+}
+footer .fl{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+footer .fl a{color:var(--fg2);border-bottom:0}
+footer .fl a:hover{color:var(--red)}
+footer .disclaim{font-size:12px;color:var(--pencil);max-width:52em}
+
+/* Toast */
+#toast{
+  position:fixed;left:50%;bottom:36px;transform:translate(-50%,16px);
+  background:var(--ink);color:var(--paper2);font-size:13.5px;
+  border:2px solid var(--ink);border-radius:var(--br-hand-sm);
+  padding:11px 20px;opacity:0;pointer-events:none;
+  transition:opacity .2s ease,transform .2s ease;z-index:99;white-space:nowrap;
+  max-width:90vw;box-shadow:3px 3px 0 rgba(43,35,24,.4);
+}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+@media (min-width:760px){
+  .hero{grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}
+  .hero-copy h2{font-size:40px}
+}
+@media (max-width:520px){
+  .wrap{padding:0 16px}
+  .hero{padding:26px 0 4px;gap:26px}
+  .dl{padding:18px}
+  .btn{padding:15px 20px;font-size:15.5px}
+  .btn-ghost{flex:1 1 100%}
+  section{padding:38px 0 0}
+  .shots{gap:9px}
+  .phone:nth-child(2){transform:translateY(-8px) rotate(-1deg)}
+  .contact{padding:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  html{scroll-behavior:auto}
+}

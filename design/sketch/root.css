@@ -1,0 +1,71 @@
+/* ============================================================
+   河医大助手 · 样式表
+   设计基调（v1.1.50 素描纸）：纸面做底、墨线描边、硬投影，
+   圆角收小且四角不等，模拟手绘的不规整；强调色收敛为墨黑，
+   层次靠线宽与留白区分，状态色只留极淡的彩铅色。
+   ============================================================ */
+
+:root{
+  /* —— 纸与墨（素描纸主题核心令牌） —— */
+  --paper:#f4f0e5;
+  --paper2:#efe9da;
+  --ink:#1b1a17;
+  --ink-soft:#4a4640;
+  --pencil:#8b8478;
+  --rule:#d9d2c0;
+  --washi:#cfc7b4;
+  --veil:rgba(250,247,238,.80);
+  --grain-a:rgba(27,26,23,.016);
+  --grain-b:rgba(27,26,23,.009);
+
+  --bg:var(--paper);
+  --surface:#faf7ee;
+  --surface2:#f0ebdf;
+  --fg:var(--ink);
+  --fg2:var(--ink-soft);
+  --mute:var(--pencil);
+  --line:var(--rule);
+  --accent:var(--ink);
+  --accent-soft:#e9e3d3;
+  --danger:#a63a2e;
+  --warn:#a56a22;
+  --ok:#3f6b46;
+  --radius:6px;
+  --radius-sm:4px;
+  --shadow:2px 2px 0 rgba(27,26,23,.16);
+  --shadow-lift:3px 3px 0 rgba(27,26,23,.26);
+  color-scheme:light;
+  /* v1.1.39 深色模式：组件里的中性字面量全部收敛到这里。
+   * 深色只换 html[data-theme="dark"] 那一段，浅色值 == 原字面量。 */
+  --tap:#e6e0d0;
+  --tap2:#eae5d6;
+  --seg-bg:#e7e1d1;
+  --seg-on:#faf7ee;
+  --today-bg:#ece5d2;
+  --grip:#c9c1ad;
+  --img-bg:#e7e1d2;
+  --focus-line:#b9b1a0;
+  --row-border:#e4ddcc;
+  --card-mine-a:#efeada;
+  --gate-glow:#efeada;
+  --ok-bg:#e6ecdf;
+  --ok-line:#c3cfb4;
+  --danger-bg:#f3e4e0;
+  --danger-line:#dcbfb7;
+  --kb-bg:#f1ead6;
+  --kb-line:#d8cba8;
+  --kb-fg:#5b4a1e;
+  --kb-fg2:#7a6840;
+  --kb-bad-bg:#f3e3df;
+  --kb-bad-line:#d9bcb4;
+  --kb-bad-fg:#8c3529;
+  --kb-bad-fg2:#7a4a3d;
+  --kb-ok-bg:#e6ecdf;
+  --kb-ok-line:#c3cfb4;
+  --kb-ok-fg:#3f5c3f;
+  --kb-ok-fg2:#4f6a4a;
+  --tabs-bg:rgba(244,240,229,.96);
+  --mask:rgba(27,26,23,.45);
+  --shadow-modal:3px 3px 0 rgba(27,26,23,.26);
+  --shadow-modal-lg:5px 5px 0 rgba(27,26,23,.32);
+}
