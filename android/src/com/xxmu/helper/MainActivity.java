@@ -2159,8 +2159,49 @@ public class MainActivity extends Activity {
          * 这里读的是和 theme.js 同一个 pref；theme.js 在 <head> 里再设一次
          * data-theme，两边判据一致，不需要等 JS 跑起来。 */
         applyAppTheme(themeDarkNow());
+
+        /* v1.1.49：先把 /v1/config 的握手抢跑掉，再让网页去加载。
+         *
+         * 用户连着两次说「更新弹窗还是慢」。查下来时间不在服务端：
+         * /v1/config 只有 2 KB，Worker 里早有 60 秒边缘缓存（x-edge: hit
+         * 实测为真），命中缓存后 TTFB 只有 40~90ms。慢的是 TLS 握手：
+         * 同一域名实测 200~2150ms，冷启动首帧之后才发请求，等于把这
+         * 一两秒整个暴露在用户眼前。
+         *
+         * 为什么在 Java 里预热有用：App 里所有 /v1/ 请求都不是 WebView
+         * 自己发的，而是经 Host.httpFetchAsync 转给 Http.request 走
+         * HttpURLConnection（见 sync.js 的 net() 与 auth.js 的 fetchAny）。
+         * 也就是说预热与真正的请求共用同一个连接池，握手只做一次。
+         *
+         * 说明白一点：这是抢跑，不是保证。若握手没在 JS 发请求前完成，
+         * 它只是白做一次请求（2 KB），不会拖慢、也不会影响结果 —— 
+         * 结果直接丢弃，一切仍以网页那次请求的响应为准。 */
+        warmUpConfig();
+
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
+    }
+
+    /**
+     * 冷启动时先把 /v1/config 的连接握手做掉，让更新检查少等一个 RTT 往返。
+     * 见 onCreate 里的说明；失败一律忽略。
+     */
+    private void warmUpConfig() {
+        try {
+            final String url = baseNow() + "/v1/config";
+            Thread t = new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Http.request(url, "GET", "", "", "", null, "");
+                    } catch (Throwable ignored) {
+                    }
+                }
+            }, "xxmu-warm");
+            t.setDaemon(true);
+            t.start();
+        } catch (Throwable ignored) {
+        }
     }
 
     /** 系统夜间模式的真值（Java 侧唯一判据，JS 的 prefers-color-scheme 可能不跟系统走）。 */

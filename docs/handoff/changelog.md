@@ -7,6 +7,63 @@
 
 ---
 
+### v1.1.49（2026-11-07）—— 空闲教室的乱码 + 更新提示出得慢（**未上线，只出了本地包**）
+
+用户一张截图 + 一句「更新弹窗还是慢，你再修修。这里有乱码」。截图里「空闲教室」弹层的
+座位筛选下面那行灰字是 `妮十⊖鎖悮 チ锌氥噚璇佸凡澧辩胺夯闁喰梒鐧诲祵海綪!`。
+
+**乱码的根因**：那行字不是界面文案，是 `web/free.js` 的 `paint()` 在
+`if (ST.err) body.appendChild(el('p','hint left',ST.err))` 里**把服务端错误原文直出**。
+`ST.err` 由 `reasonOf(html)` 从教务返回页里用 `alert\(\s*['"]?([^'")]{4,80})` 抠出来，
+而矩阵页在 `loadMatrix()` 里是按 **GBK 硬解**的（`toGbk`，理由见 free.js 顶部注释：
+GBK 字节流有一段能侥幸通过 UTF-8 校验，先试 UTF-8 反而更糟）。教务维护时返回的是
+**UTF-8 网关页**，被当 GBK 解 → 字节错配 → 乱码。
+**为什么不能猜编码**：实测截图那串含 `⊖`（U+2296，GBK 无此码位），逐字 gb18030 回编码
+也拼不回原字节 —— 字节已经被错配过不止一次，原文不可逆。所以修法不是换解码器。
+
+**修法**：界面绝不直出未识别的原始字节。
+- 新增 `function looksReadable(t)`：统计 CJK 区（U+4E00–U+9FFF）字数作分母、其中属于
+  650 字常用字表（字频序，`const COMMON`）的作分子，`common / cjk >= 0.3` 才算人话；
+  遇到 U+FFFD 替换符或私用区（U+E000–F8FF）直接判死。
+- `reasonOf` 拆成四档：登录失效 → 固定句；抠到 alert 原文 → **过 `looksReadable` 才放行**，
+  否则给「教务返回的内容看不懂，可能正在维护，稍后再试」；没有 table → 「没有表格」；
+  否则空串（由 `loadMatrix` 落到「这栋楼这周没有排课数据」）。
+- 阈值是用 node 实测定的：截图乱码 0.09、单层乱码 0.00/0.08、双层乱码 0.00 全部拦下；
+  9 条真实教务提示（凭证失效 0.64、周排课 0.78、维护中 0.91、页面不存在 0.75…）全部放行。
+- **不能**用全角区 U+FF00–FFEF 判乱码 —— 正常中文的「，」「：」都在这区。
+
+**更新提示慢的根因（不是服务端）**：`/v1/config` 早就有 60 秒边缘缓存（实测 `x-edge: hit`，
+响应头 `cache-control: public, max-age=60`），服务端 TTFB 只有 40–90ms。
+慢的是 `android/src/com/xxmu/helper/Http.java` 的 `request()` 在 finally 里**无条件**
+`c.disconnect()` —— Android 的 `HttpURLConnection.disconnect()` 会把 socket 从 keep-alive
+池里摘掉并关闭，于是每个 `/v1/` 请求都重做一次 TCP+TLS（本机实测 TLS 段 200–2150ms，
+且被路由到 LHR/SEA 节点，抖动极大）。`readResponse()` 本来就在 finally 里把响应流读完并
+close（历史 fd 泄漏事故后加的），所以连接是可复用的。
+
+**修法**：
+- `Http.java`：`request()` 加 `boolean reusable = false;`，`readResponse(c)` 正常返回后置
+  `reusable = true;`，finally 改成 `if (c != null && !reusable) c.disconnect();`。
+  **异常路径仍然断连**（半截响应不能还回池子）。
+- `MainActivity.java`：`onCreate` 在 `applyAppTheme()` 与 `loadUrl()` 之间插 `warmUpConfig();`
+  —— 起一个 daemon 线程提前把 `baseNow() + "/v1/config"` 打一遍，让握手在 WebView 起来
+  之前就做完。这是抢跑不是保证：失败只白做一次 2 KB 请求，吞异常。
+- `tools/test_theme.js` 原先用 `/applyAppTheme\(themeDarkNow\(\)\);\s*\n\s*web\.loadUrl/`
+  钉「先设底色再 loadUrl」，被 `warmUpConfig();` 插在中间后变红；改成比 `indexOf` 先后顺序，
+  断言语义不变。
+
+**验证**：① 编译/签名通过，证书与 v1.1.1 同一把 `0e684845…57799`；
+② `tools/test_free.js` 42 项（新增 12 条乱码断言，含“reasonOf 不许把 `鎖`/`⊖` 带出来”）、
+`check_web.js` 新增 v1.1.49 段 13 条锚点（含 Java 侧三条 `reusable` 锚点 —— check_web 历来
+不查 `android/*.java`，这次破例钉死）、全 23 套离线测试 0 红、`verify_apk.py` 五件套全过；
+③ 包 665840 字节 / sha256 `ab765d48…acba9` / aapt2 1149 / 1.1.49，包内 `assets/free.js`
+（26124 字节）与 `web/free.js` 逐字节一致。
+④ **真机没验**：乱码是否真消失（要有教务维护页才复现）、预热后首屏弹窗快了多少。
+
+**注意**：v1.1.49 与 v1.1.38 起的多个版本**字节数完全相同（都是 665840）**，只有 SHA 不同。
+认版本只能看 SHA 和「我的 → 关于」的版本号，不能看文件大小。
+
+---
+
 ### v1.1.48（2026-11-06）—— 管理台时间全显示成「1/22」（**已上线 2026-11-06 23:0x**）
 
 用户一张截图 + 一句「这个时间不对吧1/22是什么」。管理控制台「详情」里

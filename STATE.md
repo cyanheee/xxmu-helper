@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-06 23:08
+> 生成时间：2026-11-07 00:04
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.48** |
-| AndroidManifest versionCode | **1148** |
-| web/about.js APP_VERSION | 1.1.48 |
-| web/index.html #aboutVer | 1.1.48 |
+| AndroidManifest versionName | **1.1.49** |
+| AndroidManifest versionCode | **1149** |
+| web/about.js APP_VERSION | 1.1.49 |
+| web/index.html #aboutVer | 1.1.49 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.48.apk` |
+| 文件 | `apk/xxmu-helper-v1.1.49.apk` |
 | 大小 | 665840 字节 |
-| SHA-256 | `55f0d9620409bbc566b3975074bb2228e054f30d01d9c627042382bd44e6e84f` |
-| 出包时间 | 2026-11-06 23:01 |
-| 包内版本（aapt2） | 1.1.48 / 1148 |
+| SHA-256 | `ab765d48dc2310b79a47c06f0d2adf6d12ed4c0205cd39ab833256da624acba9` |
+| 出包时间 | 2026-11-07 00:01 |
+| 包内版本（aapt2） | 1.1.49 / 1149 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -46,26 +46,46 @@
 | qq | 1097668324 |
 | maxDev | 3 |
 
-> 线上 latest 与本地最新的包**字节一致**：发过了，不用再发。
+> 线上 latest 与本地最新的包**不是同一个**（sha 不同）。
+
+> 本地已到 **1.1.49**，线上还是 **1.1.48** —— 新版本**还没发**。
+> （用户说「继续写」不等于授权发布；只有说「上线/发版/发布」才切 latest。）
 
 ## 4. 仓库位置
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `2a6bc9b` |
-| 远程 main（API 实读） | `4bdce63` |
-| 与远程内容 | **一致**（逐文件比 209 个 blob sha：不一致 0 / 远程多出 0；STATE.md 自指，不计入） |
-| 未提交改动 | 0 个文件 |
+| 分支 | main @ `f2e1025` |
+| 远程 main（API 实读） | `5119580` |
+| 与远程内容 | **不一致**（逐文件比 209 个 blob sha：不一致 11 / 远程多出 0；STATE.md 自指，不计入） |
+| 未提交改动 | 13 个文件 |
 
 最近提交：
 
 ```
+f2e1025 docs: v1.1.48 上线状态（线上 1.1.48 / 1148 / 665840 / 55f0d962）
 2a6bc9b release: v1.1.48 (code 1148)
 ba3eab2 chore(state): 远程 tree 用 API 实读 + 与 push_full_tree 同口径（本地文件 hash），修掉「已对齐却报领先 24」
 41afc47 release: v1.1.47 (code 1147)
 ff7f2b5 docs: 提交后重新生成 STATE（本地 1.1.47 / 线上 1.1.43）
 8dd647e fix(update): v1.1.47 下载URL跟着双入口回退走 + 学生视角说明/教程/文档
-4e13f0b docs: 提交后重新生成 STATE（本地 1.1.46 / 线上 1.1.43）
+```
+
+未提交：
+
+```
+M STATE.md
+ M android/AndroidManifest.xml
+ M android/src/com/xxmu/helper/Http.java
+ M android/src/com/xxmu/helper/MainActivity.java
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M tools/check_web.js
+ M tools/test_free.js
+ M tools/test_theme.js
+ M web/about.js
+ M web/free.js
+ M web/index.html
 ```
 
 ## 5. 常用命令（复制即用）
@@ -98,6 +118,7 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **备份签名密钥** `android/xxmu.jks`（pass `xxmu123`）到网盘/邮箱。
 
 ### 二、等真机（没有设备，一律不能声称已验证）
+- [ ] **v1.1.49 两条（新）**…
 - [ ] **青果登录页 `input#username` 在真机 WebView 的 `onPageFinished` 时序下能否稳定读到**。
 - [ ] **学号不一致时拦课表同步的提示是否清楚**（v1.1.2 那次判据错把人永久锁死过）。
 - [ ] **v1.1.16 饮水机四条（最要紧）**…

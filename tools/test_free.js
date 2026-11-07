@@ -154,6 +154,32 @@ if (!fs.existsSync(fx)) {
   const rn = KFREE.reasonOf('<script>alert(未设置的周排课天数/天排课节次。\\n请与系统管理员联系！)</script>');
   ok(rn.indexOf('周排课') >= 0, '「未设置的周排课」被原样带出来（实得 "' + rn + '"）');
   ok(KFREE.reasonOf('<html><body>hi</body></html>').indexOf('表格') >= 0, '无表格 → 说没有表格');
+
+  /* ---------- 乱码不能直接贴给学生（v1.1.49） ----------
+   * 有学生看到空闲教室那行灰字是
+   * 「妮十⊖鎖悮 チ锌氥噚璇佸凡澧辩胺夯闁喰梒鐧诲祵海綪!」——
+   * 教务维护/网关页本是 UTF-8，被我们按 GBK 硬解的结果。
+   * 字节错配不可逆，只能在显示层判断「像不像人话」。 */
+
+  const MOJI_TA = '妮十⊖鎖悮 チ锌氥噚璇佸凡澧辩胺夯闁喰梒鐧诲祵海綪!';
+  const MOJI_1 = '鎻愮ず锛氳峰厛鐧诲綍鍚庡啀鏌ヨ锛';
+  const MOJI_2 = '閹绘劗銇氶敍姘愁嚞閸忓牏娅ヨぐ鏇炴倵閸愔秵鐓＄拠顫磼';
+
+  ok(KFREE.looksReadable(MOJI_TA) === false, '截图那串乱码判为「看不懂」');
+  ok(KFREE.looksReadable(MOJI_1) === false, 'UTF-8 当 GBK 的单层乱码判为「看不懂」');
+  ok(KFREE.looksReadable(MOJI_2) === false, '双层错配乱码判为「看不懂」');
+  ok(KFREE.looksReadable('') === false, '空串不算人话');
+  ok(KFREE.looksReadable('abc 123') === false, '没有汉字不算人话');
+  ok(KFREE.looksReadable('这栋楼这周没有排课数据') === true, '正常中文判为「看得懂」');
+  ok(KFREE.looksReadable('系统正在维护，请稍后重试') === true, '维护提示判为「看得懂」');
+
+  // 乱码走了兜底，不能把原始串漏给学生
+  const rm = KFREE.reasonOf('<script>alert(' + MOJI_TA + ')</script>');
+  ok(rm.indexOf('鎖') < 0 && rm.indexOf('⊖') < 0, '乱码页不再原样带出（实得 "' + rm + '"）');
+  ok(rm.length > 4, '乱码页给出一句能看懂的兜底（实得 "' + rm + '"）');
+  // 正常提示仍然原样带出，兜底不能把好文案也吃掉
+  const rOk = KFREE.reasonOf('<script>alert(系统正在维护，请稍后重试)</script>');
+  ok(rOk.indexOf('系统正在维护') >= 0, '正常提示照旧原样带出（实得 "' + rOk + '"）');
 }
 
 /* ---------- 时段切分 ---------- */

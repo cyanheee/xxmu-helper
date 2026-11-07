@@ -401,8 +401,17 @@ console.log('\n8. Java 侧与 manifest 接线（链路每一端都在）');
   ok(/UI_MODE_NIGHT_YES/.test(main), '真的比了 UI_MODE_NIGHT_YES');
   ok(/public void setAppTheme\(final boolean dark\)/.test(main), 'Host.setAppTheme 桥');
   ok(/runOnUiThread\(new Runnable\(\)/.test(main.slice(main.indexOf('setAppTheme'))), '桥里 post 回 UI 线程');
-  ok(/applyAppTheme\(themeDarkNow\(\)\);\s*\n\s*web\.loadUrl/.test(main.replace(/\r/g, '')),
-    'onCreate 在 loadUrl 之前设首屏底色');
+  /* v1.1.49：onCreate 里在两行之间插了 warmUpConfig()（抢跑 /v1/config
+   * 的握手），原来的「紧挨着」正则就误判了。判据本来也不是「相邻」，
+   * 而是「底色先设、页面后加载」—— 改比先后顺序，不要求同行。 */
+  {
+    const src = main.replace(/\r/g, '');
+    const iTheme = src.indexOf('applyAppTheme(themeDarkNow());');
+    const iLoad = src.indexOf('web.loadUrl("file:///android_asset/index.html")');
+    ok(iTheme >= 0 && iLoad >= 0 && iTheme < iLoad,
+      'onCreate 在 loadUrl 之前设首屏底色',
+      iTheme < 0 ? '找不到 applyAppTheme 调用' : (iLoad < 0 ? '找不到 loadUrl' : '顺序反了'));
+  }
   ok(/onConfigurationChanged/.test(main), '处理系统夜间模式变化');
   ok(/keyboardHidden\|uiMode/.test(mani), 'configChanges 含 uiMode');
   ok(/setAlgorithmicDarkeningAllowed\(false\)/.test(main) && /FORCE_DARK_OFF/.test(main),

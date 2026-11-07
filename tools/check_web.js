@@ -1495,6 +1495,36 @@ if (/fmtDay\([^)]*\*\s*1000\)/.test(
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
 }
 
+// ---- v1.1.49：空闲教室乱码 + 更新检查的握手开销 ----
+console.log('\nv1.1.49 checkpoints（乱码兜底 + 连接复用）:');
+has(free, 'function looksReadable(t)', 'free.js 有「像不像人话」判定');
+has(free, 'return common / cjk >= 0.3', '判据是常用字占比，不是全角符号区（正常中文的，：也在那）');
+has(free, 'if (c === 0xfffd)', 'U+FFFD 直接判死（解码器自己都说坏）');
+has(free, 'c >= 0xe000 && c <= 0xf8ff', '私用区直接判死（GBK 越界映射出来的）');
+has(free, '教务返回的内容看不懂，可能正在维护，稍后再试', '看不懂时给一句能照着做的');
+has(free, 'if (looksReadable(t)) return t;', '看得懂才原样带出教务原话');
+has(free, 'looksReadable: looksReadable,', '判定函数导出（测试才验得到）');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_free.js')], { encoding: 'utf8' });
+  console.log('  空闲教室行为测试  =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('空闲教室测试未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+{
+  /* Java 侧不能靠行为测试，只能钉住关键行：以前 check_web 完全不看
+   * android/*.java，改错了要等真机才知道。 */
+  const http = read('android/src/com/xxmu/helper/Http.java');
+  has(http, 'boolean reusable = false;', 'Http.request 记「这条连接能不能复用」');
+  has(http, 'reusable = true;', '读完响应才置真（异常路径仍断连）');
+  has(http, 'if (c != null && !reusable) c.disconnect();',
+    '成功路径不断连，keep-alive 池才留得住（TLS 握手省掉）');
+  const main = read('android/src/com/xxmu/helper/MainActivity.java');
+  has(main, 'warmUpConfig();', '冷启动抢跑一次 /v1/config 的握手');
+  has(main, 'Http.request(url, "GET", "", "", "", null, "")', '预热走的是同一个连接池');
+}
+
 // 三处版本号必须同步，否则「我的」页显示的版本和包里写的不一致
 const vIdx = /id="aboutVer">v([\d.]+)</.exec(idx);
 const vAbout = /APP_VERSION = '([\d.]+)'/.exec(about);

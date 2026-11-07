@@ -47,6 +47,8 @@ final class Http {
     static String request(String url, String method, String body, String cookie,
                           String contentType, String referer, String extraHeaders) {
         HttpURLConnection c = null;
+        /* 正常读完 = 这条连接可以还回池子（见 finally 的长注释）。 */
+        boolean reusable = false;
         try {
             c = (HttpURLConnection) new URL(url).openConnection();
             c.setConnectTimeout(TIMEOUT);
@@ -100,11 +102,30 @@ final class Http {
                 os.flush();
                 os.close();
             }
-            return readResponse(c);
+            String out = readResponse(c);   // 内部已把响应流读完并 close
+            reusable = true;                // 完整响应：这条连接可以留池复用
+            return out;
         } catch (Exception e) {
             return "ERR:" + e.getClass().getSimpleName() + ":" + e.getMessage();
         } finally {
-            if (c != null) c.disconnect();
+            /* ============ 不要在成功路径上 disconnect ============
+             *
+             * 学生的体感问题是「更新弹窗要等一两秒才出来」。
+             * 那个弹窗背后是 GET /v1/config，它本身只有 2 KB，
+             * 服务端也早有 60 秒边缘缓存（x-edge: hit 实测为真），
+             * 命中缓存仍要 0.6~1.1 秒 —— 时间几乎全花在 TLS 握手上：
+             * 本机实测同一域名的 TLS 段 200~2150ms，而 TTFB 只有 40~90ms。
+             *
+             * 为什么每次都握手？因为这里以前无条件 c.disconnect()。
+             * Android 的 HttpURLConnection.disconnect() 会把底层 socket
+             * 从 keep-alive 池里摘掉并关掉，下一次请求就只能重新 TCP+TLS。
+             * readResponse() 已经在 finally 里把输入流读完并 close 了，
+             * 响应体完整读过、流已关闭，这条连接本来是可以复用的。
+             *
+             * 所以：正常返回就不碰它，让池子留着；异常路径仍然断
+             * （半截响应、超时、reset 的连接不能还给池子）。
+             * 这也是 JDK 文档给的标准用法：读了流就别 disconnect。 */
+            if (c != null && !reusable) c.disconnect();
         }
     }
 
