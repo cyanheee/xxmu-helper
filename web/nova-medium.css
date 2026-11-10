@@ -1,0 +1,507 @@
+/* NOVA 介质统一层
+   写域：本文件（web/nova-medium.css）。由 medium-unify 负责。
+   宪法：design/sketch/NOVA-SIGNATURE.md §1.4（统一感的来源是同一套光的逻辑）
+        与 §2.1（强调色配额）。
+
+   【为什么需要这一层】
+   现在同一屏出现三种互不相干的「介质」：
+     ① 冷瓷白卡片  #F5F9FA → #E3ECEF
+     ② 米黄纸/票券  --n-tape #F2E9DA
+     ③ 深蓝玻璃    --n-glass #122A38
+   三种介质各有各的光、各有各的边、各有各的圆角 → 整页像「水彩纸 + 唱片封套 +
+   电路板拼在一起」。这就是 YG 说的「元素融合得不太好看」的直接来源。
+
+   本层不新增任何风格，只做一件事：把三种介质收进同一套光照与边缘语言。
+*/
+
+/* ======================================================================
+   ① 令牌：一套光照 + 一套边缘 + 一条明度阶梯
+   ----------------------------------------------------------------------
+   这节解决什么：「各打各的光」的根。全站从此只有一个光源方向（正上方），
+   只有一种描边浓度，只有一条从深到浅的明度阶梯。
+   参考 The Last Night：3D 箱子、2D 纸片人、预渲飞车能同框，不是因为它们
+   质感一样，而是因为它们共用一个太阳。我们统一的是光，不是材质。
+
+   【与 nova-organs.css 的分工】org-color 已在器官层建好 --o-ceramic /
+   --o-ceramic-2 / --o-line / --o-ship 一族。本层不重定义它们，只把「光」这一
+   维度单独抽出来（--n-lift / --n-lift-shell），让页面卡与器官卡共用同一组投影。
+   这就是两个写域能拼成一张图的原因：颜色各管，光归一处。
+   ====================================================================== */
+
+/* 浅色档（默认）------------------------------------------------------- */
+html[data-skin="nova"]{
+  /* 光只从上往下打：高光只在上边缘，投影 y 一律为正 */
+  --n-light-top: inset 0 1px 0 rgba(255,255,255,.62);       /* 浅色面（瓷面）的顶光 */
+  --n-light-top-shell: inset 0 1px 0 rgba(255,255,255,.09);  /* 深色面（机器壳）的顶光：同一个太阳，只是壳吃光少 */
+  --n-shadow-1: 0 1px 0 rgba(16,24,40,.10);                 /* 贴地线：把物体钉在纸上 */
+  --n-shadow-2: 0 3px 8px -2px rgba(16,24,40,.12);          /* 柔投影：给体积，不给硬边 */
+  --n-edge: rgba(16,24,40,.10);                             /* 极淡描边：定边不抢戏 */
+  --n-edge-strong: rgba(16,24,40,.16);                      /* 需要更硬的分割线时 */
+
+  /* 介质明度阶梯（浅色档专用）。只允许明度差，不允许色相差 ——
+     死亡细胞的做法：背景之间必须互相融合，对比留给玩法元素。
+     四级台阶（WCAG 相对亮度）：卡片 .990 → 纸位 .907 → 页面底 .846 → 玻璃 .754。
+     相邻两级对比度必须 ≥1.06（实测 1.086 / 1.068 / 1.114，卡片↔玻璃 1.293），
+     即截图去色后这四层仍然分得开 —— §1.2「灰阶定结构」的硬指标。
+     卡片刻意贴住 nova-organs.css 的 --o-ceramic(#FDFEFF)：器官卡与页面卡
+     必须同一种白，否则「融合」从第一眼就破了。 */
+  --n-m-card: #FDFEFF;    /* 冷瓷白卡片：= --o-ceramic，近白微冷，纯色（不是奶油、不是灰） */
+  --n-m-paper: #EDE5D0;   /* 低饱和纸 S≈12%（v3 材质轴回迁：纸回来了，但降饱和、仍是纸不是白卡）。
+                              台面/内容区一律瓷白，只有纸质载体吃它；与卡片比 1.244:1，
+                              与页面底比 1.072:1，三级层次仍靠明度成立。 */
+  --n-m-glass: #D4CFE2;   /* 原深蓝玻璃位：浅冷凹槽，比页面底再深一档。
+                              v3 复审：原 #D8E3E9(Y=224.4) 与空格子 #E2E9ED(231.4)
+                              只差 7，实拍里「槽底」和「空格子」糊成一片；
+                              压到 #C9D5DD（Y=210.3）后与空格子拉开 16。 */
+  /* 课表格子底：空格子必须是「凹进去的槽」，与课卡（--n-m-card）拉开 ≥20/255 的
+     亮度差。上一版用 rgba(255,255,255,.56) 半透明叠在凹槽上，压出 Y≈242，
+     与课卡 254 只差 12.9，去色后两层糊在一起（§1.2 灰阶定结构不达标）。
+     v3 复审实测：课卡纯像素 meanY=249.87，空格子 #E2E9ED=230.35，只差 **19.52**
+     （门槛 20，差 0.5 就掉线）。压到 #DCE4EA（Y≈226.3）后差 **23.6**；
+     与容器槽底 #C9D5DD(210.3) 差 16，与页面底（≈233）差 6.7 —— 四级层次：
+     槽底 210 < 空格子 226 < 页面底 233 < 课卡 254，全是明度，没有色相。
+     注意它只给 .cell 用，不参与 --n-m-* 三档介质命名，避免被当成第四种介质。 */
+  --n-m-grid-cell: #E5DFEF;
+
+  /* 统一抬升：任何介质贴上来都用同一组投影，不许自定义。
+     浅面抬升 / 深面抬升分开，但光源是同一个 —— 壳不是另一种光，只是吃光少。 */
+  --n-lift: var(--n-light-top), var(--n-shadow-1), var(--n-shadow-2);
+  --n-lift-shell: var(--n-light-top-shell), var(--n-shadow-1), var(--n-shadow-2);
+}
+
+/* 深色档（紫夜舱）-----------------------------------------------------
+   深色档不改任何底色（紫夜舱 + 米黄纸 + 深玻璃的对比是风格本身），
+   只把「光的方向」和「抬升」换成同一套：上边缘一点冷高光，投影只向下。
+   因此这里只定义光相关的 8 个令牌，不定义 --n-m-*（那三档是浅色档专用）。 */
+html[data-skin="nova"][data-theme="dark"]{
+  --n-light-top: inset 0 1px 0 rgba(255,255,255,.08);
+  --n-light-top-shell: inset 0 1px 0 rgba(255,255,255,.07);
+  --n-shadow-1: 0 1px 0 rgba(0,0,0,.45);
+  --n-shadow-2: 0 4px 10px -2px rgba(0,0,0,.55);
+  --n-edge: rgba(234,242,255,.10);
+  --n-edge-strong: rgba(234,242,255,.18);
+
+  --n-lift: var(--n-light-top), var(--n-shadow-1), var(--n-shadow-2);
+  --n-lift-shell: var(--n-light-top-shell), var(--n-shadow-1), var(--n-shadow-2);
+}
+
+/* ======================================================================
+   ② 冷瓷白卡片：去渐变，换成一块纯色瓷片
+   ----------------------------------------------------------------------
+   这节解决什么：nova-skin.css 给 .card 铺了 #F5F9FA→#E3ECEF 的竖向渐变，
+   于是每张卡自己带一道「天光」——它和第③种介质（深蓝玻璃的内发光）不是同
+   一个太阳。改成纯色 + 统一顶光后，卡片只剩「一块瓷」，明度差取代渐变。
+
+   !important 说明：nova-skin.css:183 用的是 background 简写 + !important，
+   只写 background-color 会被渐变图层盖住，必须同时清掉 background-image；
+   投影同理，skin 用的是 0 3px 0 的硬投影，不 !important 压不住。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) .card{
+  background:var(--n-m-card) !important;
+  background-image:none !important;
+  box-shadow:var(--n-lift) !important;
+}
+/* 卡片里的「第二层纸」——铭牌舱的读数页（organs 给的是冷瓷渐变 + 0 2px 0 硬投影），
+   拉成同一块平面瓷，让「卡里的卡」和「卡」是同一种材料。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-sheet{
+  background:var(--n-m-card) !important;
+  background-image:none !important;
+  border:1px solid var(--n-edge) !important;
+  border-radius:var(--n-r-md) !important;
+  box-shadow:var(--n-lift) !important;
+}
+
+/* ======================================================================
+   ③ 纸质载体回归（浅色档）· v3 材质轴回迁
+   ----------------------------------------------------------------------
+   这节解决什么：v2 把「米黄纸」当第四种介质从 nova 里赶出去，于是纸感
+   全站消失 —— 器官一律冷瓷，只剩形状没有材质。v3 的判断（NOVA-SIGNATURE
+   §2.1 / §3.5）：纸是 C 级器官的合法材质，不是异物；正确做法是降饱和 +
+   统一光照，不是删掉。
+
+   分工（铁律二：外壳可以有材质色，内容区必须回到中性阶）：
+     · 内容区（磁带抽屉 / 剪报卡 / 刷票卡面）→ 瓷白 --n-m-card
+     · 纸质载体（票券闸门）→ 低饱和纸 --n-m-paper
+   这里只给「底色 + 抬升」，**材质纹理（墨线 / 撕角 / 齿孔 / 凹印 / 油墨）
+   归 nova-press.css（漫画 + 复古票券），材质质感（黄铜轴 / 皮革压边）归
+   nova-brass.css**。所以本节刻意不加 !important：让后面加载的风格文件
+   能在这层底色之上继续画材质（载入序 app→skin→organs→medium→press→
+   brass→pixel→cyber→anime→ghibli→campuscard→motion→pop，同特异性后加载者胜）。
+   只保留圆角钉死（那是 §4 的两档尺度，不属于材质）。
+
+   !important 说明：organs 的这批规则带 !important 或用 background 简写，
+   只写 background-color 会被渐变图层盖住，必须同时清掉 background-image。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-tape-card,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-clip-card,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-swipe-card{
+  background:var(--n-m-card);
+  background-image:none;
+  box-shadow:var(--n-lift);
+}
+/* 票券闸门比卡片再退一档：它是「托盘上的票」，不是正文卡。
+   用低饱和纸位而不是再开一个新颜色 —— 同一族里退半档，就够读出来了。
+   纸的齿孔 / 凹印 / 油墨由 nova-press.css 在这层之上画。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-shell{
+  background:var(--n-m-paper);
+  background-image:none;
+  box-shadow:var(--n-lift);
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-clip-close,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-tape-close{
+  border-radius:var(--n-r-sm) !important;
+}
+
+/* ======================================================================
+   ④ 玻璃降级（浅色档）：深蓝玻璃位只剩课表容器一处
+   ----------------------------------------------------------------------
+   这节解决什么：#122A38 的深蓝玻璃在近白页面上是一块「洞」——它和
+   --o-ship 冷墨机壳不是同一种深，是第三种深。核实后浅色档里还剩深蓝玻璃的
+   只有 #grid 这一个容器（.nv-plate-bar / .nv-belt / .nv-swipe-gate 已被
+   org-color 统一成冷墨树脂机壳，本层不再动它们）；.card.elec-entry 见 ⑥。
+   这里把它降到「比瓷面深一档的浅冷凹槽」，读起来是「压进去的仪表槽」，
+   而不是「另一个世界」。
+
+   !important 说明：skin 的 #grid 用 background 简写 + !important 铺渐变，
+   还叠了 ::before 扫描线（8s）与 ::after 透视蒸汽波网格（18s）两层装饰背景。
+   那两层是「电路板感」的主源，浅色档必须整层关掉（display:none 盖过 skin
+   的 animation），所以两条都带 !important。
+
+   【归属】浅色档 #grid / #grid .cell / #grid .c 的底色归**本文件**所有。
+   nova-skin.css 里同名的浅色规则（例如 `#grid .c{background:#3B464E}`）在本文件
+   之后加载、但特异性更低（(1,2,1) / (1,1,0) 对 (1,3,1)），在浅色档**永远不生效**
+   —— 去 skin 里改这些值是看不见效果的，要改请改这里。深色档相反：本文件
+   一律用 :not([data-theme="dark"]) 排除自己，深色档的 #grid/.c 仍由
+   nova-skin.css 与 nova-pixel.css 说了算。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid{
+  background:var(--n-m-glass) !important;
+  background-image:none !important;
+  border:1px solid var(--n-edge-strong) !important;
+  border-radius:var(--n-r-md) !important;
+  box-shadow:var(--n-lift) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid::before,
+html[data-skin="nova"]:not([data-theme="dark"]) #grid::after{
+  display:none !important;
+}
+
+/* ======================================================================
+   ⑤ 课表格子与课程块：把「深底白字」整片翻成「白瓷深字」
+   ----------------------------------------------------------------------
+   这节解决什么：#grid 换成浅凹槽之后，里面原本为深底准备的 .cell（半透明深
+   蓝）、.c（深蓝渐变 + 近白字）、.gh/.gp（--n-on-2 浅蓝字）全部会变成
+   「白字压白底」。所以容器与内容必须同一条改动里一起翻，不能只改容器。
+
+   【v1.1.61 收口：课卡不再挂主色左竖条】
+   原来这里给每张课卡挂 `border-left:2px solid rgba(31,167,154,.62)`，想的是
+   「全站内容面只有一种边」。但一屏十节课就是十条青绿彩边 —— 主色配额只有 1，
+   人眼看到的正是 critic 点名的最严重单点（2px 边在 2x 图里只有 4px 宽，被
+   12px 的格子一平均，量化脚本数不到，眼睛却一眼看见）。
+   现在改成纯明度分层：格子压到 --n-m-grid-cell（Y≈231），课卡亮到
+   --n-m-card（Y≈254），差 **22.4/255**（要求 ≥20）。卡片的边只留 1px 中性描边
+   加一道 1px 内阴影 —— 中性，不夺主色。
+
+   !important 说明：skin 的 .cell/.c/.gh/.gp 全部带 !important 且用 2px 硬边，
+   不 !important 一条都改不动；字色尤其必须在同一条规则里压住，否则直接违反
+   「无白字压白底」红线。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .cell{
+  border:1px solid var(--n-edge) !important;
+  /* 空格子必须是实色、且明显比课卡深：v3 实测 #E2E9ED 与课卡只差 19.52
+     （门槛 20），压到 #DCE4EA（Y≈226.3）后差 23.6。
+     圆角从 0 改回 8px：铁律一规定圆角只有 0/8/12 三档，0 是像素器官的专利
+     （§1.5 唯一 0 圆角器官），课表格子不该借。 */
+  background:var(--n-m-grid-cell) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:none !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .cell.today{
+  border-color:rgba(31,167,154,.55) !important;
+  background:rgba(31,167,154,.10) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c{
+  border:1px solid var(--n-edge) !important;
+  background:var(--n-m-card) !important;
+  background-image:none !important;
+  color:var(--n-ink) !important;
+  border-radius:var(--n-r-sm) !important;
+  /* 边界感交给「顶光 + 一圈 1px 中性内描边 + 贴地线」，全部中性色 */
+  box-shadow:var(--n-light-top), inset 0 0 0 1px rgba(16,24,40,.06),
+    var(--n-shadow-1) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c b{color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c .room,
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c .pr,
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c .pr2{color:var(--n-ink-2) !important}
+/* 「今天」不再靠彩边，靠一圈更紧的中性内描边 + 一点点主色内发光（不是边框：
+   边框会被读成「这条课有分类色」，内发光只读成「这格被点亮了」）。 */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .c.today{
+  border-color:rgba(16,24,40,.20) !important;
+  box-shadow:var(--n-light-top), inset 0 0 0 1px rgba(31,167,154,.34),
+    var(--n-shadow-1) !important;
+}
+/* 表头字与节次刻度：skin 里给的是 rgba(226,236,238,.52/.44) —— 那是深底用的
+   半透明白，压在浅冷凹槽 #D8E3E9 上等于浅字压浅底。上一版我压到 --n-ink-2
+   (#4A5A6A)，实测在 8px/9px 的字号下仍然偏轻（左侧「1/2/3…16」与
+   「08:00-08:45」读起来吃力）。这里直接提到 --n-ink：正文级最深一档，
+   8px 也站得住（#grid 凹槽上 13.59:1）。
+   注意 .gp 里的 .gt 子元素是钟点副标，比节次号轻一档即可，用 --n-ink-2。 */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .gh{color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp{
+  color:var(--n-ink) !important;
+  background:rgba(16,24,40,.05) !important;
+}
+/* 节次号 .gp>div 是刻度的主读数（app.css:1490 给它 --ink2 + weight 800）：
+   走 --n-ink 才是「主读数」，--n-ink-2 是副读数的档。
+   钟点副标 .gt 除颜色外还带 app.css:196 的 opacity:.65 —— 5.5px 的字再乘 65%
+   透明度，压在 #D8E3E9 上等效只剩 ≈2.7:1，这是「读起来吃力」的第二个来源。
+   这里把不透明度钉回 1（字号不动：18px 刻度列里 6.5px 的等宽字会溢出）。 */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp > div{color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp .gt{
+  color:var(--n-ink-2) !important;
+  opacity:1 !important;
+}
+/* 左上角 corner 是空 .gh（renderWeek 里 el('div','gh','')），不需要任何边框；
+   它和表头同一条类名，皮肤层若给它描边会在格线交汇处多出一小节竖线。 */
+html[data-skin="nova"]:not([data-theme="dark"]) #grid .gh:empty{
+  border:0 !important;
+  background:none !important;
+}
+
+/* ======================================================================
+   ⑥ 空调卡 .card.elec-entry：整块深蓝 → 同族浅瓷 + 顶部 2px 主色标线
+   ----------------------------------------------------------------------
+   这节解决什么：浅色档里割裂最强的就是这张卡——一块深蓝玻璃 + 内发光 + 满铺
+   青色字，压在近白页面上像贴了张别处的截图。改成和普通卡同族的瓷面，用顶部
+   一条 2px 主色横线说「这是设备卡」，而不是靠整块反色。
+   边语言与 ⑤ 的分工：内容卡用「左边 2px 主色线」（.card / .c 的既有语言），
+   设备卡用「顶部 2px 主色线」—— 两句话，不互相抢。
+
+   !important 说明：skin 用 background 简写 + !important 铺深蓝渐变，并且
+   border/color/box-shadow 全部 !important；字色不跟底色一起改就是深字压深底。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) .card.elec-entry{
+  background:var(--n-m-card) !important;
+  background-image:none !important;
+  border:1px solid var(--n-edge) !important;
+  border-top:2px solid rgba(31,167,154,.85) !important;
+  border-radius:var(--n-r-md) !important;
+  color:var(--n-ink) !important;
+  box-shadow:var(--n-lift) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-box{color:var(--n-ink) !important}
+/* 设备卡上的读数：荧光青在白底上会糊掉，按 §1.3 用同一色相的深两档（7.77:1） */
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-title{
+  color:var(--o-accent-ink,#0B5C55) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-sub,
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-unit{color:var(--n-ink-2) !important}
+/* 黄铜字 #8A6A2C 压在瓷面上 4.98:1，达标；原来那圈 text-shadow 是给深底做的
+   外发光，在浅底上会糊成一坨脏，一并撤掉。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-odd{
+  color:#8A6A2C !important;
+  text-shadow:none !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .elec-entry-refresh{
+  color:var(--o-accent-ink,#0B5C55) !important;
+  background:var(--o-accent-soft,rgba(31,167,154,.12)) !important;
+  border:1px solid var(--n-edge-strong) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-shadow-1) !important;
+}
+
+/* ======================================================================
+   ⑦ 器官外壳：机器壳统一「一种深度、一种抬升」
+   ----------------------------------------------------------------------
+   这节解决什么：org-color 已经把 .nv-belt / .nv-plate-bar / .nv-tape-shell /
+   .nv-swipe-gate 统一成冷墨树脂（--o-ship）机壳，圆角也收敛到 --n-r-md 了。
+   剩下没统一的是**抬升**：四个壳各带一款硬投影（0 2px 0 / 0 3px 0），
+   厚薄不一，看过去就是「四个插件拼的」。这一节只做一件事——四个机器壳共用
+   --n-lift-shell（壳内高光更弱，因为壳吃光少；投影仍只向下）。
+   配色一条不动：材质色归 org-color，光归本层。
+
+   !important 说明：organs 的这四个 box-shadow 都写在带 !important 的规则里
+   或用简写整条覆盖，不 !important 压不住。
+   注意：.nv-pixel 的外壳归 nova-pixel.css（硬边、无圆角、无柔和投影），
+   本层不列举、不覆盖，全文也没有任何通配选择器。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-belt,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-bar,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-tape-shell,
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-swipe-gate{
+  border-radius:var(--n-r-md) !important;
+  box-shadow:var(--n-lift-shell) !important;
+}
+/* 按下态：只收掉贴地线，柔投影留着 —— 物体被按近了，不是被按扁了 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-tape-shell:active{
+  box-shadow:var(--n-light-top-shell), var(--n-shadow-1) !important;
+}
+
+/* ======================================================================
+   ⑧ 深色档：只统一光，不动材质
+   ----------------------------------------------------------------------
+   这节解决什么：紫夜舱底 + 米黄纸 + 深玻璃的对比关系在深色档是有效的，
+   换掉就是风格替换。所以深色档一条底色都不改，只把「光的方向」和「抬升」
+   这两件共享语言套上去 —— 这才是 The Last Night 意义上的统一：不是把材质
+   变成一样，是让它们共用一个太阳。
+
+   !important 说明：深色档的每条底色/投影在 skin 与 organs 里都是 !important，
+   只换光照也必须 !important 才落得下来。
+   ====================================================================== */
+html[data-skin="nova"][data-theme="dark"] .nv-belt,
+html[data-skin="nova"][data-theme="dark"] .nv-plate-bar,
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell,
+html[data-skin="nova"][data-theme="dark"] .nv-swipe-gate{
+  border-radius:var(--n-r-md) !important;
+  box-shadow:var(--n-lift-shell) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-card,
+html[data-skin="nova"][data-theme="dark"] .nv-clip-card,
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-shell,
+html[data-skin="nova"][data-theme="dark"] .nv-swipe-card,
+html[data-skin="nova"][data-theme="dark"] .nv-plate-sheet{
+  border-radius:var(--n-r-md) !important;
+  box-shadow:var(--n-lift) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-close,
+html[data-skin="nova"][data-theme="dark"] .nv-tape-close{
+  border-radius:var(--n-r-sm) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .card{
+  /* 底色与描边仍归 nova-skin.css 的紫夜舱；这里只把光照换成同一套 */
+  box-shadow:var(--n-lift) !important;
+}
+/* 描边浓度：深色档的 #grid 被 skin 铺了 1.5px 紫边，比同类容器厚半档 */
+html[data-skin="nova"][data-theme="dark"] #grid{
+  border-width:1px !important;
+}
+
+/* ======================================================================
+   ⑨ 经典令牌残留：把「米黄纸」这第四种介质从 nova 里赶出去
+   ----------------------------------------------------------------------
+   这节解决什么：前八节把卡片、票券、课表、机器壳都收进了同一套冷瓷语言，
+   可是「屏幕上还有一片纸」的感觉依然在。原因是 web/app.css 的令牌写在
+   :root 上（不区分皮肤），所以 nova 底下仍有一整批组件吃着西部涂鸦本的
+   暖纸色 —— .pill / .hw / .seg / .chips / .kb-bar / .pick-row /
+   #tabs button.active 全是 --paper2 #FAF3E2。
+
+   这不是猜的，是 A/B 实拍量出来的：同一页去掉本层与保留本层的像素差只有
+   0.87%（学习页）与 0.00%（WIKI 页），而这两页里 #FAF3E2 的米黄面积分别
+   是 167699 px 与 4566 px —— 前八节一处都没碰到它们。卡片白了、票券白了，
+   可按钮和作业卡还是一张牛皮纸，融合自然不成。
+
+   nova-skin.css 至今只重定了 --n-* 一族，没有重映射这批经典令牌（grep
+   --paper2/--surface/--radius 零命中），所以这里是唯一的落点：一个令牌块，
+   一次修好所有吃暖纸色的组件，不必逐个组件写选择器。
+
+   只重映射「结构色」—— 纸／墨／线／投影／圆角。语义色（--red / --blue /
+   --yellow / --ok / --danger 那一族）一个都不碰：信号色与配额归 skin-color，
+   本节不抢，否则就是在别人写域里改色。
+
+   !important 说明：app.css 与 pop.css 各有一份 :root / [data-theme] 级的
+   令牌声明，且都属于「后加载也可能存在」的来源；本选择器 (0,2,1) 虽然已高于
+   :root 的 (0,1,0)，但为了让「暖纸色不许回来」成为硬约束（防止以后有人在
+   pop.css 里补一句 --paper2 又把它抬回来），这里统一加 !important 钉死。
+   ====================================================================== */
+html[data-skin="nova"]:not([data-theme="dark"]){
+  /* 纸：v3 材质轴回迁（2026-11-08）
+     ---------------------------------------------------------------
+     v2 把「米黄纸」整族重映射成冷瓷，是执行错误（见 NOVA-SIGNATURE §2.1：
+     「纸是 C 级器官的合法材质，不是第四种介质」）。正确做法是降饱和保留纸感，
+     不是删掉。
+     但纸不能糊成一片：台面是冷白瓷，内容区也必须是冷白瓷（铁律二：内容区
+     回到中性阶+主色），只有「控件与纸质载体」才吃纸色。所以这里把西部本
+     混在一起的三个派生令牌拆开：
+       --paper   = 页面底 / 顶栏（台面）→ 冷白瓷，不变
+       --surface = 内容区（.hw/.wiki-card/.fb-card/.room-card）→ 冷白瓷
+       --paper2  = 控件与纸质载体（.pill/.seg/.chips/#tabs.active/.hwbadge/
+                   .rm-mode/.th-opt/.gate-tip/.sh-box/.btn.ghost）→ 低饱和纸
+     --surface 原本在 app.css:35 就是 --surface:var(--paper2)，这里把它单独
+     定为瓷白，于是「纸」只出现在控件上，不再把作业卡、WIKI 卡染黄。 */
+  --paper:#E8EEF0 !important;      /* = --n-shell，页面底（冷白瓷台面） */
+  --surface:#FDFEFF !important;    /* 内容区 = 冷瓷白，与 .card 同族 */
+  --paper2:#E6E1D7 !important;     /* 低饱和纸 S=23.1%，与 --p-paper 同族（press 层） */
+  --surface2:#E9EFF2 !important;   /* 次级面（照片卡 / 文本框 / 凹陷位）：中性，不吃纸 */
+  --grid:#DDE3E6 !important;
+  --grip:#B8BFBE !important;
+  --img-bg:#DCD6C6 !important;     /* 纸族第二步：S=23.9% */
+  --row-border:#E3DDCD !important;
+  --gate-glow:#F1EDE2 !important;
+  --tabs-bg:rgba(238,234,224,.97) !important;
+  --tap:#DDD7C7 !important;        /* 按压态纸：S=24.4% */
+  --tap2:#CFC9B7 !important;       /* 按压态纸（深）：S=20.0% */
+  --seg-bg:#D6D0BE !important;     /* 分段器底：S=22.6%，与 --p-paper 同族 */
+  --seg-on:#FDFEFF !important;
+  --today-bg:rgba(31,167,154,.12) !important;  /* 今天是状态，用主色软调，不用黄色便签 */
+  --card-mine-a:#EDF6F4 !important;
+  --wash:rgba(253,252,247,.16) !important;
+
+  /* 墨：涂鸦本的墨是暖褐 #3B3225，压在冷瓷上整页发黄。
+     换成第 ① 节的中性墨（--n-ink / --n-ink-2 / --o-ink-3 同族）。
+     muted 取 #546069 而不是器官层的 --o-ink-3 #57676F：后者压在 #grid 的
+     凹槽 #D8E3E9 上只有 4.50:1（卡在 AA 线上），#546069 是 4.94:1，留出余量。
+     #7B8B99 更不行（凹槽上 2.68:1），已退役。 */
+  --ink:#101828 !important;
+  --ink2:#4A5A6A !important;
+  --pencil:#546069 !important;
+  --line:#DCE5EA !important;
+  --edge:rgba(16,24,40,.14) !important;   /* = --o-line，和器官卡同一条边 */
+  --c-line:rgba(16,24,40,.16) !important;
+  --mask:rgba(16,24,40,.46) !important;
+  --oncolor:#F5FAFF !important;
+  --oncolor-dim:rgba(245,250,255,.86) !important;
+
+  /* 投影：涂鸦本是 2px 2px 0 暖色硬影（笔触），这里换成第 ① 节唯一那组
+     「贴地线 + 柔投影」。--shadow 两个组件都用（.hw / .hwbadge），
+     所以一次换完。 */
+  --shadow:var(--n-lift) !important;
+  --shadow-lift:var(--n-light-top), 0 2px 0 rgba(16,24,40,.10), 0 6px 14px -4px rgba(16,24,40,.16) !important;
+  --shadow-modal:0 0 0 1px var(--n-edge-strong), 0 12px 30px -8px rgba(16,24,40,.28) !important;
+  --shadow-modal-lg:0 0 0 1px var(--n-edge-strong), 0 18px 44px -10px rgba(16,24,40,.32) !important;
+
+  /* 圆角：涂鸦本是 4px/3px 两支，和第 ① 节的两档（8 / 12）不同宗。
+     统一到同一组，组件才不会一半手绘一半工业。 */
+  --radius:var(--n-r-md) !important;
+  --radius-sm:var(--n-r-sm) !important;
+}
+
+/* 手绘边遗留：app.css 里有几处写死了「四角不等圆角」和暖色硬投影
+   （1.5px 1.5px 0 rgba(140,122,94,.38) / 2px 2px 0 rgba(140,122,94,.40)），
+   令牌换色换不掉它们。这些是涂鸦本的笔触 —— 圆角不对称、影子发暖、还带
+   一道向右下的硬边，压在纯色瓷面上就是「贴纸没撕干净」。统一收进 §4 的
+   两档圆角与本层同一组投影。
+
+   !important 说明：这些规则在 app.css 里都是直接声明（无 !important），
+   本层靠载入顺序本可压住；但 nova-motion.css 与 pop.css 在本层之后加载、
+   且会重写同名的 box-shadow 造动效，所以要 !important 保证「边与影」这两件事
+   归本文件所有，动效层只改 transform/opacity 时不会把笔触带回来。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .pill,
+html[data-skin="nova"]:not([data-theme="dark"]) .hwbadge,
+html[data-skin="nova"]:not([data-theme="dark"]) .seg button,
+html[data-skin="nova"]:not([data-theme="dark"]) .chips button{
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-shadow-1) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .seg,
+html[data-skin="nova"]:not([data-theme="dark"]) .pick-row,
+html[data-skin="nova"]:not([data-theme="dark"]) .kb-bar{
+  border-radius:var(--n-r-md) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"]) .pick-row.on,
+html[data-skin="nova"]:not([data-theme="dark"]) .rm-mode.on{
+  box-shadow:var(--n-shadow-1), inset 0 0 0 1px var(--n-edge-strong) !important;
+}
+/* 作业卡：它是「卡片里的卡片」，所以比 .card 退一档（吃 --surface 的冷纸面），
+   边与影用本层那一组，圆角走 §4 的小档 —— 不再是 5px 手绘边 + 暖硬影。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .hw{
+  border:1px solid var(--n-edge) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-lift) !important;
+}
+/* 作业卡左侧那道 4px 竖条（.hwbar）原本吃 --mute 的暖灰。
+   它是进度/紧急度的载体，颜色由 .hwleft.orange/.red/.gray 决定；
+   未分类时不要一截牛皮纸色，换成中性线。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .hwbar{
+  background:var(--n-edge-strong) !important;
+}

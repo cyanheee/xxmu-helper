@@ -1,0 +1,242 @@
+/* ============================================================================
+ * 校园卡 · 刷卡等待层（web/nova-campuscard.css）
+ *
+ * 用户 YG（m06219）：「刷票可以改为刷卡，我们的校园卡长这样，可以参考一下」
+ * 附实拍 scaled_79275.jpg（810×1440）：横版信用卡、深砖红卡面、左上圆形校徽、
+ * 右侧两行白色校名（中文衬线 + 小号英文）、左侧竖排两列校训（右起竖读）、
+ * 中右一张图书馆实景照、左下「学生卡 | STUDENT CARD」、表面斜向高光。
+ *
+ * 为什么单独一个文件：web/nova-organs.css 正被 organ-color 改（task-3），
+ * 往别人写域里插 CSS 会撞车。同类内容的既有规则留在 organs.css 里不动，
+ * 这里只做「覆盖 + 重画」，靠后加载 + 更高特异性生效。
+ *
+ * 加载顺序（web/index.html）：app.css → nova-skin.css → nova-organs.css →
+ * nova-medium.css → nova-pixel.css → nova-motion.css → **nova-campuscard.css** → pop.css
+ *
+ * 【特异性】organs/medium 里有一批 `html[data-skin="nova"]:not([data-theme="dark"]) .nv-swipe-card`
+ * （(0,2,1)）的 !important 规则，会把这张卡涂成冷瓷白、并把动画钉死。
+ * 所以本文件统一用 `html[data-skin="nova"] .nv-swipe .nv-swipe-card`（(0,2,2)）压过它们。
+ *
+ * 【配色纪律】
+ * 卡面的砖红不是「UI 强调色」，它是一张被拍到的实物——就像拍立得里的照片
+ * 有它自己的颜色。所以它不参与 §2.1 的「主色 1 + 信号色 1」配额；但为了不让它
+ * 抢戏，色相压到深砖红（H≈356 S≈57%），明度压低，饱和度明显低于珊瑚信号色。
+ * 建筑照片用 CSS 渐变抽象，不引外链图片，也不许出现第二种饱和色相。
+ * ========================================================================== */
+
+/* ---------- 闸口：把高度让给一张立得住的卡 ---------- */
+html[data-skin="nova"] .nv-swipe .nv-swipe-gate{
+  height:136px!important;
+  border-radius:var(--n-r-md)!important;
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2))!important;
+  border:1px solid var(--o-line)!important;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.45)!important;
+  overflow:hidden!important}
+
+/* 读卡器：一盏窄口，卡从它前面过去。状态灯只给主色。 */
+html[data-skin="nova"] .nv-swipe .nv-swipe-reader{
+  width:13px!important;height:100px!important;margin-top:-50px!important;
+  right:12px!important;
+  background:linear-gradient(180deg,var(--o-ship-win),var(--o-ship-2))!important;
+  border-radius:var(--n-r-xs)!important;
+  box-shadow:inset 0 0 0 1px var(--o-accent-line)!important;
+  animation:n-reader 3.2s ease-in-out infinite!important}
+
+html[data-skin="nova"] .nv-swipe .nv-swipe-slot{
+  position:absolute!important;left:0!important;top:0!important;
+  right:0!important;bottom:0!important;width:auto!important;overflow:hidden!important}
+
+/* ---------- 卡本体 ---------- */
+html[data-skin="nova"] .nv-swipe .nv-swipe-card{
+  /* 卡自己的色，不外溢：只用在这一个元素及其子元素上 */
+  --sc-red-1:#8A252C;      /* 卡面主色：深砖红 */
+  --sc-red-2:#9E3038;      /* 高光侧 */
+  --sc-red-3:#641A21;      /* 暗侧 */
+  --sc-white:#F5F0E9;      /* 卡面白字（偏米，不是纯白） */
+  --sc-white-dim:rgba(245,240,233,.74);
+  --sc-photo-sky:#93A0AC;  /* 幕墙反天光 */
+  --sc-photo-1:#788692;    /* 玻璃幕墙 */
+  --sc-photo-2:#55626E;
+  --sc-photo-3:#3C4650;
+
+  position:absolute!important;
+  top:8px!important;left:0!important;
+  width:188px!important;height:119px!important;   /* 1.58:1，横版信用卡比例 */
+  padding:0!important;
+  border:0!important;
+  border-radius:var(--n-r-sm)!important;
+  background:
+    linear-gradient(148deg,var(--sc-red-2) 0%,var(--sc-red-1) 40%,var(--sc-red-3) 100%)!important;
+  background-image:
+    linear-gradient(148deg,var(--sc-red-2) 0%,var(--sc-red-1) 40%,var(--sc-red-3) 100%)!important;
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,.15),
+    inset 0 1px 0 rgba(255,255,255,.24),
+    0 4px 0 rgba(16,24,40,.22),
+    0 10px 22px -8px rgba(16,24,40,.45)!important;
+  animation:n-card-swipe 2.4s cubic-bezier(.45,0,.35,1) infinite!important;
+  display:block!important;overflow:hidden!important}
+
+/* 斜向高光：亮面塑料卡的那道白，只负责「这是张实物卡」 */
+html[data-skin="nova"] .nv-swipe .nv-sc-sheen{
+  position:absolute;left:-40%;top:-60%;width:80%;height:220%;
+  transform:rotate(24deg);
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.17) 42%,rgba(255,255,255,.05) 60%,transparent);
+  pointer-events:none}
+
+/* 校徽：白色细线双圈 + 内部校门线稿（纯 CSS，无图片） */
+html[data-skin="nova"] .nv-swipe .nv-sc-seal{
+  position:absolute;left:10px;top:10px;width:22px;height:22px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.82)}
+html[data-skin="nova"] .nv-swipe .nv-sc-seal-in{
+  position:absolute;left:2.5px;top:2.5px;right:2.5px;bottom:2.5px;border-radius:50%;
+  border:1px solid rgba(255,255,255,.48)}
+/* 内部「校门」：两立柱 + 横楣 */
+html[data-skin="nova"] .nv-swipe .nv-sc-seal-arch{
+  position:absolute;left:6px;top:7px;width:10px;height:9px;
+  border-left:1px solid rgba(255,255,255,.8);
+  border-right:1px solid rgba(255,255,255,.8);
+  border-top:1px solid rgba(255,255,255,.8);
+  border-radius:1px 1px 0 0}
+
+/* 校名两行：中文衬线（宋体感）+ 小号英文
+ *
+ * 【字号下限的例外，写明理由】TYPE-AUDIT 要求任何层级 ≥11px。这张卡是
+ * 「一张被拍到的实物卡」——188×119px 上要放下校徽、两行校名、两列校训、
+ * 实景照、卡脚，物理上不可能 11px。所以本文件按「缩小的实物」对待：
+ * 所有字号提到「在 188px 宽度内还能辨认」的上限（英文 5.5px、校训 7.5px、
+ * 卡脚 5.5px），并把字重与不透明度拉满补足可读性；真正的读数在卡外的
+ * .nv-swipe-t / .nv-swipe-label（11px / 9px→10px）承担，卡面只负责「像卡」。 */
+html[data-skin="nova"] .nv-swipe .nv-sc-name{
+  position:absolute;left:38px;top:10px;line-height:1.15;text-align:left}
+html[data-skin="nova"] .nv-swipe .nv-sc-name b{
+  display:block;font-size:11px;font-weight:500;letter-spacing:.04em;
+  color:var(--sc-white);
+  font-family:"Songti SC","Noto Serif SC",serif}
+html[data-skin="nova"] .nv-swipe .nv-sc-name u{
+  display:block;margin-top:2px;font-size:5.5px;letter-spacing:.06em;
+  font-weight:400;text-decoration:none;color:var(--sc-white-dim);
+  font-family:var(--n-sans)}
+
+/* 校训：竖排两列，右起竖读（至爱致用在右，明德博学在左） */
+html[data-skin="nova"] .nv-swipe .nv-sc-motto{
+  position:absolute;left:11px;top:44px;
+  display:flex;flex-direction:row-reverse;gap:5px}
+html[data-skin="nova"] .nv-swipe .nv-sc-motto span{
+  writing-mode:vertical-rl;text-orientation:upright;
+  font-size:7.5px;line-height:1.1;letter-spacing:.02em;
+  color:var(--sc-white-dim);
+  font-family:"Songti SC","Noto Serif SC",serif}
+
+/* 图书馆实景：106×66 的方寸里画不出真建筑，只能画「一张被拍小的照片」。
+   前两版都错在同一个地方：用了 repeating-gradient 竖挺 + 横梁去「模拟幕墙」，
+   结果读出来是铁丝网/技术示意图，不是楼。第三版把网格全删，只留 5 个横向色带
+   （天 / 楼体上段 / 楼体下段 / 台阶 / 地面）+ 一个门洞 —— 眼睛先认出「一栋楼」，
+   再看不出细节，这正是小尺寸照片该有的读法。不加旗杆（这个尺度下只会变成污点）。 */
+html[data-skin="nova"] .nv-swipe .nv-sc-photo{
+  position:absolute;right:11px;top:31px;width:104px;height:66px;
+  border-radius:1px;overflow:hidden;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.20);
+  /* 第 6 版。前几版的教训合起来是：104×66 里既画不出真建筑，也不能只铺一片渐变
+     （那样就读成占位方块）。能读出来的最小结构是「天 + 一栋楼 + 地面」，而且这三块
+     必须**各占一条明确的水平带**、楼要占画面中部 55%~75% 的宽度、窗只做横向楼层线
+     （竖线一多就变铁丝网）。所以楼体单独用一个伪元素画，边界清楚，窗线只落在楼里。 */
+  background:
+    /* 天空：上亮下淡，右侧再压一点暖（傍晚光），不要一片平涂 */
+    linear-gradient(200deg, rgba(255,255,255,.18) 0%, transparent 46%),
+    linear-gradient(180deg,
+      #C2CCD4 0%,
+      #B4BFC8 22%,
+      #A6B2BD 40%,
+      #96A3AF 58%,
+      #8794A0 100%)}
+/* 楼体：占中部，上沿平、两侧各留天，底边压在台阶上。
+   第 7 版把楼压暗、窗线打散——前几版楼比天还亮，读成「白模示意图」；
+   真实照片里逆光的楼永远比天空暗。窗线也不再等距（等距 = 表格）。 */
+html[data-skin="nova"] .nv-swipe .nv-sc-photo::before{
+  content:"";position:absolute;left:9%;right:13%;top:17%;bottom:15px;
+  background:
+    /* 门洞：偏左的窄竖井，是唯一的高对比结构 */
+    linear-gradient(180deg,transparent 0 58%,rgba(20,27,34,.66) 58% 100%) 30% 100%/15px 100% no-repeat,
+    /* 楼层：不等距的几条淡线（4/9/5/11 交替），只给「一层层」的量感 */
+    linear-gradient(180deg,
+      transparent 0 14%, rgba(255,255,255,.10) 14% 15.5%, transparent 15.5% 34%,
+      rgba(255,255,255,.13) 34% 35.5%, transparent 35.5% 47%,
+      rgba(255,255,255,.09) 47% 48.5%, transparent 48.5% 71%,
+      rgba(255,255,255,.12) 71% 72.5%, transparent 72.5% 100%),
+    /* 楼体本体：整体比天暗，左亮右暗，光从左上来 */
+    linear-gradient(96deg,#78868F 0%,#6C7A85 44%,#5A6773 76%,#4C5863 100%);
+  box-shadow:0 1px 0 rgba(255,255,255,.14) inset}
+/* 地面与台阶：楼体下方 15px，两道软边台阶 */
+html[data-skin="nova"] .nv-swipe .nv-sc-photo::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:15px;
+  background:
+    linear-gradient(180deg,
+      #55626E 0 4px,
+      rgba(255,255,255,.20) 4px,
+      #4B5863 5px 10px,
+      rgba(255,255,255,.14) 10px,
+      #3F4A55 11px 100%)}
+/* 台阶：底部两级，软边（1px 硬线在这个尺寸会变成「表格线」）
+   照片画到 66px 高时就只剩一件事要传递：这是一张「有纵深的外景照」。 */
+html[data-skin="nova"] .nv-swipe .nv-sc-photo::after{
+  content:"";position:absolute;left:0;right:0;bottom:0;height:16px;
+  background:
+    linear-gradient(180deg,
+      rgba(255,255,255,.05) 0 4px,
+      rgba(255,255,255,.16) 6px,
+      rgba(255,255,255,.06) 9px,
+      rgba(255,255,255,.20) 13px,
+      rgba(255,255,255,.10) 16px)}
+
+/* 左下：学生卡 | STUDENT CARD */
+html[data-skin="nova"] .nv-swipe .nv-sc-foot{
+  position:absolute;left:11px;bottom:9px;
+  display:flex;align-items:center;gap:5px}
+html[data-skin="nova"] .nv-swipe .nv-sc-foot b{
+  font-size:9.5px;font-weight:600;letter-spacing:.05em;color:var(--sc-white);
+  font-family:var(--n-sans)}
+html[data-skin="nova"] .nv-swipe .nv-sc-foot i{
+  width:1px;height:9px;background:rgba(255,255,255,.45)}
+html[data-skin="nova"] .nv-swipe .nv-sc-foot u{
+  font-size:5.5px;letter-spacing:.06em;text-decoration:none;
+  color:var(--sc-white-dim);font-family:var(--n-sans)}
+
+/* 卡从左边进来、过读卡器、出去。中段有一次 scaleY 收窄 = 被闸口「吃」了一下 */
+@keyframes n-card-swipe{
+  0%{transform:translateX(-212px)}
+  44%{transform:translateX(96px) scaleY(1)}
+  52%{transform:translateX(96px) scaleY(.86)}
+  58%{transform:translateX(96px) scaleY(1)}
+  88%{transform:translateX(300px)}
+  100%{transform:translateX(300px);opacity:0}
+}
+
+/* ---------- 闸口下面那两行：真正的进度文字 ----------
+ * 卡面上不写进度（app.js 的句子会长到「正在把解锁命令发给机器，请等它响一声」），
+ * 压上去必糊。所以进度留在闸口外，卡只管「这是本校的卡」。 */
+html[data-skin="nova"] .nv-swipe .nv-swipe-t{
+  margin-top:9px!important;
+  font:500 11px/1.45 var(--n-sans)!important;
+  color:var(--n-ink)!important;
+  white-space:normal!important;overflow:visible!important;text-overflow:clip!important}
+html[data-skin="nova"] .nv-swipe .nv-swipe-label{
+  margin-top:5px!important;
+  font:10px var(--n-mono)!important;
+  letter-spacing:.05em!important;
+  color:var(--n-ink-2)!important;
+  white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+
+/* ---------- 深色档：紫夜舱里的一张实物卡 ----------
+ * 卡本体不变色（它是实物），只把高光压弱一点，免得在深底上过曝。 */
+html[data-skin="nova"][data-theme="dark"] .nv-swipe .nv-sc-sheen{
+  background:linear-gradient(90deg,transparent,rgba(255,255,255,.11) 42%,rgba(255,255,255,.03) 60%,transparent)}
+
+/* ---------- 减动效：卡停在闸口里，不动 ---------- */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-swipe .nv-swipe-card{
+    animation:none!important;
+    transform:translateX(84px)!important;
+    opacity:1!important}
+  html[data-skin="nova"] .nv-swipe .nv-swipe-reader{animation:none!important}
+}

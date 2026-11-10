@@ -36,6 +36,19 @@
  *   · 想换房间：「换」按钮回到选择器，先解绑旧的再登记新的
  *   · 服务端绑定丢了（换手机/被清）会自动重新登记一次，不用学生重选
  *
+ * ==================== v1.1.62 绑定防呆 ====================
+ *
+ * 真机反馈两件事：①有人把房间绑到了别的校区，度数看着「不对」，其实是
+ *   另一间房的真实度数；②南校区 2 公寓的套间 AB 房（22514B）在选房页找不到。
+ *   查官方接口：AB 房是返回的，但被追加在列表末尾（实测 5 层空调 45 间里
+ *   22514B 是最后一条、2 层空调里 22214B 也是最后一条），老代码用
+ *   Number(name) 排序，带字母的得 NaN 沉在最后，学生按房号翻到自己那一段
+ *   根本看不见 B 间，以为「选项不齐全」。
+ *
+ * 这一版三处防呆：入口卡直接印出当前绑定哪间房（绑错一眼可见）；
+ * 房间列表改自然排序 + AB 房高亮，紧跟主号；服务端登记了多间房时列出来
+ * 让学生自己认，不再盲选第一间（那正是绑错校区的来源）。
+ *
  * ==================== 边界（红线） ====================
  *
  * 1. 只读、只看「剩余度数」，不做任何缴费/充值/下单 —— 动钱一律跳官方。
@@ -215,15 +228,42 @@ const ELEC = (() => {
       .then(b => (b && b.roomlist) || []);
   }
 
-  /** 从房间列表里找「空调」房间（名字含「空调」）。找不到返回 null。
-   *  注意：不退回第一个——普通照明电表当成空调显示会误导（剩余度数对不上）。 */
+  /** 列出所有「空调」房间（名字含「空调」）。照明电表不算——混进来剩余度数对不上。
+   *  v1.1.62：以前只取第一间，学生若绑过好几间（自己宿舍 + 误绑的别校区），
+   *  就会盲选到错的那间。现在列全，交给 chooseRoom 让学生自己认。 */
+  function airconRooms(rooms) {
+    if (!Array.isArray(rooms)) return [];
+    return rooms.filter(r => r && String(r.roomfullname || '').indexOf('空调') >= 0);
+  }
+  /** 兼容旧调用/离线测试：取第一间空调房；没有返回 null，不退回第一个
+   *  （普通照明电表当成空调显示，剩余度数对不上会误导）。 */
   function findAircon(rooms) {
-    if (!Array.isArray(rooms)) return null;
-    for (const r of rooms) {
-      const name = (r.roomfullname || '').toString();
-      if (name.indexOf('空调') >= 0) return r;
-    }
-    return null;
+    const a = airconRooms(rooms);
+    return a.length ? a[0] : null;
+  }
+
+  /* v1.1.62：官方把套间 AB 房（如 22514B、22214B）追加在房间列表末尾。
+   * 老代码 Number(a.name) 排序，带字母的名字得 NaN → 停在末尾，
+   * 学生按房号翻到自己那一段根本找不到 AB 间，以为「选项不齐全」。
+   * 改成自然排序：主号按数值、字母后缀按字母，AB 紧跟主号之后。 */
+  function roomKey(name) {
+    const m = /^(\d+)([A-Za-z]*)$/.exec(String(name || '').trim());
+    if (m) return { n: parseInt(m[1], 10), s: m[2].toUpperCase(), tail: false };
+    return { n: Number.MAX_SAFE_INTEGER, s: String(name || ''), tail: true };
+  }
+  function roomSort(list) {
+    return (Array.isArray(list) ? list : []).slice().sort((a, b) => {
+      const ka = roomKey(a && a.name), kb = roomKey(b && b.name);
+      if (ka.n !== kb.n) return ka.n - kb.n;
+      if (ka.s !== kb.s) return ka.s < kb.s ? -1 : 1;
+      return 0;
+    });
+  }
+  /** 把冗长的官方房间名压成入口卡放得下的一行（去掉校名前缀、连字符换空格）。 */
+  function roomBrief(name) {
+    return String(name || '').trim()
+      .replace(/^河南医药大学/, '').replace(/新乡医学院/g, '')
+      .replace(/[-_]+/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   /** 读房间的剩余度数。detaillist 是多段（电/空调分项），取 odd 最大值或第一个。 */
@@ -307,12 +347,19 @@ const ELEC = (() => {
   const AUTO_MS = 10 * 60 * 1000;   // 入口卡每 10 分钟自己刷一次
   let ENTRY_BUSY = false;
 
-  /** 把「上次查到的度数」贴到入口卡上。没有数据就显示 --，绝不编一个 0 出来。 */
+  /** 把「上次查到的度数」贴到入口卡上。没有数据就显示 --，绝不编一个 0 出来。
+   *  v1.1.62：顺手把当前绑定哪间房印到卡上（#elecEntryRoom）——绑错校区一眼可见。 */
   function paintEntry() {
-    const num = $('elecEntryOdd'), sub = $('elecEntrySub');
+    const num = $('elecEntryOdd'), sub = $('elecEntrySub'), room = $('elecEntryRoom');
     if (!num) return;
     const c = lastOdd();
     const cur = savedRoom();
+    /* 防呆：当前绑定的是哪间房直接印在卡上，绑错校区一眼就能看见（m01663）。 */
+    if (room) {
+      const brief = cur ? roomBrief(cur.name) : '';
+      room.textContent = brief;
+      room.style.display = brief ? '' : 'none';
+    }
     /* 只有「上次那个数字属于现在记住的这间房」才敢显示 ——
      * 换了房间还贴着旧房间的度数，是会让人算错电费的。 */
     const same = c && (!cur || !cur.rv || c.rv === cur.rv);
@@ -405,7 +452,11 @@ const ELEC = (() => {
     body.appendChild(el('p', 'hint', '查询中…'));
     fetchRooms(acct).then(list => {
       if (t !== TOKEN) return;
-      const room = findAircon(list);
+      /* v1.1.62 防呆：服务端常把几间房都挂在学号名下（自己宿舍 + 误绑的别校区），
+       * 老代码盲选第一间，正是「绑定错校区」的来源。多于一时摆出来让学生自己认。 */
+      const ac = airconRooms(list).filter(r => r.roomverify);
+      if (ac.length > 1) { chooseRoom(acct, ac, t); return; }
+      const room = ac[0] || null;
       if (room && room.roomverify) {
         const base = parseRv(room.roomverify);
         if (base) {
@@ -417,6 +468,31 @@ const ELEC = (() => {
       }
       openPicker(acct);
     }).catch(() => { if (t === TOKEN) openPicker(acct); });
+  }
+
+  /** 多间空调房：列出来点选，别替学生猜哪一间是他的宿舍。 */
+  function chooseRoom(acct, rooms, t) {
+    const body = $('sh-body');
+    body.innerHTML = '';
+    body.appendChild(el('p', 'hint', '这个学号在完美校园里登记了好几间房，选出你要看剩余度数的那一间（选一次就记住）。'));
+    const grid = el('div', 'pick');
+    body.appendChild(grid);
+    for (const r of rooms) {
+      const cell = el('div', 'pick-cell room-choice', roomBrief(r.roomfullname) || r.roomverify);
+      cell.onclick = () => {
+        if (t !== TOKEN) return;
+        const base = parseRv(r.roomverify);
+        if (!base) return;
+        base.name = r.roomfullname || '';
+        saveRoom(base);
+        paintEntry();
+        showRoom(acct, base);
+      };
+      grid.appendChild(cell);
+    }
+    const again = el('button', 'btn ghost', '都不是？自己选校区 / 公寓 / 房间');
+    again.onclick = () => openPicker(acct);
+    body.appendChild(again);
   }
 
   /** 显示剩余度数。
@@ -466,7 +542,7 @@ const ELEC = (() => {
   function renderRoom(acct, sel, d, isCached) {
     const body = $('sh-body');
     const mod = (d && Array.isArray(d.modlist)) ? d.modlist[0] : (d && d.odd != null ? d : null);
-    const roomName = sel.name || (d && d.roomfullname) || sel.rv || '';
+    const roomName = roomBrief(sel.name || (d && d.roomfullname) || sel.rv || '');
     const use = usageLine(mod) || (isCached && d && d.use ? d.use : '');
 
     body.innerHTML = '';
@@ -495,6 +571,8 @@ const ELEC = (() => {
     if (!isCached) { saveOdd(sel, mod, use); paintEntry(); }
 
     body.appendChild(el('div', 'elec-meta', '数据来自完美校园，可能有延迟，以缴费页为准'));
+    /* v1.1.62 防呆：把「房间不对就换」摆到明面上，别让人对着别的校区的度数纠结。 */
+    body.appendChild(el('div', 'elec-meta elec-checkline', '校区或房间不对？点上面「换房间」重新选一次。'));
 
     const row = el('div', 'elec-acts');
     const again = el('button', 'btn ghost', isCached ? '刷新' : '再查一次');
@@ -542,7 +620,7 @@ const ELEC = (() => {
       z: () => zones(acct),
       b: () => builds(acct, sel.z),
       f: () => floors(acct, sel.b).then(airconFloors),
-      r: () => roomnums(acct, sel.f).then(list => list.slice().sort((a, b2) => Number(a.name) - Number(b2.name))),
+      r: () => roomnums(acct, sel.f).then(roomSort),
     };
     const KEYS = ['z', 'b', 'f', 'r'];
 
@@ -585,10 +663,12 @@ const ELEC = (() => {
               return;
             }
             for (const item of list) {
-              const cell = el('div', 'pick-cell', String(item.name || item.id));
+              const nm = String(item.name || item.id);
+              /* v1.1.62：套间 AB 房（带字母后缀）给个醒目标记，别和普通房号混在一起。 */
+              const cell = el('div', 'pick-cell' + (k === 'r' && /[A-Za-z]/.test(nm) ? ' suite' : ''), nm);
               cell.onclick = () => {
                 sel[k] = String(item.id);
-                names[k] = String(item.name || item.id);
+                names[k] = nm;
                 if (k === 'r') {
                   sel.rv = rvOf(sel);
                   sel.name = names.z + ' ' + names.b + ' ' + names.f + ' ' + names.r;
@@ -725,8 +805,9 @@ const ELEC = (() => {
 
   return {
     init, open, goPay, autoRefresh, entryRefresh, paintEntry,
-    fetchRooms, fetchRoom, bindRoom, unbindRoom, findAircon, oddOf, account,
+    fetchRooms, fetchRoom, bindRoom, unbindRoom, findAircon, airconRooms, oddOf, account,
     rvOf, parseRv, airconFloors, usageLine, savedRoom, saveRoom, lastOdd,
+    roomSort, roomKey, roomBrief, chooseRoom,
     CUSTOMER_CODE, PAY_URL,
   };
 })();

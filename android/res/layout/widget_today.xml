@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 河医大助手 · 今日课程小组件 · NOVA「万象舱」舱体。
+     小组件跑在桌面，没有 App 的深浅上下文，所以这一版只出一套中性深舱：
+     深色玻璃底 + 青色描边 + 等宽读数，任何桌面背景上都读得清。
+     纯色/线性 drawable，不用实时模糊（低配机上实时模糊会掉帧）。 -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/wroot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="12dp"
+    android:background="@drawable/widget_bg">
+
+    <TextView
+        android:id="@+id/wtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="课表"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:letterSpacing="0.12"
+        android:fontFamily="monospace"
+        android:textColor="#9E8CFF" />
+
+    <TextView
+        android:id="@+id/wsub"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:text="点开看课表"
+        android:textSize="11sp"
+        android:letterSpacing="0.06"
+        android:fontFamily="monospace"
+        android:textColor="#B9AEDC" />
+
+    <TextView android:id="@+id/wrow1" style="@style/WidgetRow" />
+    <TextView android:id="@+id/wrow2" style="@style/WidgetRow" />
+    <TextView android:id="@+id/wrow3" style="@style/WidgetRow" />
+    <TextView android:id="@+id/wrow4" style="@style/WidgetRow" />
+
+</LinearLayout>

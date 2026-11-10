@@ -1,0 +1,193 @@
+/* ==========================================================================
+   NOVA v3 · 材质层 D：宝可梦 / 动漫 / 涂鸦 —— web/nova-anime.css
+   --------------------------------------------------------------------------
+   写域：本文件只负责「材质」这一层，改它的只有 organ-color。
+        其它 .js、其它 nova-*.css（press / brass / pixel / cyber / ghibli /
+        motion / skin / organs）、app.css、index.html 一律不碰。
+        剪报纸壳归 nova-press.css，这里只在它留出的伪元素批注位上画批注。
+
+   负责（§3.5.1 认领表第 3、7 行）：
+     · doodle 涂鸦层 —— 贴纸 + 蜡笔线（D 级彩蛋：安静，但一眼是手画的）
+     · clipping 剪报 —— 手绘批注（§3.5.2 咬合点 2：涂鸦风给漫画风加活气）
+
+   守的规则（§0.0 两条铁律 + §3.5.3 冲突消解）：
+     · 涂鸦是「叠加层」不是容器：不给它边框 / 底色 / 圆角，只画线条；
+       不受容器圆角约束，但也不许画到容器外面、不许盖住文字。
+     · 蜡笔三要素，缺一就读不成蜡笔：
+         ① 线不完全闭合 —— stroke-dasharray 留微小缺口，蜡笔在纸纹上会跳；
+         ② 两端略粗     —— stroke-linecap:round（圆头比 butt 软），线宽抬到 2.2；
+         ③ 低饱和       —— 材质色 S ≤ 45%，整体 opacity ≤ .55，不用霓虹色。
+     · 贴纸白边用 filter: drop-shadow 连续几层叠出来，不是 border ——
+       白边是「贴上去的纸边」，跟着图形轮廓走，不是方框。
+     · 物理铁律：阴影只向下（box-shadow y ≥ 0）、高光只 inset 0 1px 0、
+       圆角只 0 / 50% / 8px / 12px。
+     · v3 全站只允许 2 处循环动效（都在 motion 层）→ 本文件不做循环，
+       只有一次入场（iteration-count 默认 1）；prefers-reduced-motion 里关掉，
+       且保持终态可见（不 display:none、不 opacity:0）。
+     · v2 已把涂鸦从「三笔三色」收敛成一笔 —— 这里保留那个收敛方向，
+       不加新颜色、不加新形状，只把那一笔做得更像蜡笔。
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   材质色（S ≤ 45% 是硬上限：材质色属 §1.1 的第 1.5 级，不算强调色）
+   -------------------------------------------------------------------------- */
+html[data-skin="nova"]{
+  /* 蜡笔：石墨蓝。比 --o-ink-3 稍微带一点色相，才像蜡不是铅笔，S≈22% */
+  --a-crayon:#4E6472;
+  /* 批注 · 墨蓝（漫画旁注的签字笔色）S≈19% */
+  --a-note-blue:#4C5C70;
+  /* 批注 · 砖红（低饱和版，S≈26%；与信号珊瑚永不同框，见 §3.5.3 末行） */
+  --a-note-brick:#8C5A52;
+  /* 深色档 · 粉笔淡紫（黑板上的粉笔灰，S≈38%，比 #C9BEE8 再退半步） */
+  --a-chalk:#CDC3E4;
+  /* 深色档 · 淡金粉笔（纸壳上的旁注）S≈39% */
+  --a-chalk-gold:#D6C7A2;
+  /* 贴纸白边 */
+  --a-sticker:#FFFFFF;
+}
+
+/* ==========================================================================
+   ① doodle 涂鸦层：一笔蜡笔线 + 贴纸白边
+   DOM 真源是 web/nova-organs.js 的 buildDoodle()：一个 aria-hidden 的 .nv-doodle
+   容器，里面三个内联 <svg class="nv-doodle-svg">（stroke="currentColor"）。
+   v2 已经把第 2、3 笔（折线 / 星形）收掉了（display:none，那是 organs 的规则，
+   这里不重复、也不恢复）—— 所以这一节只管「那一笔」的笔触。
+   ========================================================================== */
+
+/* 贴歪一点：手贴上去的贴纸不会正。旋转放在容器上，
+   因为 <svg> 上要挂入场动画（动画最后一帧是 transform:none，会吃掉静态 transform）。 */
+html[data-skin="nova"] .nv-doodle{
+  /* organs 给的是 .5；这里提到 .6 —— 蜡笔要在微孔纸纹上留下「压过」的痕迹，
+     太淡就变成灰噪点；但 D 级不许抢戏，所以和 path 的 .9 相乘仍压在 .55 以内
+     （.6 × .9 = .54）。D 级的「安静」靠一笔 + 低饱和达成，不靠看不见。 */
+  opacity:.6;
+  transform:rotate(-1.4deg);
+  transform-origin:8% 60%;
+}
+
+html[data-skin="nova"] .nv-doodle-svg{
+  color:var(--a-crayon);
+  /* 贴纸白边：三层 drop-shadow 叠出 2px 白边（y 全部 ≥ 0，光从上往下照），
+     最后一层才是落纸的接触阴影。不用 border —— 白边要跟着笔画轮廓走。 */
+  filter:
+    drop-shadow(0 1px 0 var(--a-sticker))
+    drop-shadow(1px 0 0 var(--a-sticker))
+    drop-shadow(-1px 0 0 var(--a-sticker))
+    drop-shadow(0 2px 1px rgba(16,24,40,.14));
+  /* 只播一次的入场（n-in 定义在 nova-organs.css，这里只引用不复写）。
+     过冲曲线 = 动漫的「弹一下」，但不循环。 */
+  animation:n-in .42s cubic-bezier(.2,1.4,.4,1) both;
+}
+
+/* 蜡笔三要素落在 <path> 上： */
+html[data-skin="nova"] .nv-doodle-svg path{
+  stroke-width:2.2;              /* 比 organs 的 2.4 略细，配 dasharray 才不糊 */
+  stroke-linecap:round;          /* ② 两端圆头，笔尖压下去的那一下 */
+  stroke-linejoin:round;
+  stroke-dasharray:3.2 1.1;      /* ① 微缺口：蜡笔在纸纹上会跳，线因此不闭合 */
+  vector-effect:non-scaling-stroke;
+  opacity:.9;                    /* 与容器的 .5 相乘 ≈ .45，总透明度 ≤ .55 */
+}
+
+/* ==========================================================================
+   ② clipping 剪报：手绘批注（咬合点 2 · 落在 nova-press.css 的报纸纸上）
+   --------------------------------------------------------------------------
+   nova-press.css 已经把 .nv-clip-card 的 ::before / ::after 明确留给本文件，
+   并且刻意不给它设 z-index —— 批注因此自然地压在纸面之上。
+   这里用满那两个伪元素：::before 是圈注，::after 是下划线。
+   两条都 pointer-events:none，且都不落在标题 / 正文的字框上：
+     · 圈注整圈比「CAMPUS WIKI」那一行字大一圈，包住它而不是压住它；
+     · 下划线画在 press 留出的底部 30px 空白带里（padding-bottom:30px）。
+   ========================================================================== */
+html[data-skin="nova"] .nv-clip-card{position:relative}
+
+/* 圈注：一个没画完的圆圈 —— 右边那一段留白（笔在这里抬起来了）。
+   50% 圆角让它成椭圆环，rotate 让它手抖。 */
+html[data-skin="nova"] .nv-clip-card::before{
+  content:'';
+  position:absolute;
+  left:9px;
+  top:14px;
+  width:100px;
+  height:23px;
+  border:1.5px solid var(--a-note-blue);
+  border-right-color:transparent;   /* ← 线不完全闭合 */
+  border-radius:50%;
+  transform:rotate(-2.4deg);
+  opacity:.75;
+  pointer-events:none;
+  z-index:2;
+}
+
+/* 下划线：两端渐隐 = 落笔轻、收笔轻，中间实 —— 钢笔压纸的那一段。 */
+html[data-skin="nova"] .nv-clip-card::after{
+  content:'';
+  position:absolute;
+  right:16px;
+  bottom:11px;
+  width:74px;
+  height:3px;
+  background:linear-gradient(90deg,
+    transparent 0,
+    var(--a-note-brick) 12%,
+    var(--a-note-brick) 80%,
+    transparent 100%);
+  transform:rotate(-1.6deg);
+  opacity:.8;
+  pointer-events:none;
+  z-index:2;
+}
+
+/* ==========================================================================
+   ③ 深色档：粉笔（紫夜舱里没有蜡笔，只有黑板和粉笔）
+   --------------------------------------------------------------------------
+   只换介质，不改结构：同一笔、同一位置、同一形状。
+   粉笔比蜡笔更淡（≤ .3），因为深色底上浅色线天然更跳。
+   ========================================================================== */
+html[data-skin="nova"][data-theme="dark"] .nv-doodle{opacity:.3}
+
+html[data-skin="nova"][data-theme="dark"] .nv-doodle-svg{
+  color:var(--a-chalk);
+  /* 深色档的「贴纸边」不能是纯白 —— 那会在紫夜舱上戳一个洞。
+     改成舱底色的一层薄描边，读起来像粉笔灰堆在笔画边缘。 */
+  filter:
+    drop-shadow(0 1px 0 rgba(26,20,48,.55))
+    drop-shadow(0 1px 0 rgba(26,20,48,.35));
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-doodle-svg path{opacity:1}
+
+html[data-skin="nova"][data-theme="dark"] .nv-clip-card::before{
+  border-color:var(--a-chalk-gold);
+  border-right-color:transparent;
+  opacity:.62;
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-clip-card::after{
+  background:linear-gradient(90deg,
+    transparent 0,
+    var(--a-chalk-gold) 12%,
+    var(--a-chalk-gold) 80%,
+    transparent 100%);
+  opacity:.62;
+}
+
+/* ==========================================================================
+   ④ 减少动效：关掉入场，但保持终态可见
+   —— 不许 display:none，不许 opacity:0：涂鸦是内容不是装饰动画，
+      关掉动效之后它仍然要「在纸上」。
+   ========================================================================== */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-doodle-svg{
+    animation:none !important;
+    opacity:1;
+  }
+  html[data-skin="nova"] .nv-clip-card{
+    animation:none !important;
+    opacity:1;
+  }
+  html[data-skin="nova"] .nv-clip-card::before,
+  html[data-skin="nova"] .nv-clip-card::after{
+    transform:none;
+  }
+}

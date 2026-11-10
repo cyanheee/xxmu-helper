@@ -337,6 +337,10 @@ const WIKI = (() => {
     const b = el('div', 'wiki-card' + (x.mine ? ' mine' : ''));
     b.appendChild(el('div', 'wiki-t', x.t));
     if (x.mine) b.appendChild(el('span', 'wiki-tag', '我补充'));
+    /* NOVA 剪报抽屉（nova-organs.js）只从真实卡片 DOM 取数据：把整条原始资料
+       挂到节点上，抽屉就能原样渲染正文 / 来源 / 官方链接，不用另造一份数据，
+       也不必把 IIFE 里的 find()/open() 暴露到 window。经典皮肤完全无感。 */
+    b.__wiki = x;
     b.onclick = () => open(x.id);
     return b;
   }
@@ -358,6 +362,9 @@ const WIKI = (() => {
     const wrap = el('div', 'ph-sec');
     const head = el('div', 'ph-head');
     head.appendChild(el('span', 'ph-title', '校园实景'));
+    const rph = el('button', 'pill', '↻ 刷新');
+    rph.onclick = () => loadPhotos(true);
+    head.appendChild(rph);
     const up = el('button', 'pill', '+ 传一张');
     up.onclick = () => startUpload();
     head.appendChild(up);
@@ -393,6 +400,19 @@ const WIKI = (() => {
     return wrap;
   }
 
+  /* 方向元数据 → 展示时转正。rot 只存 0/90/180/270，不改图片字节，
+   * 所以公开墙、点开大图、拍立得照片墙都是同一个角度，且随时能改回来。
+   * 只在需要旋转时套一层固定 4:3 的框兜住横竖互换；rot=0 的图走原样
+   * 路径，一点都不回归（老图的宽高比、看着的样子全部保持）。 */
+  function rotWrap(p, img, full) {
+    const r = Number(p.rot) || 0;
+    if (!r) return img;
+    const f = el('div', 'img-frame' + (full ? ' img-frame-full' : ''));
+    f.setAttribute('data-rot', String(r));
+    f.appendChild(img);
+    return f;
+  }
+
   function photoCard(p) {
     const c = el('div', 'ph-card');
     const img = document.createElement('img');
@@ -407,9 +427,10 @@ const WIKI = (() => {
        * 用新域名至少是对的；真在 App 里跑一定走上面那条 AUTH.Photos.url。 */
       : ('https://www.xxmuhelper.top/v1/photo?k=' + encodeURIComponent(p.k));
     /* 宽高比在服务端解析出来了就直接用，图片没到之前也占好位，
-     * 不会出现「先是一行小方块，加载完整个页面跳一下」。 */
-    if (p.w > 0 && p.h > 0) img.style.aspectRatio = p.w + ' / ' + p.h;
-    c.appendChild(img);
+     * 不会出现「先是一行小方块，加载完整个页面跳一下」。
+     * 旋转过的图宽高由 .img-frame 固定，别再按原始比例撑。 */
+    if (!Number(p.rot) && p.w > 0 && p.h > 0) img.style.aspectRatio = p.w + ' / ' + p.h;
+    c.appendChild(rotWrap(p, img, false));
     if (p.cap) c.appendChild(el('div', 'ph-cap', p.cap));
     c.onclick = () => openPhoto(p);
     return c;
@@ -424,7 +445,7 @@ const WIKI = (() => {
     img.alt = p.cap || '校园图片';
     img.src = (typeof AUTH !== 'undefined' && AUTH.Photos)
       ? AUTH.Photos.url(p.k) : '';
-    body.appendChild(img);
+    body.appendChild(rotWrap(p, img, true));
     if (p.cap) body.appendChild(el('p', 'wiki-p', p.cap));
     document.getElementById('sheet').classList.add('on');
   }
@@ -436,6 +457,10 @@ const WIKI = (() => {
    * 一个请求在飞，且 60 秒内不重复拉。 */
   let PHOTO_INFLIGHT = null;
   let PHOTO_ERR = '';
+  let PHOTO_FP = '';
+  /* 单飞 + 60 秒时间窗仍在；v1.1.62 多一条「指纹」：轮询/手动刷新拿到
+   * 一模一样的清单就别 render —— render 会整页重建 DOM，打断正在输入的
+   * 搜索词和已打开的大图弹层。 */
   function loadPhotos(force) {
     if (!force && PHOTO_TRIED && (Math.floor(Date.now() / 1000) - PHOTOS_AT) < 60) return PHOTO_INFLIGHT || Promise.resolve();
     if (PHOTO_INFLIGHT) return PHOTO_INFLIGHT;
@@ -443,30 +468,25 @@ const WIKI = (() => {
     PHOTO_ERR = '';
     if (typeof AUTH === 'undefined' || !AUTH.Photos) { render(); return Promise.resolve(); }
     PHOTO_INFLIGHT = AUTH.Photos.list().then(res => {
-      /* 服务端返回的字段叫 rows，不是 list。
-       * 以前这里读 res.list，永远是 undefined，于是「一张图都没有」——
-       * 而且不报错、不抛异常，界面只是安静地空着。两个字段都接，
-       * 免得以后再因为改名静默失效一次。 */
+      /* 服务端返回的字段叫 rows，不是 list。两个都接，免得改名静默失效。 */
       const arr = res && res.ok ? (res.rows || res.list) : null;
       if (Array.isArray(arr)) {
+        const fp = JSON.stringify(arr);
         PHOTOS = arr;
         PHOTOS_AT = Math.floor(Date.now() / 1000);
+        if (fp !== PHOTO_FP) { PHOTO_FP = fp; render(); }
       } else {
-        /* 接口通了但没给数组 —— 也算失败，得让人能重试。 */
         PHOTO_ERR = '服务器返回的内容看不懂，点重试';
         PHOTO_TRIED = false;
+        PHOTO_FP = '';
+        render();
       }
-      render();
     }, (e) => {
-      /* v1.1.8：失败不能把 PHOTO_TRIED 留在 true。
-       * 原来是 `PHOTOS = []; render();` —— 界面显示「还没有通过的校园图片」，
-       * 而 PHOTO_TRIED 已经是 true，photosSection 的
-       * `if (!PHOTO_TRIED) setTimeout(loadPhotos, 60)` 再也不会触发，
-       * 整页也没有任何重试入口。地铁里打开一次、断网那一秒失败，
-       * 之后要杀 App 重进才可能再拉一次 —— 用户会以为「学校没人传图」。 */
+      /* v1.1.8：失败不能把 PHOTO_TRIED 留在 true，否则再不重试，要杀 App。 */
       PHOTOS = [];
       PHOTO_ERR = '校园图片没拉到（' + (typeof errText === 'function' ? errText(e) : String(e)) + '）';
       PHOTO_TRIED = false;
+      PHOTO_FP = '';
       render();
     }).then(() => {
       PHOTO_INFLIGHT = null;
@@ -566,6 +586,9 @@ const WIKI = (() => {
     const wrap = el('div', 'fb-sec');
     const head = el('div', 'ph-head');
     head.appendChild(el('span', 'ph-title', '留言板'));
+    const rfb = el('button', 'pill', '↻ 刷新');
+    rfb.onclick = () => loadFeedback(true);
+    head.appendChild(rfb);
     const go = el('button', 'pill', '+ 说两句');
     go.onclick = () => composeFeedback();
     head.appendChild(go);
@@ -620,31 +643,32 @@ const WIKI = (() => {
 
   let FB_ERR = '';
   let FB_INFLIGHT = null;
+  let FB_FP = '';
   function loadFeedback(force) {
-    /* 与 loadPhotos 同构：单飞 + 失败可重试。
-     * 原来没有 force 参数、FB_TRIED 也没有任何复位点 —— 一旦失败，
-     * `if (!FB_TRIED) setTimeout(loadFeedback, 80)` 永远不会再触发，
-     * 留言板整块永久显示「还没有公开的留言」，且看不出是网络问题。 */
+    /* 与 loadPhotos 同构：单飞 + 60 秒时间窗 + 失败可重试 + 无变化不重绘。 */
     if (!force && FB_TRIED && (Math.floor(Date.now() / 1000) - FB_AT) < 60) return FB_INFLIGHT || Promise.resolve();
     if (FB_INFLIGHT) return FB_INFLIGHT;
     FB_TRIED = true;
     FB_ERR = '';
     if (typeof AUTH === 'undefined' || !AUTH.Feedback) { render(); return Promise.resolve(); }
     FB_INFLIGHT = AUTH.Feedback.list().then(res => {
-      /* 同 loadPhotos：服务端给的是 rows。 */
       const arr = res && res.ok ? (res.rows || res.list) : null;
       if (Array.isArray(arr)) {
+        const fbp = JSON.stringify(arr);
         FBS = arr;
         FB_AT = Math.floor(Date.now() / 1000);
+        if (fbp !== FB_FP) { FB_FP = fbp; render(); }
       } else {
         FB_ERR = '服务器返回的内容看不懂，点重试';
         FB_TRIED = false;
+        FB_FP = '';
+        render();
       }
-      render();
     }, (e) => {
       FBS = [];
       FB_ERR = '留言没拉到（' + (typeof errText === 'function' ? errText(e) : String(e)) + '）';
       FB_TRIED = false;
+      FB_FP = '';
       render();
     }).then(() => {
       FB_INFLIGHT = null;
@@ -774,8 +798,8 @@ const WIKI = (() => {
 
     if (x.mine) {
       const del = el('button', 'btn ghost', '删除这条');
-      del.onclick = () => {
-        if (!confirm('删除「' + x.t + '」？')) return;
+      del.onclick = async () => {
+        if (!await askConfirm('删除「' + x.t + '」？', { danger: true })) return;
         const list = loadMine();
         list.splice(parseInt(x.id.slice(1), 10), 1);
         saveMine(list);
@@ -903,6 +927,27 @@ const WIKI = (() => {
       };
     }
     render();
+    /* v1.1.62：管理员审核通过 / 回复留言后，已经开着 WIKI 页没退出的
+     * 同学原本要杀 App 重进才看得到。挂一个 3 分钟轮询，只在
+     * 「WIKI 页可见 + 没在搜索 + App 在前台」时才拉，省流量。 */
+    try {
+      setInterval(() => {
+        if (document.hidden) return;
+        const top = document.getElementById('top');
+        if (top && top.dataset.page && top.dataset.page !== 'wiki') return;
+        const s = document.getElementById('wikiSearch');
+        if (s && (s.value || '').trim()) return;
+        loadPhotos(true);
+        loadFeedback(true);
+      }, 180000);
+      /* 从后台切回前台，距上次超过 30 秒就顺手拉一次，不用等满 3 分钟。 */
+      document.addEventListener('visibilitychange', () => {
+        if (document.hidden) return;
+        const now = Math.floor(Date.now() / 1000);
+        if (now - PHOTOS_AT >= 30) loadPhotos(true);
+        if (now - FB_AT >= 30) loadFeedback(true);
+      });
+    } catch (e) {}
     /* 图片和留言的拉取交给 photosSection() / fbSection() 自己在首帧后触发
      * （它们各自有 `!PHOTO_TRIED` / `!FB_TRIED` 守卫）。
      *

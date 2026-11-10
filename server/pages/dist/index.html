@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>河医大助手 · 河南医药大学学生自建的课表工具</title>
 <meta name="description" content="课表、作业倒计时、空教室、饮水机——河南医药大学学生自己做的安卓小工具。免费，无需注册，数据留本机。">
-<meta name="theme-color" content="#EFE2C8">
+<meta name="theme-color" content="#E8EEF0">
 <meta property="og:title" content="河医大助手">
 <meta property="og:description" content="课表、作业、空教室、饮水机，一个 App 全有。河南医药大学学生自己做的小工具。">
 <meta property="og:type" content="website">
@@ -13,370 +13,429 @@
 <link rel="icon" href="/img/logo.svg" type="image/svg+xml">
 <style>
 /* ============================================================
-   河医大助手 · 官网
-   设计语言与 App 完全一致（web/app.css v1.1.53 西部涂鸦）：
-   牛皮纸做底 + 淡棕方格 + 左侧红皮绳 + 墨线描边 + 硬偏移投影。
-   五支笔轮换：砖红 / 牛仔蓝 / 沙金 / 仙人掌绿 / 赤陶。
-   卡片左上贴胶带、右上角一颗蹄铁星 ✦、分隔用马鞍革针脚。
-   全站零外部依赖：没有 CDN、没有字体请求，断网也能开。
+   河医大助手 · 官网 NOVA「万象舱」
+   唯一真源：用 tools/apply_site_style.py 写进官网页面头部样式块，
+   不要手改内联。注意：CSS 注释里绝不能出现样式块的闭合标签字面量，
+   HTML 解析器不认 CSS 注释，会提前闭合样式块，把余下 CSS 当正文打印。
+
+   与 App 的 web/nova-skin.css 同一套语言：冷瓷白水彩晕染底、
+   切角 HUD 舷窗、黄铜传送带、磁带门、票券、剪报、拍立得、波段拨盘。
+   西部涂鸦的牛皮纸 / 红皮绳 / 方格 / 墨线 / 胶带 / 蹄铁星全部作废。
+   零外部依赖：无 CDN、无 webfont，断网也能开。
    ============================================================ */
 :root{
-  --paper:#EFE2C8;
-  --paper2:#FAF3E2;
-  --grid:#DCCBAB;
-  --ink:#3B3225;
-  --ink-soft:#6A5842;
-  --pencil:#9C8B70;
-  --rule:#D3C0A0;
+  --shell:#E8EEF0;      --shell2:#F5F9FA;
+  --hull:#DCE7EA;       --seam:#B9C8CE;
+  --glass:#122A38;      --glass2:#1B3B49;   --glass-deep:#0C1E29;
+  --ink:#101828;        --ink2:#4A5A6A;      --ink3:#7B8B99;
+  --on:#F5FAFF;         --on2:#A9C6D2;
+  --coral:#FF5C7A;      --cyan:#35E0D0;      --violet:#7C5CFF;
+  --coin:#FFD23F;       --grass:#2BD47D;     --orange:#FF6B3D;
+  --brass:#C9A24B;      --brass2:#8A6A2C;    --mist:#9A8CD8;
+  --tape:#F2E9DA;       --tape2:#DCCDB4;     --tape-ink:#43382A;
+  --sky:#8FB8C9;        --leaf:#7FA86B;      --moss:#6E8F5E;
 
-  --red:#B23B26;
-  --blue:#2C5C7A;
-  --yellow:#D9A32B;
-  --green:#4E7A48;
-  --purple:#8A5A3B;
-  /* 雾光紫：标记色，只用在今天/当前/展开这类小面积 */
-  --mist:#8E7BC4;
-  --mist-soft:#EEE8F8;
-
-  --bg:var(--paper);
-  --surface:var(--paper2);
-  --surface2:#F5EAD4;
-  --fg:var(--ink);
-  --fg2:var(--ink-soft);
-  --mute:var(--pencil);
-  --line:var(--rule);
-  --accent:var(--red);
-  --accent2:var(--purple);
-  --accent-soft:#F3DCCB;
-  --ok:#3F6B3C;
-  --warn:#B27A12;
-  --radius:4px;
-  --radius-sm:3px;
-  --shadow:2px 2px 0 rgba(140,122,94,.45);
-  --shadow-lift:3px 3px 0 rgba(140,122,94,.55);
+  --bg:var(--shell);    --surface:var(--shell2);
+  --fg:var(--ink);       --fg2:var(--ink2);   --mute:var(--ink3);
+  --accent:var(--coral); --accent2:var(--cyan);
+  --accent-soft:rgba(53,224,208,.14);
+  --ok:#177A46;          --warn:#B27A12;
+  --line:rgba(16,24,40,.14);
+  --radius:10px;         --radius-sm:7px;
+  --shadow:0 3px 0 rgba(16,24,40,.13);
+  --shadow-lift:0 8px 20px rgba(12,30,41,.18);
   --wrap:820px;
-  --stroke:1.5px;
-  --edge:#A89070;
-  --br-hand:12px 5px 14px 6px / 6px 13px 5px 12px;
-  --br-hand-sm:8px 3px 9px 4px / 4px 9px 3px 8px;
-  --tape:var(--red);
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 html{scroll-behavior:smooth}
-body{
-  margin:0;color:var(--fg);
-  background-color:var(--paper);
-  background-image:
-    linear-gradient(90deg,
-      transparent 0 22px,
-      rgba(178,59,38,.14) 22px 23.5px,
-      transparent 23.5px),
-    repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 24px),
-    repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 24px);
-  background-position:0 0,-1px -1px,-1px -1px;
-  font:16px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
-  -webkit-font-smoothing:antialiased;letter-spacing:.1px;
-  overflow-x:hidden;
+/* ---- 紫夜舱：跟随系统自动切深色，和 App 的 data-theme="dark" 同一套介质 ---- */
+@media (prefers-color-scheme:dark){
+  :root{
+    --shell:#1A1430;      --shell2:#241A3E;
+    --hull:#2A2048;       --seam:#3D2F63;
+    --glass:#161028;      --glass2:#221838;   --glass-deep:#0C0818;
+    --ink:#EFE9FF;        --ink2:#B9AEDC;      --ink3:#9C90C6;
+    --on:#F7F2FF;         --on2:#B9AEDC;
+    --coral:#FF6E8F;      --cyan:#9E8CFF;      --violet:#C08CFF;
+    --coin:#FFD98A;       --grass:#5FE3A8;     --orange:#FF8A5C;
+    --brass:#D9B978;      --brass2:#A88A4C;    --mist:#B79BFF;
+    --tape:#EDE4DC;       --tape2:#D8C9BC;     --tape-ink:#2A2130;
+    --accent-soft:rgba(158,140,255,.16);
+    --ok:#5FE3A8;          --warn:#FFD98A;
+    --line:rgba(183,155,255,.2);
+    --shadow:0 3px 0 rgba(0,0,0,.5);
+    --shadow-lift:0 10px 26px rgba(0,0,0,.55);
+  }
+  body{
+    background-color:var(--shell);
+    background-image:
+      radial-gradient(ellipse 80% 26% at 10% 0%,  rgba(158,140,255,.34), transparent 70%),
+      radial-gradient(ellipse 70% 18% at 94% 24%, rgba(120,96,190,.30), transparent 72%),
+      radial-gradient(ellipse 90% 20% at 4% 62%,  rgba(199,140,255,.24), transparent 74%),
+      radial-gradient(ellipse 70% 20% at 98% 88%, rgba(255,110,143,.16), transparent 72%),
+      radial-gradient(ellipse 60% 14% at 50% 100%,rgba(183,155,255,.26), transparent 74%);
+  }
+  .fcard,.steps .step,details,.clink{
+    background:linear-gradient(180deg,rgba(42,32,72,.92),rgba(30,22,56,.92)) !important;
+    border-color:rgba(183,155,255,.2) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 rgba(0,0,0,.5) !important;
+  }
+  .dl{background:linear-gradient(180deg,#1D1538,#100B22) !important;
+    border-color:rgba(158,140,255,.45) !important;
+    box-shadow:inset 0 0 0 1px rgba(158,140,255,.16),0 8px 22px rgba(12,8,24,.45) !important}
+  .dl::after{color:var(--violet)}
+  .fcard h3,.sec-h,.hero-copy h2,.contact h2{color:var(--ink)}
+  .fcard p,.sec-p,.hero-copy .lead{color:var(--ink2)}
+  .fcard .ic,.clink .ci{background:rgba(158,140,255,.14) !important;
+    border-color:rgba(158,140,255,.35) !important;color:var(--cyan) !important}
+  .brand-txt h1{color:var(--ink)}
+  .brand-txt p{color:var(--ink3)}
+  .pills .pill{background:rgba(255,255,255,.07) !important;
+    border-color:rgba(183,155,255,.2) !important;color:var(--ink2) !important}
+  .pills .pill b{color:var(--coral)}
+  .btn{background:linear-gradient(160deg,var(--cyan),#6D57D8) !important;
+    color:#120C22 !important;box-shadow:0 3px 0 #4A3A9E !important}
+  .btn-ghost{background:rgba(158,140,255,.12) !important;color:var(--cyan) !important;
+    border-color:rgba(158,140,255,.45) !important;box-shadow:none !important}
+  .meta{border-top-color:rgba(183,155,255,.25) !important;color:var(--ink3) !important}
+  .meta b{color:var(--cyan) !important}
+  .note{color:var(--ink3) !important}
+  details summary::after{color:var(--coral)}
+  details[open] summary{background:rgba(158,140,255,.10) !important}
+  details .body{color:var(--ink2) !important;border-top-color:rgba(183,155,255,.2) !important}
+  .contact{background:linear-gradient(165deg,var(--tape),var(--tape2)) !important;
+    border-color:rgba(67,56,42,.35) !important;color:var(--tape-ink) !important}
+  .phone{border-color:rgba(158,140,255,.5) !important;background:var(--glass-deep) !important}
+  .shots-cap{color:var(--ink3) !important}
+  footer{border-top-color:rgba(183,155,255,.25) !important;color:var(--ink3) !important}
+  footer .fl a{color:var(--ink2) !important}
+  footer .fl a:hover{color:var(--coral)}
+  .steps .step::before{background:linear-gradient(180deg,var(--cyan),#6D57D8) !important;color:#120C22 !important}
+  /* v1.1.61 ink highlight: dark tier keeps the violet-night medium */
+  #ink .ink-card{background:linear-gradient(180deg,rgba(42,32,72,.92),rgba(30,22,56,.92)) !important;
+    border-color:rgba(183,155,255,.2) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 rgba(0,0,0,.5) !important}
+  #ink .ink-card h3{color:var(--ink) !important}
+  #ink .ink-card p{color:var(--ink2) !important}
+  #ink .ink-card .ink-seal{background:rgba(158,140,255,.14) !important;
+    border-color:rgba(158,140,255,.35) !important;color:var(--cyan) !important}
+  #ink .ink-tags span{background:rgba(158,140,255,.10) !important;
+    border-color:rgba(183,155,255,.25) !important;color:var(--ink2) !important}
+  #ink .ink-foot{color:var(--ink3) !important;border-top-color:rgba(183,155,255,.2) !important}
+  #ink .ink-foot b{color:var(--coral) !important}
 }
-a{color:var(--blue);text-decoration:none;border-bottom:2px solid var(--yellow)}
-a:hover{text-decoration:none;border-bottom-color:var(--red)}
+body{
+  margin:0;color:var(--fg);background-color:var(--shell);
+  /* 宫崎骏介质层：水粉打底 + 水彩晕染，不是旧版牛皮纸方格 */
+  background-image:
+    radial-gradient(ellipse 80% 26% at 10% 0%,  rgba(143,184,201,.30), transparent 72%),
+    radial-gradient(ellipse 70% 22% at 94% 24%, rgba(127,168,107,.24), transparent 72%),
+    radial-gradient(ellipse 90% 26% at 4% 62%,  rgba(124,92,255,.13), transparent 74%),
+    radial-gradient(ellipse 70% 20% at 98% 88%, rgba(255,107,61,.14), transparent 72%),
+    radial-gradient(ellipse 60% 16% at 50% 100%,rgba(154,140,216,.13), transparent 74%);
+  background-attachment:fixed;
+  font:16px/1.65 var(--sans);
+  -webkit-font-smoothing:antialiased;letter-spacing:.1px;overflow-x:hidden;
+}
+/* 舱体左侧一条皮革压边：西部只剩这一道，无针脚无红皮绳 */
+body::before{content:'';position:fixed;left:0;top:0;bottom:0;width:5px;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(80,62,44,.22),rgba(80,62,44,.05),transparent)}
+a{color:var(--ink);text-decoration:none;border-bottom:1px dashed var(--cyan)}
+a:hover{text-decoration:none;border-bottom:1px solid var(--coral);color:var(--coral)}
 img{max-width:100%;display:block}
-.wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px;position:relative;z-index:2}
 
-/* ---------------- 顶部 ---------------- */
-.top{padding:26px 0 4px}
+/* ---------------- 顶部：仪表读数条 ---------------- */
+.top{padding:22px 0 4px}
 .brand{display:flex;align-items:center;gap:13px}
 .mark{
-  width:46px;height:46px;flex:0 0 auto;
-  border-radius:13px 5px 15px 6px / 6px 14px 5px 13px;
-  background:var(--red);
-  border:1.5px solid var(--edge);
-  color:#FDF6E6;font-size:21px;font-weight:800;
+  width:44px;height:44px;flex:0 0 auto;border-radius:50%;
+  border:2px solid #6B4A30;
+  background:radial-gradient(circle at 34% 30%,#FFF8DE,var(--coin) 60%,#C08A1E);
+  color:#3A2408;font:800 19px var(--mono);
   display:flex;align-items:center;justify-content:center;
-  box-shadow:3px 3px 0 rgba(140,122,94,.50);
-  transform:rotate(-4deg);
+  box-shadow:0 0 12px rgba(255,210,63,.55);position:relative;
 }
-.brand-txt h1{margin:0;font-size:19px;font-weight:800;letter-spacing:.2px}
-.brand-txt p{margin:1px 0 0;font-size:12px;color:var(--mute);
-  letter-spacing:1.2px;text-transform:uppercase}
+.mark::after{content:'';position:absolute;inset:-5px;border-radius:50%;
+  border:1px dashed rgba(255,210,63,.45)}
+.brand-txt h1{margin:0;font:800 18px var(--mono);letter-spacing:1.8px;color:var(--glass)}
+.brand-txt p{margin:2px 0 0;font:10px var(--mono);color:var(--ink3);
+  letter-spacing:2px;text-transform:uppercase}
 
 /* ---------------- Hero ---------------- */
-.hero{padding:40px 0 10px;display:grid;grid-template-columns:1fr;gap:30px}
-.hero-copy h2{
-  margin:0 0 16px;font-size:clamp(28px,6.6vw,42px);
-  line-height:1.22;font-weight:800;letter-spacing:-.8px;
-}
-/* 强调句：沙金荧光笔横扫，不做渐变字 */
-.hero-copy h2 em{
-  font-style:normal;color:var(--ink);
-  background:linear-gradient(transparent 58%, var(--yellow) 58%);
-  padding:0 4px;
-}
+.hero{padding:38px 0 10px;display:grid;grid-template-columns:1fr;gap:30px}
+.hero-copy h2{margin:0 0 16px;font:800 clamp(28px,6.6vw,42px)/1.22 var(--sans);
+  letter-spacing:-.8px;color:var(--ink)}
+.hero-copy h2 em{font-style:normal;color:var(--coral);
+  background:linear-gradient(transparent 62%,rgba(53,224,208,.28) 62%);padding:0 2px}
 .hero-copy .lead{margin:0 0 8px;font-size:16.5px;color:var(--fg2);max-width:32em}
-
-/* 亮点小标签 */
 .pills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
-.pill{
-  font-size:12px;color:var(--ink);background:var(--surface);
-  border:1.5px solid var(--edge);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
-  padding:5px 12px;font-weight:700;
-  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);
-}
-.pill b{color:var(--red);font-weight:800}
+.pill{font:700 11px var(--mono);letter-spacing:.8px;color:var(--glass);
+  background:rgba(255,255,255,.72);border:1px solid var(--line);
+  border-radius:4px;padding:6px 12px;box-shadow:var(--shadow)}
+.pill b{color:var(--coral);font-weight:800}
 
-/* 下载卡：白纸 + 胶带 + 蹄铁星 */
+/* 下载卡 = 切角 HUD 舷窗（不是贴纸便签） */
 .dl{
-  position:relative;
-  background:var(--surface);
-  border:1.5px solid var(--edge);
-  border-radius:var(--br-hand);
-  padding:26px 24px 22px;
-  box-shadow:4px 4px 0 rgba(140,122,94,.55);
-  transform:rotate(-.3deg);
+  position:relative;background:linear-gradient(180deg,var(--glass),var(--glass-deep));
+  border:1.5px solid rgba(53,224,208,.45);padding:24px;color:var(--on);
+  clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),
+    calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);
+  box-shadow:inset 0 0 0 1px rgba(53,224,208,.18),0 8px 22px rgba(12,30,41,.28);
 }
-.dl::before{content:'';position:absolute;top:-8px;left:22px;
-  width:56px;height:15px;background:var(--red);opacity:.92;
-  transform:rotate(-2.5deg)}
-.dl::after{content:'✦';position:absolute;top:8px;right:11px;
-  font-size:13px;color:var(--mist);opacity:.85;transform:rotate(12deg)}
+.dl::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 62% 88% at 50% 108%,rgba(255,107,61,.24),transparent 72%),
+    repeating-linear-gradient(0deg,rgba(245,250,255,.028) 0 1px,transparent 1px 4px);
+  animation:n-scan 8s linear infinite}
+.dl::after{content:'XXMU / NOVA OS';position:absolute;right:14px;top:10px;
+  font:9px var(--mono);letter-spacing:2px;color:var(--cyan);opacity:.85}
+.dl>*{position:relative;z-index:2}
 .dl-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .btn{
   display:inline-flex;align-items:center;justify-content:center;gap:9px;
-  border:1.5px solid var(--edge);
-  border-radius:9px 3px 10px 4px / 4px 10px 3px 9px;
-  padding:16px 28px;
-  font:inherit;font-size:16px;font-weight:800;color:#FDF6E6;cursor:pointer;
-  background:var(--red);
-  box-shadow:3px 3px 0 rgba(140,122,94,.50);
-  transition:none;
-  flex:1 1 210px;text-decoration:none;letter-spacing:1px;
+  border:1px solid #9FFFF2;border-radius:7px;padding:16px 28px;
+  font:800 16px var(--sans);letter-spacing:1px;color:#062029;cursor:pointer;
+  background:linear-gradient(160deg,var(--cyan),#1BAFA3);
+  box-shadow:0 3px 0 #0E6D66;text-decoration:none;
+  flex:1 1 210px;transition:transform .12s ease,box-shadow .12s ease;
 }
-.btn:hover{transform:translate(1px,1px);box-shadow:2px 2px 0 rgba(140,122,94,.40);text-decoration:none}
-.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn:hover{transform:translateY(1px);box-shadow:0 2px 0 #0E6D66;text-decoration:none}
+.btn:active{transform:translateY(3px);box-shadow:none}
 .btn svg{flex:0 0 auto}
-.btn[disabled]{opacity:.55;pointer-events:none}
-.btn-ghost{
-  flex:0 0 auto;background:var(--surface);color:var(--ink);
-  box-shadow:3px 3px 0 rgba(140,122,94,.50);border:1.5px solid var(--edge);
-  padding:16px 22px;
-}
-.btn-ghost:hover{background:var(--yellow);box-shadow:2px 2px 0 rgba(140,122,94,.40)}
-
-.meta{
-  display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;
-  padding-top:16px;border-top:2px dashed var(--rule);
-  font-size:13px;color:var(--mute);
-}
-.meta b{color:var(--fg2);font-weight:800;font-variant-numeric:tabular-nums}
-.dot-ok{
-  display:inline-block;width:8px;height:8px;
-  border-radius:7px 2px 8px 3px / 3px 8px 2px 7px;
-  background:var(--mist);margin-right:6px;vertical-align:1px;
-  box-shadow:1px 1px 0 var(--ink);
-}
-.note{margin:14px 0 0;font-size:12.5px;color:var(--mute);line-height:1.75}
-.note.warn{color:var(--danger,#A62B1C)}
-
-/* 微信提示：便签纸 */
-#wxTip{
-  display:none;margin:14px 0 0;padding:15px 17px;
-  border:2px dashed var(--yellow);background:#FBF0D2;
-  border-radius:var(--br-hand-sm);
-  font-size:13px;line-height:1.8;color:#6B4A08;
-}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn-ghost{flex:0 0 auto;background:rgba(255,255,255,.08);color:var(--cyan);
+  border:1px solid rgba(53,224,208,.5);box-shadow:none;padding:16px 22px}
+.btn-ghost:hover{background:rgba(53,224,208,.18)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;padding-top:16px;
+  border-top:1px dashed rgba(169,198,210,.35);font:11px var(--mono);color:var(--on2);letter-spacing:.6px}
+.meta b{color:var(--cyan);font-weight:800;font-variant-numeric:tabular-nums}
+.dot-ok{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--grass);margin-right:6px;vertical-align:1px;
+  box-shadow:0 0 6px var(--grass);animation:n-breath 2s ease-in-out infinite}
+.note{margin:14px 0 0;font-size:12.5px;color:var(--on2);line-height:1.75}
+.note.warn{color:var(--coin)}
+#wxTip{display:none;margin:14px 0 0;padding:15px 17px;border:1px dashed var(--cyan);
+  background:rgba(53,224,208,.10);border-radius:7px;font-size:13px;line-height:1.8;color:var(--on)}
 #wxTip.show{display:block}
-#wxTip b{color:var(--red)}
-#wxTip .kbd{
-  display:inline-block;padding:2px 8px;margin:0 3px;border-radius:5px;
-  background:var(--surface);border:1.5px solid var(--ink);white-space:nowrap;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;
-  color:var(--ink);font-weight:700;
-}
+#wxTip b{color:var(--coin)}
+#wxTip .kbd{display:inline-block;padding:2px 8px;margin:0 3px;border-radius:4px;
+  background:rgba(255,255,255,.10);border:1px solid rgba(53,224,208,.4);
+  font:12px var(--mono);color:var(--on);white-space:nowrap}
 
-/* ---------------- 手机示意（右侧） ---------------- */
-.shots{
-  display:grid;grid-template-columns:repeat(3,1fr);gap:14px;
-  align-items:end;
-}
-.phone{
-  position:relative;overflow:hidden;
-  border-radius:18px 6px 20px 7px / 7px 19px 6px 18px;
-  background:var(--paper);
-  border:1.5px solid var(--edge);
-  box-shadow:4px 4px 0 rgba(140,122,94,.55);
-  transform:translateY(0);
-  transition:transform .3s ease;
-}
-.phone img,.phone svg.shot{width:100%;height:auto;display:block}
+/* ---------------- 手机示意：三扇舷窗并排 ---------------- */
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end}
+.phone{position:relative;overflow:hidden;border-radius:12px;
+  background:var(--glass-deep);border:1.5px solid rgba(53,224,208,.4);
+  box-shadow:0 8px 20px rgba(12,30,41,.3);
+  transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.phone img{width:100%;height:auto}
 .phone:hover{transform:translateY(-6px)}
 .phone:nth-child(2){transform:translateY(-14px)}
 .phone:nth-child(2):hover{transform:translateY(-20px)}
-.shots-cap{
-  grid-column:1/-1;text-align:center;font-size:12px;color:var(--mute);
-  margin-top:6px;
-}
+.shots-cap{grid-column:1/-1;text-align:center;font:10px var(--mono);
+  color:var(--ink3);margin-top:8px;letter-spacing:1.4px}
 
 /* ---------------- 区块 ---------------- */
 section{padding:52px 0 0}
-.sec-h{position:relative;display:inline-block;
-  margin:0 0 6px;font-size:21px;font-weight:800;letter-spacing:-.2px}
-.sec-h::after{content:'';position:absolute;left:-2px;right:-2px;bottom:2px;
-  height:9px;background:var(--mist);opacity:.42;z-index:-1;
-  transform:rotate(-.7deg)}
-.sec-p{margin:0 0 24px;font-size:14.5px;color:var(--mute)}
+.sec-h{margin:0 0 6px;font:800 21px var(--sans);letter-spacing:-.2px;color:var(--ink)}
+.sec-h::before{content:'▮';color:var(--coral);font:14px var(--mono);margin-right:8px}
+.sec-p{margin:0 0 24px;font-size:14.5px;color:var(--ink3)}
 
-/* 功能清单：四张卡轮换底色 + 胶带 */
+/* 功能清单：舱格，不是纸卡片 */
 .feat{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
-.fcard{
-  position:relative;
-  background:var(--surface);border:1.5px solid var(--edge);
-  border-radius:var(--br-hand-sm);padding:20px 18px 18px;
-  box-shadow:2px 2px 0 rgba(140,122,94,.40);
-  transition:transform .16s ease,box-shadow .16s ease;
-}
-.fcard::before{content:'';position:absolute;top:-6px;left:14px;
-  width:34px;height:12px;background:var(--tape);opacity:.9;
-  transform:rotate(-2.5deg)}
-.fcard::after{content:'✦';position:absolute;top:6px;right:8px;
-  font-size:10px;color:var(--tape);opacity:.7;transform:rotate(12deg)}
-.feat .fcard:nth-child(4n+1){--tape:var(--red);background:#FFFBF0}
-.feat .fcard:nth-child(4n+2){--tape:var(--blue);background:#EAF0F3}
-.feat .fcard:nth-child(4n+3){--tape:var(--yellow);background:#FBF0D2}
-.feat .fcard:nth-child(4n+4){--tape:var(--mist);background:var(--mist-soft)}
-.fcard:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 rgba(140,122,94,.50)}
-.fcard .ic{
-  width:38px;height:38px;
-  border-radius:8px 3px 9px 4px / 4px 9px 3px 8px;
-  background:var(--surface2);border:1.5px solid var(--edge);
+.fcard{position:relative;background:linear-gradient(180deg,#F5F9FA,#E3ECEF);
+  border:1px solid var(--line);border-left:3px solid var(--cyan);
+  border-radius:10px 12px 9px 13px;padding:18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),var(--shadow);
+  transition:transform .16s ease,box-shadow .16s ease}
+.fcard:nth-child(4n+2){border-left-color:var(--coral)}
+.fcard:nth-child(4n+3){border-left-color:var(--violet)}
+.fcard:nth-child(4n+4){border-left-color:var(--coin)}
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.fcard .ic{width:36px;height:36px;border-radius:8px;
+  background:rgba(53,224,208,.14);border:1px solid rgba(53,224,208,.35);
   display:flex;align-items:center;justify-content:center;margin-bottom:12px;
-  font-size:18px;box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);
-}
-.fcard h3{margin:0 0 6px;font-size:15px;font-weight:800}
-.fcard p{margin:0;font-size:13px;color:var(--mute);line-height:1.65}
+  font:17px var(--mono);color:var(--cyan)}
+.fcard h3{margin:0 0 6px;font:700 15px var(--sans);letter-spacing:.4px}
+.fcard p{margin:0;font-size:13px;color:var(--ink2);line-height:1.65}
 
-/* 步骤 */
-.steps{counter-reset:s;display:grid;gap:12px}
-.step{
-  counter-increment:s;position:relative;
-  background:var(--surface);border:1.5px solid var(--edge);
-  border-radius:var(--br-hand-sm);padding:16px 18px 16px 58px;
-  font-size:14px;color:var(--fg2);box-shadow:2px 2px 0 rgba(140,122,94,.40);
-}
-.step::before{
-  content:counter(s);position:absolute;left:16px;top:14px;
-  width:28px;height:28px;
-  border-radius:7px 2px 8px 3px / 3px 8px 2px 7px;
-  background:var(--mist);color:var(--ink);
-  border:1.5px solid var(--edge);
-  font-size:13px;font-weight:800;
-  display:flex;align-items:center;justify-content:center;
-  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);
-}
-.step b{color:var(--ink);font-weight:800}
+/* 步骤 = 传送带刻度 */
+.steps{counter-reset:s;display:grid;gap:11px}
+.step{counter-increment:s;position:relative;
+  background:rgba(255,255,255,.78);border:1px solid var(--line);
+  border-radius:8px;padding:15px 18px 15px 58px;font-size:14px;color:var(--fg2);
+  box-shadow:var(--shadow)}
+.step::before{content:'W' counter(s,decimal-leading-zero);position:absolute;left:12px;top:13px;
+  width:38px;height:28px;border-radius:3px;background:var(--glass);
+  color:var(--cyan);border:1px solid rgba(201,162,75,.5);
+  font:700 10px var(--mono);letter-spacing:.5px;
+  display:flex;align-items:center;justify-content:center}
+.step b{color:var(--fg);font-weight:800}
 
-/* FAQ */
-details{
-  background:var(--surface);border:1.5px solid var(--edge);
-  border-radius:var(--br-hand-sm);margin-bottom:12px;
-  box-shadow:2px 2px 0 rgba(140,122,94,.40);overflow:hidden;
-}
-details summary{
-  cursor:pointer;padding:16px 18px;font-size:14.5px;font-weight:800;
-  list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center;
-}
+/* FAQ = 舱门开合 */
+details{background:rgba(255,255,255,.78);border:1px solid var(--line);
+  border-radius:8px;margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden}
+details summary{cursor:pointer;padding:15px 18px;font:700 14.5px var(--sans);
+  list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}
 details summary::-webkit-details-marker{display:none}
-details summary::after{
-  content:'+';color:var(--mist);font-size:22px;font-weight:800;line-height:1;
-  transition:transform .18s ease;flex:0 0 auto;
-}
+details summary::after{content:'+';color:var(--coral);font:20px var(--mono);
+  transition:transform .18s ease;flex:0 0 auto}
+details[open] summary{background:rgba(53,224,208,.10)}
 details[open] summary::after{transform:rotate(45deg)}
 details .body{padding:0 18px 16px;font-size:13.5px;color:var(--fg2);line-height:1.78;
-  border-top:2px dashed var(--rule);padding-top:12px}
-details .body p{margin:0 0 8px}
+  border-top:1px dashed var(--line)}
+details .body p{margin:12px 0 8px}
 details .body p:last-child{margin-bottom:0}
 
-/* ---------------- 联系方式 ---------------- */
-.contact{
-  position:relative;
-  background:var(--surface);
-  border:1.5px solid var(--edge);
-  border-radius:var(--br-hand);
-  padding:28px 26px;
-  box-shadow:4px 4px 0 rgba(140,122,94,.55);
-  background-image:repeating-linear-gradient(45deg,
-    rgba(43,35,24,.035) 0 2px,transparent 2px 9px);
-}
-.contact h2{position:relative;display:inline-block;
-  margin:0 0 6px;font-size:19px;font-weight:800;letter-spacing:-.2px}
-.contact h2::after{content:'';position:absolute;left:-2px;right:-2px;bottom:2px;
-  height:8px;background:var(--yellow);opacity:.6;z-index:-1;
-  transform:rotate(-.7deg)}
-.contact .sub{margin:0 0 20px;font-size:13.5px;color:var(--fg2)}
+/* ---------------- 联系方式 = 磁带门 ---------------- */
+.contact{position:relative;background:linear-gradient(165deg,var(--tape),var(--tape2));
+  border:1px solid rgba(67,56,42,.35);border-radius:10px;padding:26px;
+  color:var(--tape-ink);box-shadow:0 5px 0 rgba(67,56,42,.3);overflow:hidden}
+.contact::before{content:'';position:absolute;left:12px;right:12px;top:12px;height:34px;
+  border-radius:5px;background:linear-gradient(180deg,#2A3A44,#162630);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.6)}
+.contact::after{content:'● A  XXMU · MIXTAPE 01  ● B';position:absolute;left:22px;right:22px;top:22px;
+  text-align:center;font:9px var(--mono);letter-spacing:1.6px;color:var(--cyan)}
+.contact>*{position:relative;z-index:2}
+.contact h2{margin:40px 0 6px;font:800 19px var(--sans);letter-spacing:.4px}
+.contact .sub{margin:0 0 20px;font-size:13.5px;color:#7A5A36}
 .cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(226px,1fr));gap:12px}
-.clink{
-  display:flex;align-items:center;gap:13px;
-  background:var(--paper2);border:1.5px solid var(--edge);
-  border-radius:var(--br-hand-sm);padding:14px 16px;
-  color:inherit;text-decoration:none;
-  transition:transform .14s ease,box-shadow .14s ease;
-  box-shadow:2px 2px 0 rgba(140,122,94,.40);
-}
-.clink:hover{
-  transform:translate(-1px,-1px);text-decoration:none;
-  box-shadow:3px 3px 0 rgba(140,122,94,.50);
-}
-.clink .ci{
-  width:38px;height:38px;
-  border-radius:8px 3px 9px 4px / 4px 9px 3px 8px;flex:0 0 auto;
+.clink{display:flex;align-items:center;gap:13px;background:rgba(255,255,255,.6);
+  border:1px solid rgba(67,56,42,.3);border-radius:7px;padding:14px 16px;
+  color:inherit;text-decoration:none;transition:transform .14s ease}
+.clink:hover{transform:translateY(-2px);text-decoration:none}
+.clink .ci{width:38px;height:38px;border-radius:7px;flex:0 0 auto;
   display:flex;align-items:center;justify-content:center;
-  background:var(--surface2);border:1.5px solid var(--edge);
-  font-size:18px;box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);
-}
+  background:var(--glass);color:var(--cyan);font:16px var(--mono)}
 .clink .ct{min-width:0;flex:1}
 .clink .ct b{display:block;font-size:14px;font-weight:800;line-height:1.3}
-.clink .ct span{display:block;font-size:12.5px;color:var(--mute);margin-top:1px;
+.clink .ct span{display:block;font-size:12.5px;color:#7A5A36;margin-top:1px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.clink .arr{color:var(--red);font-size:17px;flex:0 0 auto;font-weight:700}
+.clink .arr{color:var(--coral);font-size:17px;flex:0 0 auto;font-weight:800}
 
 /* ---------------- 页脚 ---------------- */
-footer{
-  margin-top:56px;padding:28px 0 44px;border-top:1.5px solid var(--edge);
-  font-size:12.5px;color:var(--mute);line-height:1.95;
-}
+footer{margin-top:56px;padding:28px 0 44px;border-top:1px dashed var(--line);
+  font-size:12.5px;color:var(--ink3);line-height:1.95}
 footer .fl{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
 footer .fl a{color:var(--fg2);border-bottom:0}
-footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
+footer .fl a:hover{color:var(--coral)}
+footer .disclaim{font-size:12px;max-width:52em}
 
-/* Toast */
-#toast{
-  position:fixed;left:50%;bottom:36px;transform:translate(-50%,16px);
-  background:var(--ink);color:#FDF6E6;font-size:13.5px;
-  border:1.5px solid var(--edge);border-radius:var(--br-hand-sm);
-  padding:11px 20px;opacity:0;pointer-events:none;
-  transition:opacity .2s ease,transform .2s ease;z-index:99;white-space:nowrap;
-  max-width:90vw;box-shadow:3px 3px 0 rgba(140,122,94,.45);
-  font-weight:700;
-}
+#toast{position:fixed;left:50%;bottom:36px;transform:translate(-50%,16px);
+  background:var(--glass-deep);color:var(--cyan);font:12px var(--mono);
+  border:1px solid var(--cyan);border-radius:4px;padding:11px 20px;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  z-index:99;white-space:nowrap;max-width:90vw;box-shadow:0 6px 18px rgba(0,0,0,.35)}
 #toast.on{opacity:1;transform:translate(-50%,0)}
 
-@media (min-width:760px){
-  .hero{grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}
-  .hero-copy h2{font-size:40px}
-}
+@keyframes n-scan{from{background-position:0 0}to{background-position:0 4px}}
+@keyframes n-breath{0%,100%{opacity:1}50%{opacity:.3}}
+@media (min-width:760px){.hero{grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}}
 @media (max-width:520px){
   .wrap{padding:0 16px}
   .hero{padding:26px 0 4px;gap:26px}
-  .dl{padding:20px 18px 18px}
+  .dl{padding:18px}
   .btn{padding:15px 20px;font-size:15.5px}
   .btn-ghost{flex:1 1 100%}
   section{padding:38px 0 0}
   .shots{gap:9px}
   .phone:nth-child(2){transform:translateY(-8px)}
-  .contact{padding:22px}
+  .contact{padding:20px}
 }
 @media (prefers-reduced-motion:reduce){
   *{transition:none!important;animation:none!important}
   html{scroll-behavior:auto}
+}
+/* ============================================================
+ * v1.1.61 "Ink Cloud / Hua-qing Yun-shui" site light tier
+ * mirrors App nova-ink.css. :root NOVA_PAIRS + dark DARK_PAIRS untouched.
+ * #ink structure is unconditional; light palette only under
+ * prefers-color-scheme:light and WITHOUT !important, so the dark
+ * preview's trailing unconditional dark rules (with !important) win.
+ * ============================================================ */
+#ink .ink-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+#ink .ink-card{position:relative;padding:18px 18px 16px;border-radius:12px;
+  border:1px solid rgba(28,43,48,.13);border-top:3px solid #2E6E76;
+  background:linear-gradient(180deg,#FCFDFC,#F1F6F3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 0 rgba(28,43,48,.10)}
+#ink .ink-card:nth-child(2){border-top-color:#B23A2E}
+#ink .ink-card:nth-child(3){border-top-color:#C9A24B}
+#ink .ink-card h3{margin:0 0 8px;font:700 15px var(--sans);letter-spacing:.4px;color:#1C2B30}
+#ink .ink-card p{margin:0;font-size:13px;line-height:1.7;color:#4C6068}
+#ink .ink-card .ink-seal{display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:50%;margin-bottom:12px;
+  background:rgba(46,110,118,.10);border:1px solid rgba(46,110,118,.30);
+  color:#2E6E76;font:16px var(--mono)}
+#ink .ink-tags{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none}
+#ink .ink-tags span{font:700 10.5px var(--mono);letter-spacing:.5px;
+  padding:5px 10px;border-radius:4px;
+  background:rgba(46,110,118,.07);border:1px solid rgba(46,110,118,.20);color:#33474D}
+#ink .ink-foot{margin:18px 0 0;padding-top:14px;font-size:12.5px;line-height:1.7;
+  color:#5B6E76;border-top:1px dashed rgba(28,43,48,.16)}
+#ink .ink-foot b{color:#B23A2E}
+@media (max-width:520px){#ink .ink-grid{grid-template-columns:1fr}}
+
+@media (prefers-color-scheme:light){
+  body{
+    background-color:#EDF0EC;
+    background-image:
+      radial-gradient(ellipse 82% 26% at 12% 2%,  rgba(46,110,118,.13), transparent 68%),
+      radial-gradient(ellipse 70% 20% at 92% 26%, rgba(46,110,118,.09), transparent 70%),
+      radial-gradient(ellipse 90% 22% at 4% 66%,  rgba(38,54,60,.08), transparent 72%),
+      radial-gradient(ellipse 78% 20% at 96% 92%, rgba(46,110,118,.07), transparent 72%),
+      repeating-linear-gradient(96deg,rgba(28,43,48,.014) 0 1px,transparent 1px 6px),
+      linear-gradient(180deg,#F3F1EA 0%,#EAEDE9 55%,#E1E7E4 100%);
+    color:#1C2B30;
+  }
+  body::before{background:linear-gradient(90deg,rgba(46,110,118,.10),rgba(46,110,118,.02),transparent)}
+  .brand-txt h1{color:#1C2B30}
+  .brand-txt p{color:#4C6068}
+  .hero-copy h2{color:#1C2B30}
+  .hero-copy h2 em{color:#B23A2E;background:linear-gradient(transparent 62%,rgba(46,110,118,.20) 62%)}
+  .hero-copy .lead{color:#4C6068}
+  .pill{background:rgba(252,253,252,.82);border-color:rgba(28,43,48,.16);
+    color:#33474D;box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  .pill b{color:#B23A2E}
+  .sec-h{color:#1C2B30}
+  .sec-h::before{color:#B23A2E}
+  .sec-p{color:#5B6E76}
+  .fcard{background:linear-gradient(180deg,#FCFDFC,#F1F6F3);
+    border-color:rgba(28,43,48,.13);border-left-color:#2E6E76;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 0 rgba(28,43,48,.10)}
+  .fcard:nth-child(4n+2){border-left-color:#B23A2E}
+  .fcard:nth-child(4n+3){border-left-color:#7C5CFF}
+  .fcard:nth-child(4n+4){border-left-color:#C9A24B}
+  .fcard .ic{background:rgba(46,110,118,.10);border-color:rgba(46,110,118,.30);color:#2E6E76}
+  .fcard h3{color:#1C2B30}
+  .fcard p{color:#4C6068}
+  .step{background:rgba(252,253,252,.86);border-color:rgba(28,43,48,.13);
+    color:#4C6068;box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  .step::before{background:linear-gradient(180deg,#33474D,#26363C);
+    color:#EAF2EF;border-color:rgba(201,162,75,.5)}
+  .step b{color:#1C2B30}
+  details{background:rgba(252,253,252,.86);border-color:rgba(28,43,48,.13);
+    box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  details[open] summary{background:rgba(46,110,118,.08)}
+  details summary::after{color:#B23A2E}
+  details .body{color:#4C6068;border-top-color:rgba(28,43,48,.14)}
+  .phone{border-color:rgba(46,110,118,.35);background:#F3F1EA;
+    box-shadow:0 8px 20px rgba(28,43,48,.20)}
+  .shots-cap{color:#5B6E76}
+  .contact{background:linear-gradient(165deg,#ECE7DA,#DFDED2);
+    border-color:rgba(28,43,48,.28);color:#43382A;box-shadow:0 5px 0 rgba(28,43,48,.20)}
+  .contact::before{background:linear-gradient(180deg,#40565C,#26363C)}
+  .contact::after{color:#EAF2EF}
+  .contact h2{color:#1C2B30}
+  .contact .sub{color:#5B6E76}
+  .clink{background:rgba(252,253,252,.78);border-color:rgba(28,43,48,.24)}
+  .clink .ci{background:#33474D;color:#EAF2EF}
+  .clink .ct span{color:#5B6E76}
+  .clink .arr{color:#B23A2E}
+  footer{border-top-color:rgba(28,43,48,.14);color:#5B6E76}
+  footer .fl a{color:#4C6068}
+  footer .fl a:hover{color:#B23A2E}
 }
 </style>
 </head>
@@ -398,7 +457,8 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
       <h2>课表、作业、空教室<br><em>一个 App 就够了</em></h2>
       <p class="lead">
         把手动查课表、翻作业截止时间、找空教室这些事合到一处。
-        针对河南医药大学做的，不是通用模板。
+        针对河南医药大学做的，不是通用模板。这一版浅色换成了水墨云图，课表底部还住了两个会说话的像素小伙伴。
+        空调房间现在认得更准、套间 A / B 也选得到，校园实景和留言板还会自己更新。
       </p>
 
       <div class="pills">
@@ -442,10 +502,10 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
     </div>
 
     <div class="shots">
-      <div class="phone"><svg class="shot" role="img" aria-label="课表页：七列网格，今天所在列高亮" width="390" height="780" viewBox="0 0 390 780" fill="none"><defs><pattern id="p0_g" x="16.5" y="190.5" width="51.1" height="46" patternUnits="userSpaceOnUse"><rect x="0" y="0" width="50.1" height="45" rx="6" fill="#FAF3E2" stroke="#D3C0A0" stroke-width="0.6"/></pattern></defs><rect x="16.5" y="190.5" width="356.7" height="505" fill="url(#p0_g)"/><rect x="0" y="0" width="390" height="780" rx="26" fill="#EFE2C8"/><text x="22" y="26" font-size="12" font-weight="600" fill="#2B2318">21:18</text><rect x="320" y="22" width="3" height="4" rx="1" fill="#5A4B36"/><rect x="325" y="20" width="3" height="6" rx="1" fill="#5A4B36"/><rect x="330" y="18" width="3" height="8" rx="1" fill="#5A4B36"/><rect x="335" y="16" width="3" height="10" rx="1" fill="#5A4B36"/><rect x="0" y="36" width="390" height="58" fill="#FAF3E2"/><rect x="18" y="48" width="34" height="34" rx="11" fill="#2B2318"/><text x="35" y="70" font-size="15" font-weight="700" fill="#FAF3E2" text-anchor="middle" font-family="sans-serif">河</text><text x="62" y="62" font-size="15" font-weight="700" fill="#2B2318">河医大助手</text><text x="62" y="78" font-size="10.5" fill="#8E7E64">课表</text><line x1="0" y1="94" x2="390" y2="94" stroke="#D3C0A0"/><text x="18" y="118" font-size="11" fill="#8E7E64">第 8 周 · 共 21 周</text><text x="18" y="140" font-size="19" font-weight="700" fill="#2B2318">本周课表</text><rect x="16" y="158" width="358" height="26" rx="9" fill="#FAF3E2"/><text x="41.6" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">一</text><text x="92.7" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">二</text><rect x="130.9" y="160" width="26.0" height="22" rx="7" fill="#E4D4B6"/><text x="143.9" y="176" font-size="11" font-weight="700" fill="#2B2318" text-anchor="middle">三</text><text x="195.0" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">四</text><text x="246.1" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">五</text><text x="297.3" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">六</text><text x="348.4" y="176" font-size="11" font-weight="500" fill="#5A4B36" text-anchor="middle">日</text><rect x="18.0" y="192.0" width="47.1" height="88" rx="6" fill="#EAF0F3"/><text x="41.6" y="207.0" font-size="10" font-weight="700" fill="#2B2318" text-anchor="middle">解剖</text><text x="41.6" y="273.0" font-size="8" fill="#2B2318" opacity="0.75" text-anchor="middle">3301</text><rect x="69.1" y="192.0" width="47.1" height="88" rx="6" fill="#E6EFE3"/><text x="92.7" y="207.0" font-size="10" font-weight="700" fill="#4E7A48" text-anchor="middle">英语</text><text x="92.7" y="273.0" font-size="8" fill="#4E7A48" opacity="0.75" text-anchor="middle">A205</text><rect x="120.3" y="192.0" width="47.1" height="42" rx="6" fill="#FBF0D2"/><text x="143.9" y="207.0" font-size="10" font-weight="700" fill="#B27A12" text-anchor="middle">组胚</text><rect x="171.4" y="192.0" width="47.1" height="88" rx="6" fill="#F1E3D4"/><text x="195.0" y="207.0" font-size="10" font-weight="700" fill="#8A5A3B" text-anchor="middle">生理</text><text x="195.0" y="273.0" font-size="8" fill="#8A5A3B" opacity="0.75" text-anchor="middle">3201</text><rect x="222.6" y="238.0" width="47.1" height="88" rx="6" fill="#E6EFE3"/><text x="246.1" y="253.0" font-size="10" font-weight="700" fill="#4E7A48" text-anchor="middle">生化</text><text x="246.1" y="319.0" font-size="8" fill="#4E7A48" opacity="0.75" text-anchor="middle">3305</text><rect x="273.7" y="192.0" width="47.1" height="88" rx="6" fill="#F1E3D4"/><text x="297.3" y="207.0" font-size="10" font-weight="700" fill="#8A5A3B" text-anchor="middle">病理</text><text x="297.3" y="273.0" font-size="8" fill="#8A5A3B" opacity="0.75" text-anchor="middle">3311</text><rect x="120.3" y="284.0" width="47.1" height="88" rx="6" fill="#EAF0F3"/><text x="143.9" y="299.0" font-size="10" font-weight="700" fill="#2B2318" text-anchor="middle">诊断</text><text x="143.9" y="365.0" font-size="8" fill="#2B2318" opacity="0.75" text-anchor="middle">附院</text><rect x="324.9" y="330.0" width="47.1" height="88" rx="6" fill="#FBF0D2"/><text x="348.4" y="345.0" font-size="10" font-weight="700" fill="#B27A12" text-anchor="middle">体育</text><text x="348.4" y="411.0" font-size="8" fill="#B27A12" opacity="0.75" text-anchor="middle">操场</text><rect x="18.0" y="330.0" width="47.1" height="42" rx="6" fill="#E6EFE3"/><text x="41.6" y="345.0" font-size="10" font-weight="700" fill="#4E7A48" text-anchor="middle">心理</text><rect x="69.1" y="330.0" width="47.1" height="88" rx="6" fill="#F1E3D4"/><text x="92.7" y="345.0" font-size="10" font-weight="700" fill="#8A5A3B" text-anchor="middle">药理</text><text x="92.7" y="411.0" font-size="8" fill="#8A5A3B" opacity="0.75" text-anchor="middle">3205</text><rect x="222.6" y="376.0" width="47.1" height="42" rx="6" fill="#EAF0F3"/><text x="246.1" y="390.0" font-size="10" font-weight="700" fill="#2B2318" text-anchor="middle">医学</text><text x="246.1" y="401.0" font-size="10" font-weight="700" fill="#2B2318" text-anchor="middle">史</text><rect x="0" y="718" width="390" height="62" fill="#FAF3E2"/><line x1="0" y1="718" x2="390" y2="718" stroke="#D3C0A0"/><rect x="39" y="736" width="18" height="16" rx="4" fill="#2B2318" opacity="0.9"/><text x="48" y="760" font-size="9.5" fill="#2B2318" text-anchor="middle" font-weight="700">课表</text><rect x="137" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="146" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">学习</text><rect x="235" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="244" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">校园</text><rect x="333" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="342" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">我的</text></svg></div>
-      <div class="phone"><svg class="shot" role="img" aria-label="学习页：作业按紧急程度排序，右侧显示剩余时间" width="390" height="780" viewBox="0 0 390 780" fill="none"><defs><filter id="p1_sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2B2318" flood-opacity="0.07"/></filter></defs><rect x="0" y="0" width="390" height="780" rx="26" fill="#EFE2C8"/><text x="22" y="26" font-size="12" font-weight="600" fill="#2B2318">21:18</text><rect x="320" y="22" width="3" height="4" rx="1" fill="#5A4B36"/><rect x="325" y="20" width="3" height="6" rx="1" fill="#5A4B36"/><rect x="330" y="18" width="3" height="8" rx="1" fill="#5A4B36"/><rect x="335" y="16" width="3" height="10" rx="1" fill="#5A4B36"/><rect x="0" y="36" width="390" height="58" fill="#FAF3E2"/><rect x="18" y="48" width="34" height="34" rx="11" fill="#2B2318"/><text x="35" y="70" font-size="15" font-weight="700" fill="#FAF3E2" text-anchor="middle" font-family="sans-serif">河</text><text x="62" y="62" font-size="15" font-weight="700" fill="#2B2318">河医大助手</text><text x="62" y="78" font-size="10.5" fill="#8E7E64">学习</text><line x1="0" y1="94" x2="390" y2="94" stroke="#D3C0A0"/><text x="18" y="118" font-size="11" fill="#8E7E64">6 门课 · 9 条待办</text><text x="18" y="140" font-size="19" font-weight="700" fill="#2B2318">学习</text><rect x="14" y="156" width="362" height="30" rx="10" fill="#FAF3E2"/><rect x="18" y="160" width="120" height="22" rx="7" fill="#E4D4B6"/><text x="78" y="175" font-size="11" font-weight="600" fill="#2B2318" text-anchor="middle">按紧急度</text><text x="200" y="175" font-size="11" fill="#8E7E64" text-anchor="middle">按课程</text><text x="300" y="175" font-size="11" fill="#8E7E64" text-anchor="middle">全部</text><rect x="14" y="200" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="220" font-size="10.5" fill="#8E7E64">大学生安全教育</text><text x="26" y="238" font-size="12.5" font-weight="600" fill="#2B2318">激情犯罪与防范性侵害课后作业</text><text x="26" y="260" font-size="11" font-weight="600" fill="#B27A12">还剩 3 小时</text><rect x="334" y="214" width="30" height="20" rx="7" fill="#B27A12" opacity="0.12"/><text x="349" y="228" font-size="10" font-weight="600" fill="#B27A12" text-anchor="middle">待做</text><rect x="14" y="284" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="304" font-size="10.5" fill="#8E7E64">系统解剖学</text><text x="26" y="322" font-size="12.5" font-weight="600" fill="#2B2318">神经系统章节测试</text><text x="26" y="344" font-size="11" font-weight="600" fill="#B27A12">还剩 11 小时</text><rect x="334" y="298" width="30" height="20" rx="7" fill="#B27A12" opacity="0.12"/><text x="349" y="312" font-size="10" font-weight="600" fill="#B27A12" text-anchor="middle">待做</text><rect x="14" y="368" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="388" font-size="10.5" fill="#8E7E64">大学英语</text><text x="26" y="406" font-size="12.5" font-weight="600" fill="#2B2318">Unit 5 单元作业</text><text x="26" y="428" font-size="11" font-weight="600" fill="#5A4B36">还剩 2 天 4 时</text><rect x="334" y="382" width="30" height="20" rx="7" fill="#B27A12" opacity="0.12"/><text x="349" y="396" font-size="10" font-weight="600" fill="#B27A12" text-anchor="middle">待做</text><rect x="14" y="452" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="472" font-size="10.5" fill="#8E7E64">生理学</text><text x="26" y="490" font-size="12.5" font-weight="600" fill="#2B2318">第三章课后习题</text><text x="26" y="512" font-size="11" font-weight="600" fill="#5A4B36">还剩 5 天</text><rect x="323" y="466" width="41" height="20" rx="7" fill="#8E7E64" opacity="0.12"/><text x="343" y="480" font-size="10" font-weight="600" fill="#8E7E64" text-anchor="middle">待批阅</text><rect x="14" y="536" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="556" font-size="10.5" fill="#8E7E64">组织胚胎学</text><text x="26" y="574" font-size="12.5" font-weight="600" fill="#2B2318">实验报告</text><text x="26" y="596" font-size="11" font-weight="600" fill="#8E7E64">已过期</text><rect x="323" y="550" width="41" height="20" rx="7" fill="#8E7E64" opacity="0.12"/><text x="343" y="564" font-size="10" font-weight="600" fill="#8E7E64" text-anchor="middle">已过期</text><rect x="14" y="620" width="362" height="78" rx="12" fill="#FAF3E2" filter="url(#p1_sh)"/><text x="26" y="640" font-size="10.5" fill="#8E7E64">体育</text><text x="26" y="658" font-size="12.5" font-weight="600" fill="#2B2318">体测信息登记</text><text x="26" y="680" font-size="11" font-weight="600" fill="#8E7E64">状态未知</text><rect x="334" y="634" width="30" height="20" rx="7" fill="#8E7E64" opacity="0.12"/><text x="349" y="648" font-size="10" font-weight="600" fill="#8E7E64" text-anchor="middle">未知</text><rect x="0" y="718" width="390" height="62" fill="#FAF3E2"/><line x1="0" y1="718" x2="390" y2="718" stroke="#D3C0A0"/><rect x="39" y="736" width="18" height="16" rx="4" fill="#2B2318" opacity="0.9"/><text x="48" y="760" font-size="9.5" fill="#2B2318" text-anchor="middle" font-weight="700">课表</text><rect x="137" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="146" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">学习</text><rect x="235" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="244" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">校园</text><rect x="333" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="342" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">我的</text></svg></div>
-      <div class="phone"><svg class="shot" role="img" aria-label="校园事务页：饮水机设定目标水量后自动停止" width="390" height="780" viewBox="0 0 390 780" fill="none"><defs><filter id="p2_sh" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#2B2318" flood-opacity="0.07"/></filter></defs><rect x="0" y="0" width="390" height="780" rx="26" fill="#EFE2C8"/><text x="22" y="26" font-size="12" font-weight="600" fill="#2B2318">21:18</text><rect x="320" y="22" width="3" height="4" rx="1" fill="#5A4B36"/><rect x="325" y="20" width="3" height="6" rx="1" fill="#5A4B36"/><rect x="330" y="18" width="3" height="8" rx="1" fill="#5A4B36"/><rect x="335" y="16" width="3" height="10" rx="1" fill="#5A4B36"/><rect x="0" y="36" width="390" height="58" fill="#FAF3E2"/><rect x="18" y="48" width="34" height="34" rx="11" fill="#2B2318"/><text x="35" y="70" font-size="15" font-weight="700" fill="#FAF3E2" text-anchor="middle" font-family="sans-serif">河</text><text x="62" y="62" font-size="15" font-weight="700" fill="#2B2318">河医大助手</text><text x="62" y="78" font-size="10.5" fill="#8E7E64">校园事务</text><line x1="0" y1="94" x2="390" y2="94" stroke="#D3C0A0"/><text x="18" y="118" font-size="11" fill="#8E7E64">校园事务</text><text x="18" y="140" font-size="19" font-weight="700" fill="#2B2318">饮水机</text><rect x="14" y="156" width="362" height="72" rx="12" fill="#FAF3E2" filter="url(#p2_sh)"/><text x="26" y="178" font-size="10.5" fill="#8E7E64">账号</text><text x="364" y="178" font-size="11" font-weight="600" fill="#5A4B36" text-anchor="end">150****3129</text><line x1="26" y1="190" x2="364" y2="190" stroke="#D3C0A0"/><text x="26" y="212" font-size="10.5" fill="#8E7E64">已绑定饮水机</text><text x="364" y="212" font-size="11" font-weight="600" fill="#5A4B36" text-anchor="end">2 台</text><rect x="14" y="240" width="362" height="96" rx="12" fill="#FAF3E2" filter="url(#p2_sh)"/><text x="26" y="264" font-size="11" font-weight="600" fill="#2B2318">目标水量</text><text x="26" y="280" font-size="9.5" fill="#8E7E64">选了数字，到量自动帮你停</text><rect x="26" y="298" width="72" height="26" rx="9" fill="#E4D4B6"/><text x="62" y="315" font-size="10.5" font-weight="500" fill="#2B2318" text-anchor="middle">不限量</text><rect x="110" y="298" width="72" height="26" rx="9" fill="#E4D4B6"/><text x="146" y="315" font-size="10.5" font-weight="500" fill="#2B2318" text-anchor="middle">200</text><rect x="194" y="298" width="72" height="26" rx="9" fill="#E4D4B6"/><text x="230" y="315" font-size="10.5" font-weight="500" fill="#2B2318" text-anchor="middle">350</text><rect x="278" y="298" width="72" height="26" rx="9" fill="#2B2318"/><text x="314" y="315" font-size="10.5" font-weight="700" fill="#FAF3E2" text-anchor="middle">500</text><rect x="14" y="348" width="362" height="150" rx="12" fill="#FAF3E2" filter="url(#p2_sh)"/><text x="26" y="374" font-size="12.5" font-weight="700" fill="#2B2318">南校区4号公寓东5楼</text><text x="26" y="392" font-size="9.5" fill="#8E7E64">SN 8654…324 · 2 个出水口</text><rect x="26" y="410" width="63" height="30" rx="9" fill="#2B2318" /><text x="57" y="429" font-size="10.5" font-weight="600" fill="#FAF3E2" text-anchor="middle">放水·冷</text><rect x="97" y="410" width="63" height="30" rx="9" fill="#2B2318" /><text x="128" y="429" font-size="10.5" font-weight="600" fill="#FAF3E2" text-anchor="middle">放水·热</text><rect x="168" y="410" width="63" height="30" rx="9" fill="#F5EAD4" stroke="#D3C0A0"/><text x="199" y="429" font-size="10.5" font-weight="600" fill="#5A4B36" text-anchor="middle">重新绑定</text><rect x="239" y="410" width="62" height="30" rx="9" fill="#F5EAD4" stroke="#D3C0A0"/><text x="270" y="429" font-size="10.5" font-weight="600" fill="#5A4B36" text-anchor="middle">移除</text><rect x="26" y="448" width="338" height="36" rx="9" fill="#FBF0D2"/><text x="36" y="471" font-size="9.5" fill="#6B4A08">已解锁 · 去机器出水口按一下就出水</text><rect x="0" y="718" width="390" height="62" fill="#FAF3E2"/><line x1="0" y1="718" x2="390" y2="718" stroke="#D3C0A0"/><rect x="39" y="736" width="18" height="16" rx="4" fill="#2B2318" opacity="0.9"/><text x="48" y="760" font-size="9.5" fill="#2B2318" text-anchor="middle" font-weight="700">课表</text><rect x="137" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="146" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">学习</text><rect x="235" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="244" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">校园</text><rect x="333" y="736" width="18" height="16" rx="4" fill="#8E7E64" opacity="0.45"/><text x="342" y="760" font-size="9.5" fill="#8E7E64" text-anchor="middle" font-weight="500">我的</text></svg></div>
-      <div class="shots-cap">界面示意图（按 App 真实结构绘制，非真机截图）</div>
+      <div class="phone"><img class="shot" src="img/shot-kb.svg" width="390" height="780" alt="课表页：宣纸花青浅色、周次传送带、底部两个像素小伙伴" loading="eager"></div>
+      <div class="phone"><img class="shot" src="img/shot-learn.svg" width="390" height="780" alt="学习页：磁带门卷宗，作业与考试分面" loading="eager"></div>
+      <div class="phone"><img class="shot" src="img/shot-water.svg" width="390" height="780" alt="校园页：热水票、校园剪报、照片墙" loading="eager"></div>
+      <div class="shots-cap">界面示意图（按 App 浅色档真实结构绘制，非真机截图）</div>
     </div>
   </div>
 
@@ -471,7 +531,7 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
       <div class="fcard">
         <div class="ic">🚰</div>
         <h3>饮水机</h3>
-        <p>扫一次码记住机器，之后在手机上点就能解锁放水，还能设目标水量自动停。</p>
+        <p>扫一次码记住机器，之后在手机上点就能解锁放水，还能设最长放水（防忘关）自动停。</p>
       </div>
       <div class="fcard">
         <div class="ic">📚</div>
@@ -482,6 +542,94 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
         <div class="ic">🔒</div>
         <h3>数据留在本机</h3>
         <p>教务和超星的密码不经过任何服务器。服务端只存版本号和公告这类轻量状态。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= v1.1.61: this build - Ink Cloud ================= -->
+  <section id="ink">
+    <h2 class="sec-h">这一版 · 水墨云图</h2>
+    <p class="sec-p">浅色档换成了「花青云水」：宣纸米白打底，花青淡墨一层层晕开，
+      墨蓝石板顶栏压住却不发黑，瓷白课程卡浮在纸面上。只动浅色，经典和深色一点没改。</p>
+    <div class="ink-grid">
+      <div class="ink-card">
+        <div class="ink-seal">印</div>
+        <h3>宣纸上的课表</h3>
+        <p>三层花青晕染加一层细纸纤维，今天所在列点一抹朱砂。时间刻度与课程卡共用一条基准线，
+          窄列也不裁字；切周和拖动的动画都归到一帧里算，连点不卡。</p>
+      </div>
+      <div class="ink-card">
+        <div class="ink-seal">8</div>
+        <h3>两个像素小伙伴</h3>
+        <p>马里奥和林克住在课表底部的空带，八种姿势会眨眼、走步、跳、挥手、欢呼。
+          气泡里每人十二句英中双语台词，还有稀有句和两人拌嘴，会跟着这一节课的状态接话。</p>
+      </div>
+      <div class="ink-card">
+        <div class="ink-seal">&#9834;</div>
+        <h3>点一下就出声</h3>
+        <p>点马里奥会响一句八位电子音的「Ma-ri-o!」，全是本机合成、断网也有。
+          连击攒金币、六枚成就、台词图鉴、长按切静音，进度都记在本机，慢慢玩不容易腻。</p>
+      </div>
+    </div>
+    <div class="ink-tags">
+      <span>8 POSES</span><span>24 + 6 QUOTES</span><span>EN / 中</span>
+      <span>8-BIT SFX</span><span>COMBO · COINS · ACHIEVEMENTS</span><span>OFFLINE</span>
+    </div>
+    <p class="ink-foot"><b>不挡事：</b>小人只在万象舱的课表页出现，中间给铭牌和底部五个入口让路；
+      系统开了「减少动态效果」时，动作、粒子和弹字全停下，只留静态台词。</p>
+  </section>
+
+  <!-- ================= v1.1.62：这一版 · 用着更顺手 ================= -->
+  <section id="fresh">
+    <h2 class="sec-h">这一版 · 用着更顺手</h2>
+    <p class="sec-p">水墨云图和像素小伙伴都留着，这一版把大家最近反馈的几个小别扭一并收拾了。</p>
+    <div class="feat">
+      <div class="fcard">
+        <div class="ic">&#10052;</div>
+        <h3>空调度数认得准了</h3>
+        <p>入口卡把现在绑的校区、公寓、房间号写清楚，一眼就看出是不是自己那间；
+          房间不对就换，不用再对着别人的度数纳闷。南校区 2 号公寓那样的套间，
+          A / B 宿舍也全列出来，选得到、排得顺，带字母的房号不会再漏。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">&#128257;</div>
+        <h3>校园实景和留言板会自己更新</h3>
+        <p>停在 WIKI 这一页，每隔几分钟就悄悄对新内容；从后台切回来也会顺手更一次，
+          右上角还各多了一个「刷新」。不用退出重进软件，新通过的校园图片、新留言自己就冒出来；
+          内容没变时不重新排版，正在搜的东西不会被打断。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">&#127891;</div>
+        <h3>学号跟教务网对得上了</h3>
+        <p>之前手填错、格式不对的学号，重新登录一次教务就会自动换成教务网那个，
+          不用手动改，也不用担心两处记成不一样的人。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 万象舱：另一套界面 ================= -->
+  <section id="nova">
+    <h2 class="sec-h">还有另一套界面</h2>
+    <p class="sec-p">设置里可以选「经典」或「万象舱」。两个皮肤各自独立，深浅模式跟皮肤互不干扰，
+      白天晚上都能用，也能随时切回去。</p>
+    <div class="feat">
+      <div class="fcard">
+        <div class="ic">⇥</div>
+        <h3>周次传送带</h3>
+        <p>21 周不再靠两颗小箭头，而是一条能拖的机械皮带。按住左右拖，松手自动吸到最近一周，
+          课表跟着整屏滑过来。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">▣</div>
+        <h3>磁带门</h3>
+        <p>作业和考试收进一扇门。点一下从手指按下的地方放大铺满，A 面是作业、翻面是考试，
+          截止时间和完成情况都在里面。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">◉</div>
+        <h3>波段拨盘</h3>
+        <p>底部五个频道做成收音机调频，指示珠会滑向当前频道，切过去时整屏舱格依次点亮，
+          不是普通的高亮切换。</p>
       </div>
     </div>
   </section>
@@ -524,7 +672,7 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
       <summary>饮水机为什么点完还要在机器上按一下</summary>
       <div class="body">
         <p>这一步是胖乖生活平台的设计，不是没做。手机能做的只有「解锁」，真正出水要人在机器出水口按一下物理按键——官方并没有开放远程开阀的接口。</p>
-        <p>但「停」是可以远程控制的，所以设了目标水量之后，到量会自动帮你停。</p>
+        <p>但「停」是可以远程控制的；接够了自己点「停止」就行，放水途中平台不给实时用量。</p>
       </div>
     </details>
 
@@ -558,6 +706,29 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
         <p>所有数据以学校教务系统为准；遇到成绩、选课、评教这类正式事务，一律以官方系统为准。</p>
       </div>
     </details>
+
+    <details>
+      <summary>浅色界面怎么变样了 / 课表里那两个小人是什么</summary>
+      <div class="body">
+        <p>浅色档这一版换成了水墨云图的「花青云水」配色，宣纸底加花青晕染；经典皮肤和深色档都还在，设置里随时切回去。</p>
+        <p>课表底部那两个像素小人是彩蛋：点一下会换个动作、说一句带翻译的台词，还会响一声八位电子音。连击攒金币、集台词图鉴、解成就，长按可以关掉音效。系统开了「减少动态效果」它们就安静待着，不挡课表也不挡按钮。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>空调剩余度数看着不对 / 我这是套间 AB 宿舍</summary>
+      <div class="body">
+        <p>入口卡上会写当前绑的是哪个校区、哪间房。多半是绑到了别的校区或别的房间，点「房间不对就换」重新选一次就好。</p>
+        <p>南校区 2 号公寓那类套间的 A / B 宿舍这一版都列全了，带字母的房号也能正常选到。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>新通过的校园图片 / 新留言，我没退出软件能看到吗</summary>
+      <div class="body">
+        <p>能。停在 WIKI 页每隔几分钟会自动对一次，从后台切回 App 也会顺手更新，两处右上角各有「刷新」按钮可以手动拉。不用退出重进。</p>
+      </div>
+    </details>
   </section>
 
   <section id="contact">
@@ -569,7 +740,7 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
           <div class="ci">💬</div>
           <div class="ct">
             <b>QQ</b>
-            <span id="qqNum">572833261</span>
+            <span id="qqNum">692962849</span>
           </div>
           <div class="arr">⧉</div>
         </div>
@@ -593,11 +764,11 @@ footer .disclaim{font-size:12px;color:var(--mute);max-width:52em}
           </div>
           <div class="arr">⧉</div>
         </div>
-        <a class="clink" href="mailto:572833261@qq.com">
+        <a class="clink" href="mailto:692962849@qq.com">
           <div class="ci">✉️</div>
           <div class="ct">
             <b>邮箱</b>
-            <span>572833261@qq.com</span>
+            <span>692962849@qq.com</span>
           </div>
           <div class="arr">↗</div>
         </a>

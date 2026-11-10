@@ -1,7 +1,7 @@
 # 河医大助手 · 当前状态（STATE）
 
 > 自动生成，**别手改**。重新生成：`python tools/state.py`。
-> 生成时间：2026-11-07 22:00
+> 生成时间：2026-11-09 11:13
 > 接手一个会话时只读这一页；架构与踩坑细节见 [HANDOFF.md](HANDOFF.md)，
 > 历史每一版改了什么见 [docs/handoff/changelog.md](docs/handoff/changelog.md)，
 > 待办见 [docs/handoff/todo.md](docs/handoff/todo.md)。
@@ -10,20 +10,20 @@
 
 | 位置 | 值 |
 |---|---|
-| AndroidManifest versionName | **1.1.54** |
-| AndroidManifest versionCode | **1154** |
-| web/about.js APP_VERSION | 1.1.54 |
-| web/index.html #aboutVer | 1.1.54 |
+| AndroidManifest versionName | **1.1.59** |
+| AndroidManifest versionCode | **1159** |
+| web/about.js APP_VERSION | 1.1.59 |
+| web/index.html #aboutVer | 1.1.59 |
 
 ## 2. 本地最新的包
 
 | 项 | 值 |
 |---|---|
-| 文件 | `apk/xxmu-helper-v1.1.54.apk` |
-| 大小 | 674032 字节 |
-| SHA-256 | `94d07073ce7227cbf59b4bd68044c8850f2f13672769eb39ea195b9df6fdc42d` |
-| 出包时间 | 2026-11-07 21:45 |
-| 包内版本（aapt2） | 1.1.54 / 1154 |
+| 文件 | `apk/xxmu-helper-v1.1.59.apk` |
+| 大小 | 847471 字节 |
+| SHA-256 | `8e2c0c5def55c8cf15a94d09f3ea1cdee5c4a6173b9edef00ed40bf51d4e8247` |
+| 出包时间 | 2026-11-09 11:04 |
+| 包内版本（aapt2） | 1.1.59 / 1159 |
 
 注意：**多个版本常常字节数相同**（v1.1.16 与 v1.1.17 都是 558650），
 只能靠 SHA-256 和包内符号区分，别用大小认版本。
@@ -34,12 +34,12 @@
 
 | 字段 | 值 |
 |---|---|
-| latest.version | **1.1.54** |
-| latest.code | 1154 |
-| latest.size | 674032 |
-| latest.sha256 | `94d07073ce7227cb` |
-| latest.url | https://www.xxmuhelper.top/v1/apk?v=94d07073ce72 |
-| apk.name（blob 里实际的包） | xxmu-helper-v1.1.54.apk |
+| latest.version | **1.1.59** |
+| latest.code | 1159 |
+| latest.size | 847471 |
+| latest.sha256 | `8e2c0c5def55c8cf` |
+| latest.url | https://www.xxmuhelper.top/v1/apk?v=8e2c0c5def55 |
+| apk.name（blob 里实际的包） | xxmu-helper-v1.1.59.apk |
 | min.code（强制淘汰线） | 0 |
 | enforceVer | False |
 | updPolicy | nag |
@@ -52,20 +52,37 @@
 
 | 项 | 值 |
 |---|---|
-| 分支 | main @ `d7716d8` |
+| 分支 | main @ `57f4031` |
 | 远程 main（API 实读） | `d7716d8` |
-| 与远程内容 | **一致**（逐文件比 266 个 blob sha：不一致 0 / 远程多出 0；STATE.md 自指，不计入） |
-| 未提交改动 | 0 个文件 |
+| 与远程内容 | **不一致**（逐文件比 225 个 blob sha：不一致 27 / 远程多出 42；STATE.md 自指，不计入） |
+| 未提交改动 | 440 个文件 |
 
 最近提交：
 
 ```
+57f4031 chore: prune debug screenshots and third-party reference images
+8878d15 perf(site): inline 3 mockup SVGs, 1-day cache, BUILD-key bust; cut homepage to 2 requests
 d7716d8 release: v1.1.54 西部涂鸦主题（雾光紫）+ 官网同步上线
 5d098dd Merge remote-tracking branch 'origin/main'
 008b48e Merge remote-tracking branch 'origin/main'
 da3b8e1 wip(v1.1.49): 空闲教室乱码改写 looksReadable + 更新提示走 keep-alive 复用与冷启动预热
-f2e1025 docs: v1.1.48 上线状态（线上 1.1.48 / 1148 / 665840 / 55f0d962）
-5119580 sync: 对齐本地 v1.1.43 完整代码（API 通道，内容逐文件校验）
+```
+
+未提交：
+
+```
+M STATE.md
+ M android/AndroidManifest.xml
+ M android/res/values/strings.xml
+ M android/src/com/xxmu/helper/MainActivity.java
+ M core/kingo.py
+ M design/sketch/site-style.css
+ M docs/handoff/changelog.md
+ M docs/handoff/todo.md
+ M server/pages/dist/_worker.js
+ M server/pages/dist/img/shot-kb.svg
+ M server/pages/dist/img/shot-learn.svg
+ M server/pages/dist/img/shot-water.svg
 ```
 
 ## 5. 常用命令（复制即用）
@@ -98,6 +115,7 @@ python tools/state.py                   # 重新生成本文件
 - [ ] **备份签名密钥** `android/xxmu.jks`（pass `xxmu123`）到网盘/邮箱。
 
 ### 二、等真机（没有设备，一律不能声称已验证）
+- [ ] **v1.1.55 糖梨借鉴四项真机抽查（新）**…
 - [ ] **v1.1.49 两条（新）**…
 - [ ] **青果登录页 `input#username` 在真机 WebView 的 `onPageFinished` 时序下能否稳定读到**。
 - [ ] **学号不一致时拦课表同步的提示是否清楚**（v1.1.2 那次判据错把人永久锁死过）。

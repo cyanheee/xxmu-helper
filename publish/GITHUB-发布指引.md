@@ -1,5 +1,10 @@
 # 把项目发布到 GitHub —— 操作指引
 
+> **2026-11-10 现状**：仓库已在 GitHub 上（`https://github.com/cyanheee/xxmu-helper`），本地路径是
+> `C:\Users\Administrator\Desktop\xxmuhelper\xxmu-app`，当前代码版本 **v1.1.62 / 1162**。
+> 下面第 1～4 步是首次发布时的历史步骤，仓库建好之后可跳过；日常发版直接看第三节。
+> 作者联系方式：QQ `692962849`，邮箱 `692962849@qq.com`，更新群 `1097668324`。
+>
 > 仓库已经在本地初始化并提交完成（`git log` 能看到 `初始提交：河医大助手 v1.1.17`）。
 > 下面五步做完，它就在 GitHub 上了。全程不需要我这边，你自己点几下就行。
 
@@ -29,9 +34,9 @@
 
 ### 第 1 步：建 GitHub 账号（如果还没有）
 
-<https://github.com/signup> —— 用 `572833261@qq.com` 注册即可。
+<https://github.com/signup> —— 用 `692962849@qq.com` 注册即可。
 
-建议用户名申请成 `gugu-xxmu` 或类似的，别用纯数字。
+用户名已确定为 `cyanheee`，仓库地址就是 `https://github.com/cyanheee/xxmu-helper`。
 
 ### 第 2 步：建一个空仓库
 
@@ -58,7 +63,7 @@
 # Git 不在 PATH 里时先加一次（装完 Git 后新开窗口通常就有了）
 $env:Path += ';C:\Program Files\Git\cmd'
 
-cd "D:\dsh\DSH Desktop\xxmu-app"
+cd "C:\Users\Administrator\Desktop\xxmuhelper\xxmu-app"
 
 # 把 <你的用户名> 换成你的 GitHub 用户名
 git remote add origin https://github.com/<你的用户名>/xxmu-helper.git
@@ -87,10 +92,10 @@ GitHub 仓库页 → 右侧 **Releases** → **Draft a new release**
 
 | 字段 | 填什么 |
 |---|---|
-| Tag | `v1.1.17` |
-| Title | `v1.1.17 —— 换自有域名 + 官网` |
-| 附件 | 上传 `apk/xxmu-helper-v1.1.17.apk` |
-| 说明 | 复制 `apk/v1.1.17.notes.txt` 的内容 |
+| Tag | `v1.1.62` |
+| Title | `v1.1.62 —— 空调好认房了 + 套间 AB + 校园实景/留言自动更新` |
+| 附件 | 上传 `apk/xxmu-helper-v1.1.62.apk` |
+| 说明 | 复制 `apk/v1.1.62.notes.txt` 的内容 |
 
 点 **Publish release**。
 
@@ -102,14 +107,14 @@ GitHub 仓库页 → 右侧 **Releases** → **Draft a new release**
 
 ```powershell
 $env:Path += ';C:\Program Files\Git\cmd'
-cd "D:\dsh\DSH Desktop\xxmu-app"
+cd "C:\Users\Administrator\Desktop\xxmuhelper\xxmu-app"
 
 # 1. 先扫一遍，确认没带进敏感文件
 python -X utf8 tools\scan_secrets.py
 
 # 2. 改了什么就提交什么
 git add -A
-git commit -m "v1.1.18: 说明这次改了什么"
+git commit -m "v1.1.62: 说明这次改了什么"
 
 # 3. 推上去
 git push

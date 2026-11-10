@@ -1,0 +1,172 @@
+/* NOVA 像素美术层 —— 课表这块玻璃本身的切法
+   写域：本文件（web/nova-pixel.css）。原由 pixel-rogue 负责，现由 Lead 收口。
+   宪法：design/sketch/NOVA-SIGNATURE.md
+   铁律：像素只作用于课表本体（#grid 的边框/表头/时列/空格子）与今日表头彩蛋，
+        绝不全站像素化；不新增颜色，只用现有中性阶 + 单色阶；
+        禁用 border-radius / 渐变 / 柔和阴影，改硬边 + 硬投影 + 抖动。
+
+   ── 2026-11-08 重做：从「一台掌机」改成「这块玻璃被切成什么样」 ────────────
+   用户（m12030）原话：「课程表上面有周数了又加个gba游戏机，太不融合了吧，
+   有点刻意而且很突兀不好看」。判词成立，两条都不冤：
+     ① 信息重复 —— 掌机屏里印「W12 / 11-16~11-22」，而 header 上已经有「第 12 周」；
+     ② 身份错位 —— 它是贴在 #grid 外面的一台「设备」，是外挂件，
+        不是课表自己的材质。风格一旦变成需要另起一台机器来承载，
+        它就从「材料的语言」退化成了「贴纸」。
+   所以整台掌机连同它的十字键、A/B 键、液晶屏、机身全删（nova-organs.js 的
+   buildPixel 现在显式 return null）。像素语言全部搬进 #grid 自己身上：
+     表框 1px 硬边 + 3px 向下硬投影（这台仪表是嵌进台面的，不是浮着的）；
+     表头 11px 等宽 + 硬底线（LCD 的字模行）；
+     时列 11px 等宽 + tabular-nums（数字等宽，切周时不抖）；
+     空格子 0 圆角 + 极淡 2×2 抖动（液晶暗格）；
+     今日表头 方头 2px 刻度（唯一彩蛋）。
+   课程块 .c 不动 —— 它们是内容卡片，材质归 medium 层的冷瓷白。
+   「框是仪表，内容卡片是纸」，两套材料各说各话但共用同一套物理规则，
+   这才是融合；把内容也切成方块只会变成另一张贴纸。
+
+   ── 单色阶（沿用上一版，四档 + 一档字形色） ──────────────────────────────
+   无新增色相：浅色档借 #35E0D0 所在色环的冷青侧（hue 202），深色档借
+   #9E8CFF 的紫侧（hue 258），都不取原色本身，避免与主色抢注意力。
+     浅色档  --px-1 hsb(202,58%, 9%) = #0A1217  lum .006  硬投影
+             --px-2 hsb(202,46%,26%) = #243742  lum .035  边框 / 今日表头字
+             --px-3 hsb(202,34%,48%) = #516B7A  lum .137  表框 1px
+             --px-4 hsb(202, 9%,86%) = #C6D3DA  lum .643  抖动点（浅冷灰）
+             --px-glow hsb(202,12%,93%) = #D1E3ED  lum .756  亮档
+     深色档  --px-1 hsb(258,56%,15%) = #171126
+             --px-2 hsb(255,45%,30%) = #352C4F
+             --px-3 hsb(258,34%,45%) = #574C73
+             --px-4 hsb(258,22%,84%) = #B5A7D6
+             --px-glow hsb(258,38%,73%) = #A99BD8
+   两套 ramp 最高 HSL 饱和度 44%（px-glow），远低于威胁语义色（coral #FF5C7A ≈100%），
+   对应《死亡细胞》三级可读性里的 L2「玩法元素」——有对比，但不是喊话。
+   深色档整条 ramp 只走紫族（hue 255–258），抖动点也取紫族，不在紫底上冒第二色相。
+
+   ── 对比度（WCAG 2.1 相对亮度实测，非估算） ───────────────────────────────
+   表框 px-3 on 浅页 #E8EEF0 = 4.80 · on #grid 槽底 #D8E3E9 = 4.31
+   今日表头 px-2 on #D8E3E9 = 9.46 · 深色档 px-4 on #161E24 = 7.60
+   时列 / 表头字走 --n-ink（medium 层已定），本层不夺字色，只定字模与网格。
+
+   ── 与其它层的边界 ──────────────────────────────────────────────────────
+   · #grid 的底色/圆角/投影在 nova-medium.css:177 与 nova-skin.css:155 都有
+     !important，本层要改必须同强度覆盖（下文每条都带 !important 并注明理由）。
+   · 本层不碰 .c 的内边距、字色、行高 —— 那是 medium 与 skin 的写域。
+   · 本层不新增 DOM，不写 JS，全部是纯 CSS 材质。
+   ────────────────────────────────────────────────────────────────────── */
+
+/* ── 0. 私有令牌（不覆盖 --n-*，容忍 nova-skin.css 的并发调色） ─────────── */
+html[data-skin="nova"] {
+  --px-1: #0A1217;
+  --px-2: #243742;
+  --px-3: #516B7A;
+  --px-4: #C6D3DA;
+  --px-glow: #D1E3ED;                        /* 亮档：同色相再亮一档（S 44%） */
+  --px-page: #E8EEF0;
+  /* 2×2 棋盘抖动位图：液晶暗格用，极淡（0.10）—— 它只提供「这是块屏」的质感，
+     不参与任何字形识别，所以 11px 的字压在它上面不会糊。 */
+  --px-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'><rect width='1' height='1' fill='%23000000' fill-opacity='0.10'/><rect x='1' y='1' width='1' height='1' fill='%23000000' fill-opacity='0.10'/></svg>");
+}
+
+html[data-skin="nova"][data-theme="dark"] {
+  --px-1: #171126;
+  --px-2: #352C4F;
+  --px-3: #574C73;
+  --px-4: #B5A7D6;
+  --px-glow: #A99BD8;                        /* 荧光字形：紫族内再亮一档（S 44%） */
+  --px-page: #1A1430;
+  /* 深色档点色取紫族 --px-4，不用白/青，避免在紫底上冒出第二个色相 */
+  --px-dither: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='2' height='2' shape-rendering='crispEdges'><rect width='1' height='1' fill='%23B5A7D6' fill-opacity='0.10'/><rect x='1' y='1' width='1' height='1' fill='%23B5A7D6' fill-opacity='0.10'/></svg>");
+}
+
+/* ── 1. 表框：#grid 是嵌进台面的仪表，不是浮起来的卡片 ───────────────────
+   四角归零、1px 硬边、向下 3px 硬投影 —— 像素只有两档台阶（这里是大面，取 3px），
+   投影 y 一律为正（宪法铁律一：光只从上往下）。 */
+html[data-skin="nova"] #grid {
+  border-radius: 0 !important;               /* 压过 medium 的 --n-r-md */
+  border: 1px solid var(--px-3) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, .50),  /* 顶光：只在上边缘，1px 硬线 */
+    3px 3px 0 var(--px-3) !important;        /* 硬投影：只向下，只一层 */
+}
+
+html[data-skin="nova"][data-theme="dark"] #grid {
+  border-color: rgba(181, 167, 214, .48) !important;
+  box-shadow:
+    inset 0 1px 0 rgba(181, 167, 214, .22),
+    3px 3px 0 rgba(0, 0, 0, .55) !important;
+}
+
+/* ── 2. 表头行（一二三四五六日）：LCD 字模行，方头 + 硬底线 ───────────────
+   只改字模与底线，不改字色（字色由 medium 定 --n-ink，本层不夺）。
+   底线 1px 实色而不是 app.css:190 的那截 2.5px 小横杠 —— 后者是「今日」指示，
+   和 .gh.today 的方头刻度重复，见 §5。 */
+html[data-skin="nova"] #grid .gh {
+  border-radius: 0 !important;
+  font-family: var(--n-mono) !important;
+  letter-spacing: .06em !important;
+  border-bottom: 1px solid var(--px-3) !important;
+}
+
+/* ── 3. 时列（第几节 + 上下课钟点）：等宽 + tabular-nums ──────────────────
+   11px 等宽是 app.css 定的（列宽 34px 才放得下 08:00），本层只补两个像素属性：
+   等宽数字（切周时数字不左右跳）与硬右边线（时列是仪表的刻度尺）。 */
+html[data-skin="nova"] #grid .gp {
+  font-variant-numeric: tabular-nums;
+  border-right: 1px solid var(--px-3) !important;
+}
+
+/* ── 4. 空格子：液晶暗格 —— 0 圆角 + 极淡抖动 ─────────────────────────────
+   .cell 是空档，不是内容。让它在材质上归属这块屏：方角、无投影、抖动点。
+   抖动 alpha 0.10 落在 --n-m-grid-cell（Y≈228）上几乎看不出颗粒，
+   但在 4 倍放大下能读成点阵 —— 这就是「D 级降噪」该有的量。 */
+html[data-skin="nova"] #grid .cell {
+  border-radius: 0 !important;
+  background-image: var(--px-dither) !important;
+  background-repeat: repeat !important;
+  background-size: 2px 2px !important;
+  box-shadow: none !important;
+}
+
+/* ── 5. 今日表头：唯一彩蛋 —— 方头 2px 刻度 + 亮一档的字 ─────────────────
+   这一格承担「今天是星期几」，是全表唯一有信息的地方，所以给它像素语言里
+   最硬的一笔：2px 方头底线。不铺抖动（实拍里整格点阵读成一块灰噪声，
+   比旁边六个表头重得多，会把 A 级主角的注意力抢走）。 */
+html[data-skin="nova"] #grid .gh.today {
+  border-radius: 0;
+  color: var(--px-2) !important;
+  border-bottom: 2px solid var(--px-2) !important;
+  background-image: none;
+  text-shadow: none;
+}
+
+html[data-skin="nova"] #grid .gh.today::after {
+  display: none;                             /* 关掉 app.css:190 的 legacy 小横杠 */
+}
+
+html[data-skin="nova"][data-theme="dark"] #grid .gh.today {
+  color: var(--px-4) !important;
+  border-bottom-color: var(--px-4) !important;
+}
+
+/* ── 6. 预留钩子：当前节次格（app.js 补 `cls += ' now'` 即生效） ──────────
+   当前 renderWeek() 不生成这个 class，所以视觉零变化；规则先备好，
+   不伪造一个假的「当前节次」。 */
+html[data-skin="nova"] #grid .cell.now,
+html[data-skin="nova"] #grid .c.now {
+  border-radius: 0 !important;
+  border: 2px solid var(--px-2) !important;
+  box-shadow: 2px 2px 0 var(--px-1) !important;
+}
+
+html[data-skin="nova"][data-theme="dark"] #grid .cell.now,
+html[data-skin="nova"][data-theme="dark"] #grid .c.now {
+  border-color: var(--px-4) !important;
+  box-shadow: 2px 2px 0 var(--px-1) !important;
+}
+
+/* ── 7. 动效：像素没有中间帧，系统要求减动效时干脆不动 ──────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  html[data-skin="nova"] #grid,
+  html[data-skin="nova"] #grid .gh.today {
+    transition: none;
+    animation: none;
+  }
+}

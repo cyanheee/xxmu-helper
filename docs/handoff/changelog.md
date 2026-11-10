@@ -7,6 +7,66 @@
 
 ---
 
+### v1.1.56（2026-11-08）—— NOVA「万象舱」：完全抛开原版骨架的全新界面（**未上线，只出了本地包**）
+
+用户原话：「为什么你给我生成的图片还是 1.1.48 那种我说的涂鸦风格，我说了完全抛开原版，大胆融合所有。就像保留目前有的功能基础上重新设计开发一款全新的软件一样」；此前又定过「像所有人的乌托邦」「不要单一让一个风格的元素过于堆砌」「动态传送带 / 磁带机放大时空穿越」「整体 UI、操作逻辑、按钮布局、体验都可以根据风格定制改动」「不断搜索灵感资料素材」「模型到上线了你要自己切换到适合此项目的模型（xdpool 国内版）」。这一版按这些话重做。
+
+1. **作废旧三锁**：mashup / console / pocket / utopia 四轮样张都是 v1.1.54 西部涂鸦纸卡片换皮，全部归档。`design/sketch/NOVA-DESIGN.md` 重定「风格不是贴纸，是器官」——一套舱体骨架，每个风格领一个**可操作器官**：蒸汽朋克=周次传送带、GBA=课表舱格、赛博 HUD=切角舷窗与段码、随身听=磁带门、拼贴=WIKI 剪报、拍立得=照片墙、票券=热水票、蒸汽波=舷窗落日、吉卜力=统一水彩介质层、西部=只剩一道皮革压边。经典纸卡片流 / 针脚 / 胶带 / 蹄铁星 / 暖棕描边 / 旧色板全部清零。
+2. **三个招牌交互**（`design/sketch/nova-preview.html` 原型 → **正式工程 `web/nova-organs.js` 已实装**）：① 21 周传送带可拖可点、滚轮外露、吸附时课表横向滑入；② 磁带门以触点为起点放大铺满，A 面作业 / B 面考试，翻面有色相偏移；③ 波段拨盘切频道会按 `data-groups` 重排模块并 stagger 入场，不是普通 Tab 高亮。动效 2/5/6/7/8/9/11/12/18s 错峰，`prefers-reduced-motion` 一键全停。**器官层不碰 app.js 一行**：切周靠点真实 `#prev/#next`，切页靠点真实 `#tabs button`，磁带门里放的是 `#hwlist` 里已渲染好的真实 `.hw` 卡片（DOM 搬运，不重画、不编数据）。
+3. **真实功能挂载复核**：只挂课表（21 周 / 上下课时间）、学习通作业与考试、饮水机免验证接热水、校园 WIKI（校历 / 招生办 / 附属医院 / 校训）、校园图片与留言板（需审核）。上一版 utopia 的「宿舍空调 12.40 kWh / CRC OK」是臆造功能，本版全部清除并写进静态验收禁词。
+4. **出图链路修了一个老坑**：Windows headless Edge 把 `--window-size=390` 夹到 ~492 CSS px，而 `--screenshot` 仍只出 390px，导致此前每一张样张右侧都齐刷刷被裁（utopia 也中招没查出来）。现在 `nova-preview.html` 把 html/body/#cabin 钉死 390 CSS px，`shoot-nova.ps1` 裁掉多余视口边，另加 `?probe=1` DOM 溢出探针（实测 `count:0`）。浅 / 深 / 频道切换 / 磁带门浅 / 磁带门深共五张 390×1400 实拍逐块核对，深色档单独出物理图。
+5. **正式工程落地**（独立于深浅模式的第二根轴）：`web/nova-skin.js` 在 `<head>`、`app.css` **之前**同步写 `data-skin`（冷启动不闪经典页），偏好存 `xxmu_skin`，与 `theme.js` 的 `xxmu_theme` 完全正交；`web/nova-skin.css` 把顶栏变仪表条、周次行变传送带、`#grid` 变切角舷窗、`.card` 变舱格、`#tabs` 变波段拨盘，并彻底关掉经典 `.card::before/::after` 胶带与蹄铁星。设置页加「经典 / 万象舱」两档，我的页加皮肤入口行；`app.js` 只加一行绑定，4700 行 DOM id 一个没动，用户随时能切回经典。
+6. **官网同源**：`design/sketch/site-style.css` 换成 NOVA 真源，`tools/apply_site_style.py` 整段替换 `server/pages/dist/index.html` 的 `<style>`（注释里含字面量闭合标签，HTML 解析器不认 CSS 注释会提前闭合样式块把余下 CSS 当正文打印 —— 真源注释已避开该字面量，工具按 `<head>` 内首尾标签定位而不是非贪婪正则）；`tools/gen_site_shots_nova.py` 重生三张舷窗 SVG；`tools/apply_site_shots.py` 把首页里 v1.1.54 为省请求内联的三段旧版示意 SVG 换成引用 NOVA 示意图的 `<img src="img/shot-*.svg">`（相对路径，`file://` 本地渲染与 Pages 线上都能取到）；`_worker.js` 的 BUILD 切 `v1.1.56-nova` 让两域名边缘缓存整批失效（`xxmu-auth.pages.dev` 与 `www.xxmuhelper.top` 各有独立缓存）。**本地改完，未部署**。
+7. **自补工具**：`tools/check_skin.js`（70 断言：禁词 / 真实功能锚点 / 器官挂载 / 双轴正交 / 动效错峰 / 五张 PNG 尺寸哈希）、`tools/test_nova_skin.js`（43 断言：归一化 / 首屏同步 / 落盘 / 与 THEME 正交 / 设置页挂载 / 静态接线 / html 标签级清零护栏）、`tools/check_site_skin.js`（24 断言：真源逐字一致 / 旧装饰清零 / 内联旧 SVG 已清 / 三张示意图引用 / BUILD）、`tools/apply_site_style.py`、`tools/apply_site_shots.py`、`tools/gen_site_shots_nova.py`、`design/sketch/shoot-nova.ps1`、`design/sketch/make_nova_real.js` + `shoot-nova-real.ps1`（渲染**正式** `web/index.html` 的实拍夹具）。`tools/check_web.js` 的 sameSkin 判据从「官网=西部涂鸦 app.css」改成「官网真源=NOVA 覆盖层令牌逐字同源 + 经典令牌仍可回退」，示意图断言从只认内联 SVG 扩到认相对路径外链。
+8. **模型**：实测 xdpool 国内版池健康（`hy4free` 2/4 账号可用但软限流、`glm-5.3-flash` 2/4 可用、`hy3` 4/4 可用），把 `cordis.patch.yml` 的 `agent-default-model.model` 从 `hy4free` 切到 `glm-5.3-flash`（900K 上下文、国内版、2 账号可用），原文件备份在 `.bak-nova-20261108`。
+9. **正式工程实拍（新增，`make_nova_real.js`）**：渲染**真实** `web/index.html` 而不是原型页 —— 夹具在 `</body>` 末尾批量清掉 app.js 的定时器链（否则 Edge `--virtual-time-budget` 会空转到 CPU 跑满不退出）、解锁 `#app`、关掉 gate/disc/tut/onb/upd/sheet、注入示例课表、把 `main` 内部滚动摊成长页、html/body 钉死 390px。这条链路查出并修掉了三个真 bug：① 覆盖层写了臆造类名 `.course/.kb-cell`，真实 `renderWeek()` 产出的是 `.c` / `.cell`，旧涂鸦彩色卡片因此漏进舷窗；② 西部覆盖层把牛皮纸+方格+红皮绳写在 `html` 标签上，NOVA 只改 `#app` 导致底部整片漏出旧方格；③ 顶栏被西部皮革带规则压住，没变仪表条。三处都已在 `nova-skin.css` 修掉并加静态护栏（44 断言）。浅 / 深各一张 390×2200 实拍逐块核对：无旧方格、无白字压白底、课表舱格为硬边像素风、拨盘与传送带生效。
+10. **器官层实装（`web/nova-organs.js` + `nova-organs.css`）**：把三个招牌交互真正接进正式工程（之前只在原型页里）。周次传送带（21 格胶囊 + 两端黄铜滚轮 + 红色指针，能拖能点，拖完自动吸附）、磁带门（A 面作业 / B 面考试，点触点放大铺满，门内是真实 `.hw` 卡片）、波段拨盘（指示珠滑向当前频道 + 切页时舱格错峰点亮）。三条硬约束：**不碰 app.js**（切周点真实 `#prev/#next`、切页点真实 `#tabs button`）、**不编数据**（磁带门搬运 `#hwlist` 的真实卡片）、**不越轴**（器官层只读 `data-skin`，不写 `data-theme`）。切回经典时器官整组拆掉。
+11. **验证**：26 套离线测试全绿（含新增 `test_nova_skin.js`、`test_nova_organs.js`；`test_grab.js` 需带 `build_test/grab.js` 参数，不带参数报 ENOENT 是它本来就要求的用法）、`check_web PASS`、`check_skin 70/70`、`check_site_skin 24/24`、`test_nova_skin 44/44`、`test_nova_organs 37/37`、`check_notes` 6/6、`verify_apk` 五件套 PASS（证书 `0e684845…11157799` 与 v1.1.1 一致可覆盖升级）。最终包 `apk/xxmu-helper-v1.1.56.apk` 711510 字节、SHA-256 `d0ac92a881fd…`，已由 `deliver.py` 送到桌面 `xxmuhelper\` 并逐字节校验。
+10. **没做的两项**：官网未部署、`/v1/config` 的 cfg.latest 未切（线上仍是 1.1.54 / 1154 / 674032）。按发布纪律等 YG 明确说「上线」才两条一起做。真机项一律没声称验证：磁带门点按链路、传送带拖拽手感、Webview 里 `nova-skin.css` 的舱格覆盖、官网双域名 300s 边缘缓存失效。
+
+---
+
+### v1.1.55（2026-11-08）—— 糖梨（tangli）比对结论落地（**未上线，只出了本地包**）
+
+上一轮把用户的「继续」接错到 GlassDesk 1.4.5，河医大助手这边一项借鉴都没动；
+用户纠正后回来做这四项。依据 `docs/compare-henubox.md` 之外的
+`augustlies/tangli` 对照结论：值得借鉴 5 点、不建议抄 4 点。
+
+1. **DESIGN.md**（新）：工程侧已有 HANDOFF，缺设计侧。把色板 / 字体层级 /
+   组件规格写清楚，**第 5 节专列「用户明确否决过的设计」**（全黑白 / 一直米白 /
+   大面积黑 / 换成单一风格 / 霓虹蓝主题 / 磨砂实时模糊 / 引 RoughJS 与 Gradle /
+   1500 校适配 / 托管密码与代提交），以后新会话不重新讨论。
+2. **AI 改课表 DSL**（`web/lesson-cmd.js`）：复制「开学日 + 作息 + 现有课表」说明给任意
+   AI，回 `+ 课名 | 周三 | 3-4节 | 第10周 | A201` / `停` / `调` / `假` 纯文本；
+   本地解析 → 预览差异 → 点确认才写入 `xxmu_kb_ops` → 可单步撤销 / 清空。
+   **零 AI 成本、零账号、零网络**。铁律：任一行解析不出来就整批拒绝，不猜、不静默跳过；
+   钟点必须能对上校方 `times[]`，对不上就拒；改动只叠在内存 `DATA`，绝不覆盖教务缓存。
+   `app.js load()` 在算 PERIODS 之前叠加，画面 / 统计 / 提醒都用叠加后的数据。
+3. **成绩页**（`web/grades.js`）：新成绩先盖着、点一下翻开；按学期归档、4.0 制
+   学分加权绩点。核心防错：`scoreOf('--')`/空/未出 = **情况不明第三种状态**，绝不
+   当 0 分或已完成，也不参与绩点平均；导入 JSON 任一条坏就整批拒绝。
+   `core/kingo.py::fetch_grades` 只留只读候选路径探测 + STALE 识别，**真实 JSP 路径
+   需登录后真机核验，没验过就不冒充已做**。
+4. **桌面小组件**（`ClassWidget.java` + `res/layout/widget_today.xml` +
+   `res/xml/widget_today_info.xml` + manifest receiver）：今日课程 / 第几周 / 下节课教室，
+   只读本机 `schedule.json` 与缓存，不联网；`saveCachedSchedule` 写完即 `refresh()`。
+   组件只叠加「加课」指令，停 / 调 / 假不重算（宁可少显示，不显示错的）。
+
+顺带：
+- `tools/test_tangli.js` 55 条离线断言（DSL 解析 / 整批拒绝 / 应用 / 三态 / 绩点 / 归档）。
+- `tools/check_web.js` 加 v1.1.55 结构锚点，并把三条**过期**官网断言对齐当前实现：
+  三张 SVG 已内联（首页请求数 5→2）、`HOME_TTL 300→86400` + `BUILD` 缓存键整批失效；
+  `tools/test_apk_cache.js` / `dist/_headers` 的 300 秒断言同步改 86400。
+- 版本 1.1.55 / 1155，assets 25 文件同步；24 套离线测试全绿、`check_web` PASS、
+  `verify_apk` 五件套 PASS。包 694860 字节，SHA-256
+  `C852DC7E5DE5F8107D0DB15FC2B05A61C3B59263F2B22EC43AE462E76B1A78C2`，
+  证书 `0e684845…11157799` 与 v1.1.1 一致（可覆盖升级）。
+- **没发布**：线上 `/v1/config` 仍是 1.1.54 / 1154 / 674032，按「用户明确说上线才切
+  cfg.latest」的纪律留着。桌面 `xxmuhelper\河医大助手-v1.1.55.apk` 逐字节一致。
+- **没真机验证**：课程提醒、小组件排版观感、青果成绩页路径，都写进 DESIGN.md 末节。
+
+---
+
 ### v1.1.49（2026-11-07）—— 空闲教室的乱码 + 更新提示出得慢（**未上线，只出了本地包**）
 
 用户一张截图 + 一句「更新弹窗还是慢，你再修修。这里有乱码」。截图里「空闲教室」弹层的

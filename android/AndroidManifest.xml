@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.xxmu.helper"
-    android:versionCode="1154"
-    android:versionName="1.1.54">
+    android:versionCode="1162"
+    android:versionName="1.1.62">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
     <uses-permission android:name="android.permission.INTERNET" />
@@ -109,6 +109,20 @@
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
             </intent-filter>
+        </receiver>
+
+        <!-- v1.1.55：今日课程桌面小组件（借鉴 tangli）。只读本机课表，不联网。
+             exported=false：只接受系统 AppWidgetManager 的更新广播。 -->
+        <receiver
+            android:name=".ClassWidget"
+            android:exported="false"
+            android:label="@string/widget_today_desc">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_today_info" />
         </receiver>
 
         <!-- 只给系统安装器读下载好的 apk，不对外暴露 -->

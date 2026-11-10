@@ -42,6 +42,15 @@ const MAX_DEV = 3;              // 每个学号默认最多绑定几台设备
  * 而全站 KV 免费写额度只有 1000/天。封顶之后损害就停在「名单少几条」。 */
 const IDX_CAP = 5000;
 
+/* v1.1.62：名单里「格式异常（手填）」的号，是进门时用户手填的学号（6/10/12 位、
+ * 1 开头等），不是教务网真实学号。本校在册学号是 11 位、2025/2026 这类年份开头。
+ * 这个判据和 app.js 的 looksOddId 保持一致，只用来识别「哪一条是手填的畸形行」，
+ * 不拦人、不改激活判据（/v1/activate 仍只要求 6~20 位纯数字，见 handleActivate）。 */
+function oddShape(id) {
+  const s = String(id || '');
+  return s.length !== 11 || !/^20\d{2}/.test(s);
+}
+
 /* ---------------------------------------------------------------- 工具 */
 
 const CORS = {
@@ -1066,9 +1075,22 @@ async function handleActivate(req, env) {
    * 原来只有 handleGrant 写 idx，那条路已经删了。
    *
    * v1.1.8：idx 读不出来（getIdx 返回 null）时**不许**把整张名单覆盖成空的。
-   * 记账失败不影响上课，所以这里不抛错，只留一条日志。 */
+   * 记账失败不影响上课，所以这里不抛错，只留一条日志。
+   *
+   * v1.1.62：客户端在教务网登录成功后会把「教务网登录的学号」重新激活一次，
+   * 顺带把进门时手填的畸形学号放进 renameFrom。这里一次 idxApply 完成
+   * 「添真实号 + 删畸形行」：名单从此显示教务网登录的学号，教务网与软件学号
+   * 也就一致了。护栏很硬：只有 from 畸形、to 是正常 11 位 20xx 号、二者不同、
+   * 且 from 没被管理员停用时才认；管理员支路在上面已提前 return，不受影响。
+   * 旧客户端不带 renameFrom 时 dels 为空，行为与从前完全一致。 */
+  let dels = [];
+  const renameFrom = String(b.renameFrom || '').trim();
+  if (renameFrom && renameFrom !== id && oddShape(renameFrom) && !oddShape(id)
+      && !(await env.AUTH.get('rev:' + renameFrom))) {
+    dels = [renameFrom];
+  }
   try {
-    await idxApply(env, [{ id: id, note: '' }], []);
+    await idxApply(env, [{ id: id, note: '' }], dels);
   } catch (e) {
     console.error('激活成功但名单记账失败：', e && e.message);
   }
@@ -1781,7 +1803,7 @@ async function handlePhotos(req, env) {
     const idx = await getPhotoIdx(env);
     const rows = idx
       .filter(x => x.st === 'a')
-      .map(x => ({ k: x.k, cap: x.cap || '', w: x.w || 0, h: x.h || 0, at: x.at || 0 }));
+      .map(x => ({ k: x.k, cap: x.cap || '', w: x.w || 0, h: x.h || 0, at: x.at || 0, rot: x.rot || 0 }));
     rows.sort((a, b) => b.at - a.at);
     return json({ ok: true, count: rows.length, rows: rows });
   }, { ignoreQuery: true });
@@ -1920,7 +1942,7 @@ async function handleAdminPhotos(env) {
   const idx = await getPhotoIdx(env);
   const rows = idx.map(x => ({
     k: x.k, cap: x.cap || '', w: x.w || 0, h: x.h || 0,
-    at: x.at || 0, st: x.st || 'p', id: x.id || '',
+    at: x.at || 0, st: x.st || 'p', id: x.id || '', rot: x.rot || 0,
   }));
   return json({ ok: true, count: rows.length, pending: rows.filter(r => r.st === 'p').length, rows: rows });
 }
@@ -1988,8 +2010,14 @@ async function handleAdminPhotoAct(req, env) {
   } else if (act === 'cap') {
     idx[i].cap = cleanText(b.cap || '', 60);
     await putPhotoIdx(env, idx);
+  } else if (act === 'rot') {
+    /* 方向只存 0/90/180/270 的元数据，不重编码字节：可逆、不损画质、
+     * 一次只改 ph:idx 一个键。两条 purgeEdge 会把公开墙的缓存一起清掉。 */
+    const r = Number(b.rot);
+    idx[i].rot = (r === 90 || r === 180 || r === 270) ? r : 0;
+    await putPhotoIdx(env, idx);
   } else {
-    return bad('act 只能是 ok / no / del / cap');
+    return bad('act 只能是 ok / no / del / cap / rot');
   }
   await audit(env, 'photo_' + act, [], k);
   // 列表有边缘缓存，审核动作必须把它清掉，否则管理员自己刷新也看不到变化

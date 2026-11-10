@@ -1,0 +1,1190 @@
+/* ==========================================================================
+   NOVA ORGANS — 器官层（v3 · 材质轴）
+   写域：本文件。宪法：design/sketch/NOVA-SIGNATURE.md
+   分工：nova-skin.css = 台面层（换皮，不带风格身份）；本文件 = 器官的**内容区**
+   （中性阶 + 主色，不许带材质色）；材质层归各风格文件（nova-press / nova-brass /
+   nova-pixel / nova-cyber / nova-anime / nova-ghibli / nova-campuscard）。
+   只在 html[data-skin="nova"] 下生效；切回经典时整组 DOM 被拆掉。
+
+   v3 做了什么（对应宪法 §0.0 双轴 / §1.1 / §2.1 / §3.5 / §4 / §7）：
+     1. 单一主色：器官层不再散用 --n-cyan / --n-violet / --n-grass / --n-orange，
+        统一走本文件定义的 --o-accent* 三档（实心底 / 浅底上的字 / 深底上的字）。
+     2. 珊瑚 --n-coral 从装饰位全部撤出（标题▮方块、B 面选中、指针、涂鸦笔画），
+        只留在「成绩不及格 / 指令报错」这两个真·危险语义上。
+     3. **材质不再是本文件的活**（v2 把所有纸收敛成冷瓷白，是执行错误）：
+        纸、黄铜、皮革、树脂、电路、相纸各自回到自己的风格文件；本文件只留
+        内容区的中性阶与主色，并遵守物理规则（阴影只向下、高光只在上缘）。
+     4. 圆角只走 --n-r-xs / --n-r-sm / --n-r-md 三档令牌，3/5/7/9px 全部归零。
+   深色档（紫夜舱）介质由 nova-skin.css 提供；本文件只补器官自己的紫介质。
+   ========================================================================== */
+
+/* ---------- 器官层局部令牌 ----------
+ * 为什么不直接用 nova-skin.css 的 --n-* ？
+ * 那是「介质层」的语言（底色/卡片/按钮），一个色值要服务全站。
+ * 器官需要一个更哑的主色：荧光青 #35E0D0 做满铺底会把正文压死，
+ * 而 #1FA79A 在冷瓷上做字是 6:1、做小块底配深字是 5.6:1，才敢用。
+ * 深色档把它换回紫罗兰，保持「紫夜舱」。 */
+html[data-skin="nova"]{
+  --o-accent:#1FA79A;                       /* 实心块底（按钮/选中/刻度） */
+  --o-accent-ink:#0B5C55;                   /* 浅底上的主色字（7.7:1 on #FDFEFF） */
+  --o-accent-lit:#5FE8D8;                   /* 深底上的主色字（10.9:1 on #12232B） */
+  --o-accent-on:#04241F;                    /* 压在主色实心底上的字（5.6:1） */
+  --o-accent-on-strong:#F4FFFD;             /* 压在 accent-ink 深底上的字（7.7:1） */
+  --o-accent-soft:rgba(31,167,154,.12);     /* 选中底/光环，永不满铺 */
+  --o-accent-line:rgba(31,167,154,.34);     /* 描边 */
+  --o-flash:rgba(31,167,154,.45);           /* 一次性闪示 */
+  --o-ink-3:#57676F;                        /* 压深版 muted（原 #7B8B99 只有 3.4:1，不合格） */
+  --o-ceramic:#FDFEFF;                      /* 冷瓷：器官卡正面 */
+  --o-ceramic-2:#F0F4F6;                    /* 冷瓷：器官卡背面 */
+  --o-line:rgba(16,24,40,.14);
+  --o-line-soft:rgba(16,24,40,.07);
+  --o-ship:#1C2F38;                         /* 冷墨树脂：所有「机器壳」 */
+  --o-ship-2:#101F27;
+  --o-ship-win:#243942;                     /* 机器上的凹槽 */
+  --o-ship-win-2:#12222A;
+  --o-ship-ink:#EAF6F8;                     /* 壳内正文 */
+  --o-ship-ink-2:rgba(234,246,250,.62);     /* 壳内次要（6.5:1 on #12232B） */
+  --o-ship-ink-3:rgba(234,246,250,.34);     /* 壳内刻度 */
+}
+html[data-skin="nova"][data-theme="dark"]{
+  --o-accent:#9E8CFF;
+  --o-accent-ink:#C9A6FF;
+  --o-accent-lit:#C9A6FF;
+  --o-accent-on:#120C22;
+  --o-accent-on-strong:#1A1030;
+  --o-accent-soft:rgba(158,140,255,.14);
+  --o-accent-line:rgba(183,155,255,.30);
+  --o-flash:rgba(158,140,255,.45);
+  --o-ink-3:#8B7FB5;
+  --o-ceramic:rgba(255,255,255,.06);
+  --o-ceramic-2:rgba(255,255,255,.09);
+  --o-line:rgba(234,242,255,.14);
+  --o-line-soft:rgba(234,242,255,.08);
+  --o-ship:#2E2350;
+  --o-ship-2:#1D1638;
+  --o-ship-win:#241B44;
+  --o-ship-win-2:#160F2C;
+  --o-ship-ink:#EFE9FF;
+  --o-ship-ink-2:rgba(239,233,255,.62);
+  --o-ship-ink-3:rgba(239,233,255,.34);
+}
+
+/* ---------- ① 周次传送带（A 级 · 全站唯一主角） ----------
+ * 身份保留：深色机身 + 横向轨道 + 可拖 + 中缝指针对位 + 主色选中格。
+ * 收敛掉的是：黄铜外框（改中性墨线）、珊瑚指针（并进主色实心格）、
+ * 荧光青满铺块（改一支主色 + 10.9:1 的深底字）、12px 外发光。
+ * 第二轮再收：两侧黄铜齿轮降成极淡中性轮廓（原来 12s 转，把主角的注意力分走三分之一）；
+ * 中缝指针从 2px 发光三角降成 1px 哑光发丝（它和选中格是同一个信息）；
+ * 底行日期从荧光青改中性灰。
+ * 全站唯一「亮」的地方现在只剩这一颗主色选中格 + 正下方那行倒计时。 */
+html[data-skin="nova"] .nv-belt{
+  margin:10px 0 4px;padding:9px 10px 8px;border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 2px 0 rgba(16,24,40,.10);
+  position:relative;overflow:hidden;
+}
+html[data-skin="nova"] .nv-belt-head{display:flex;justify-content:space-between;
+  align-items:center;color:var(--o-ship-ink-3);font:9px var(--n-mono);letter-spacing:2px;
+  margin-bottom:7px}
+html[data-skin="nova"] .nv-belt-head u{text-decoration:none;
+  color:var(--o-ship-ink-3);letter-spacing:1.4px}
+html[data-skin="nova"] .nv-belt-rail{position:relative;height:44px;border-radius:var(--n-r-sm);
+  overflow:hidden;background:linear-gradient(180deg,var(--o-ship-2),var(--o-ship) 50%,var(--o-ship-2));
+  box-shadow:inset 0 3px 6px rgba(0,0,0,.55),inset 0 -1px 0 rgba(255,255,255,.04);
+  touch-action:none;cursor:grab}
+html[data-skin="nova"] .nv-belt.dragging .nv-belt-rail{cursor:grabbing}
+html[data-skin="nova"] .nv-belt-track{position:absolute;left:0;top:0;height:100%;
+  display:flex;align-items:center;gap:4px;padding:0 10px;
+  transform:translateX(var(--shift,0px));will-change:transform}
+html[data-skin="nova"] .nv-wk{flex:0 0 auto;width:36px;height:28px;
+  border:1px solid var(--o-ship-ink-3);border-radius:var(--n-r-xs);
+  background:linear-gradient(180deg,var(--o-ship-win),var(--o-ship-win-2));
+  color:var(--o-ship-ink-2);font:700 11px var(--n-mono);
+  font-variant-numeric:tabular-nums;cursor:pointer;transition:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+/* 当前周：全站最后一个高饱和实心块，收掉。
+ * 原来是一块主色满铺（35 cells 的实心色块，是「一屏只能有一个高饱和」的唯一破例）。
+ * 现在改成「白瓷实心 + 石墨字 + 1px 主色边」：
+ *   · 深色轨道上，一块近白实心本身就是最强的对比 —— 不需要靠饱和度喊；
+ *   · 实心 vs 空心（其余周是冷墨空心格）仍然一眼分得开，这是 A 级主角的辨识度；
+ *   · 主色只剩一圈 1px 边，用来把白瓷「接回」这台机器的语言，不再是色块。
+ * 深色档另有一段（见文末）：紫夜舱里主色就是紫，实心紫格是对的，不能一起改成白。 */
+html[data-skin="nova"] .nv-wk.on{
+  background:var(--o-ceramic);color:var(--n-ink);
+  border-color:var(--o-accent);
+  box-shadow:0 2px 0 rgba(0,0,0,.22);
+  transform:scale(1.06)}
+/* 机身 + 两侧手轮（2026-11-08 重做）
+ *
+ * 原来轨道两端是一对 8 段 conic 齿轮，12s 无限旋转 —— 纯装饰，
+ * 转得越起劲越像贴纸：「机器长得像机器」不等于「机器能用」。
+ * 用户（m12051）要的是「每个元素都有符合材质的交互方式」，
+ * 所以这两个圆盘改成真的能转的手轮：转 44° 走一格，点一下也走一格。
+ *
+ * 44° 是硬约定：轮缘是 8 等分齿纹（每齿 44° + 1° 缝），
+ * 走满半格才算一次，轻碰不会翻周；JS 里 while 的判据是同一个数。
+ *
+ * 手轮用 <button> 而不是 div —— 键盘可 Tab 到、回车即切周，
+ * 屏幕阅读器读 aria-label「上一周 / 下一周」。它已经接管了
+ * 原来 .week-row 上 ‹ › 的职责，所以那两个按钮在 NOVA 里被收起
+ * （见 nova-skin.css 的 .week-row 段），周次读数全站只剩传送带这一处。 */
+html[data-skin="nova"] .nv-belt-body{display:flex;align-items:center;gap:6px}
+html[data-skin="nova"] .nv-belt-body .nv-belt-rail{flex:1 1 auto;min-width:0}
+html[data-skin="nova"] .nv-crank{flex:0 0 auto;width:26px;height:30px;
+  display:flex;align-items:center;justify-content:center;
+  border:0;background:transparent;padding:0;cursor:grab;
+  touch-action:none;-webkit-tap-highlight-color:transparent}
+html[data-skin="nova"] .nv-crank.on{cursor:grabbing}
+html[data-skin="nova"] .nv-crank-wheel{width:24px;height:24px;border-radius:50%;
+  border:1px solid var(--o-ship-ink-3);position:relative;
+  background-color:var(--o-ship-win);
+  background-image:
+    radial-gradient(circle at 50% 50%,
+      var(--o-ship-win-2) 0 3px,transparent 3px 100%),
+    repeating-conic-gradient(from 0deg,
+      var(--o-ship-ink-3) 0deg 1.5deg,transparent 1.5deg 44deg);
+  opacity:.72;
+  transform:rotate(var(--rot,0deg));
+  transition:transform .18s cubic-bezier(.2,.7,.3,1)}
+/* 拖动中不给过渡，否则手感会黏在后面 */
+html[data-skin="nova"] .nv-crank.on .nv-crank-wheel{opacity:1;transition:none}
+html[data-skin="nova"] .nv-crank:focus-visible{outline:2px solid var(--o-accent);
+  outline-offset:2px;border-radius:var(--n-r-sm)}
+/* 中缝指针：它表达的是「轨道正中对准哪一周」，与 .nv-wk.on 的实心块是同一个信息。
+ * 两份重复 → 指针只留一根 1px 的哑光发丝（对位用），不再带发光，不再有倒三角头。
+ * 「当前是第几周」这件事，全站只由那块白瓷实心格说一次。 */
+html[data-skin="nova"] .nv-needle{position:absolute;left:50%;top:0;bottom:0;
+  width:1px;z-index:4;pointer-events:none;
+  background:linear-gradient(180deg,rgba(234,246,250,.34),rgba(234,246,250,.06))}
+html[data-skin="nova"] .nv-needle::before{display:none}
+html[data-skin="nova"] .nv-belt-foot{display:flex;justify-content:space-between;
+  margin-top:5px;color:var(--o-ship-ink-3);font:9px var(--n-mono);letter-spacing:1px}
+/* 底行日期原来是荧光青 —— 一个纯信息，不该发光。改中性灰。 */
+html[data-skin="nova"] .nv-belt-name{color:var(--o-ship-ink-2)}
+/* ----------------------------------------------------------------------
+ * 全站唯一「因为有信息在变所以它在动」的一行：
+ *   .nv-belt-next  = 「距上课 01:20 / 距上课 25 分 / 今日无课 / 今日课程已结束」
+ * 它是传送带正下方的一行读数，不是标签、不是强调、不是装饰 —— 所以：
+ *   · 颜色走中性（--o-ship-ink-2，壳内次要文字的同一档），既不是主色也不是珊瑚；
+ *     —— 注意：这一行在 .nv-belt 内部，而 .nv-belt 是冷墨机壳（浅色档也是深底），
+ *     所以「中性」要用壳内中性阶，不能用浅色页的 --n-ink-2（#4A5A6A 在深底上不可读）。
+ *   · 唯一动效是 opacity 的一次呼吸（≥6s，幅度 .55→.9），因为它对应的是
+ *     一个正在走的倒计时，静止的读数会显得是死的；
+ *   · min-height 定量占位 —— 文案从空到有（或无课）时整条传送带不许跳。
+ * JS 侧只在文案非空时写入文本，空串加 .off 整行收起。样式不参与判断。
+ * ---------------------------------------------------------------------- */
+html[data-skin="nova"] .nv-belt-next{
+  margin-top:6px;text-align:center;min-height:15px;
+  font:500 11px var(--n-mono);font-variant-numeric:tabular-nums;
+  letter-spacing:.02em;line-height:15px;color:var(--o-ship-ink-2);
+  animation:n-belt-tick 6.4s ease-in-out infinite}
+html[data-skin="nova"] .nv-belt-next.off{display:none}
+@keyframes n-belt-tick{0%,100%{opacity:.55}50%{opacity:.9}}
+/* 离开课表页就收起（经典版 .week-row 只在 kb 页显示） */
+html[data-skin="nova"] .nv-belt.off{display:none}
+
+/* ---------- ② 磁带门（A 级 · 主角） ----------
+ * 身份保留：卡带窗 + 两个转盘 + A/B 面。
+ * 壳是「机器」：冷墨树脂（赛博材质），黄铜轴与卷盘由 nova-brass.css 在这层
+ * 之上画（材质层分工）。这里只给壳的底与结构，不碰轴、不碰卷盘。 */
+html[data-skin="nova"] .nv-tape{position:relative;margin:0 0 12px}
+html[data-skin="nova"] .nv-tape-shell{
+  display:block;width:100%;text-align:left;padding:8px;border-radius:var(--n-r-md);
+  background:linear-gradient(165deg,var(--o-ship),var(--o-ship-2));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 0 rgba(16,24,40,.20);
+  color:var(--o-ship-ink);cursor:grab;border:0;
+  /* 横向拖动归磁带走带，竖向留给页面滚动 —— 不加这条手指一碰就被吃掉 */
+  touch-action:pan-y;-webkit-tap-highlight-color:transparent}
+/* 拖住时不给按压缩放：那个 scale(.985) 会和横向位移打架，看起来像丢帧 */
+html[data-skin="nova"] .nv-tape-shell:active{transform:scale(.985);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 0 rgba(16,24,40,.20)}
+html[data-skin="nova"] .nv-tape-shell.turning{cursor:grabbing;transform:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 0 rgba(16,24,40,.20)}
+html[data-skin="nova"] .nv-tape-top,.nv-tape-bot{display:flex;justify-content:space-between;
+  align-items:center;gap:5px;font:8px var(--n-mono);letter-spacing:1px}
+/* A/B 面徽标：这是状态标记，不是危险 → 主色 */
+html[data-skin="nova"] .nv-tape-top em{font-style:normal;background:var(--o-accent);
+  color:var(--o-accent-on);padding:1px 5px;border-radius:var(--n-r-xs)}
+html[data-skin="nova"] .nv-tape-top u,.nv-tape-bot u{text-decoration:none;
+  color:var(--o-ship-ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-skin="nova"] .nv-tape-bot em{font-style:normal;color:var(--o-accent-lit);font-weight:700}
+html[data-skin="nova"] .nv-tape-win{position:relative;display:flex;align-items:center;
+  justify-content:space-between;gap:6px;margin:7px 0;padding:8px 9px;border-radius:var(--n-r-sm);
+  background:linear-gradient(180deg,var(--o-ship-win),var(--o-ship-win-2));
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.55),inset 0 0 0 1px rgba(234,246,250,.09)}
+/* 卷轴：不再是 6s 无限自转的装饰（那是「机器长得像机器」）。
+ * 现在它由手指驱动 —— 拖动磁带时两个卷轴按位移同步转（--spin，JS 写）。
+ * 静止时不动，因为静止的读数才对应「磁带走完了/停着」。
+ * 转速关系：一格 46px = 180°，两个卷轴同角速度反向（一收一放，真磁带的走带方向）。 */
+html[data-skin="nova"] .nv-reel{position:relative;width:24px;height:24px;flex:0 0 auto;
+  border-radius:50%;border:2px solid rgba(234,246,250,.40);
+  background:conic-gradient(from 0deg,rgba(245,250,255,.55) 0 8%,transparent 8% 25%,
+    rgba(245,250,255,.55) 25% 33%,transparent 33% 50%,
+    rgba(245,250,255,.55) 50% 58%,transparent 58% 75%,
+    rgba(245,250,255,.55) 75% 83%,transparent 83% 100%),var(--o-ship-win-2);
+  transform:rotate(var(--spin,0deg));
+  transition:transform .22s cubic-bezier(.2,.7,.3,1);
+  animation:none}
+html[data-skin="nova"] .nv-reel:last-of-type{transform:rotate(calc(var(--spin,0deg) * -1))}
+html[data-skin="nova"] .nv-tape-shell.turning .nv-reel{transition:none}
+/* 翻面：整颗壳绕 Y 轴翻一下（磁带走带后翻到另一面），只有一次，不循环 */
+html[data-skin="nova"] .nv-tape.flipping .nv-tape-shell{
+  animation:n-tapeflip .46s cubic-bezier(.4,0,.2,1) both}
+@keyframes n-tapeflip{
+  0%{transform:rotateY(0deg)}
+  48%{transform:rotateY(84deg)}
+  52%{transform:rotateY(-84deg)}
+  100%{transform:rotateY(0deg)}}
+html[data-skin="nova"] .nv-reel::after{content:'';position:absolute;left:50%;top:50%;
+  width:6px;height:6px;margin:-3px 0 0 -3px;border-radius:50%;
+  background:rgba(234,246,250,.85);border:1px solid var(--o-ship-win)}
+html[data-skin="nova"] .nv-tape-label{flex:1;min-width:0;text-align:center;
+  font:600 11px var(--n-sans);color:var(--o-ship-ink);letter-spacing:.5px;
+  white-space:nowrap;overflow:hidden}
+html[data-skin="nova"] .nv-tape-sub{display:block;font:8px var(--n-mono);
+  color:var(--o-accent-lit);letter-spacing:0;margin-top:3px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 门内世界：点击放大铺满，transform-origin 跟着触点 */
+html[data-skin="nova"] .nv-tape-world{position:fixed;inset:0;z-index:95;
+  display:none;align-items:center;justify-content:center;
+  background:var(--mask);backdrop-filter:blur(2px)}
+html[data-skin="nova"] .nv-tape.open .nv-tape-world{display:flex}
+/* 抽屉 = 打开磁带后的正文，是内容不是外壳 → 冷瓷（与全站卡片同族） */
+html[data-skin="nova"] .nv-tape-card{position:relative;width:min(88vw,336px);
+  max-height:80vh;overflow:auto;padding:18px 16px 14px;border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2));
+  color:var(--n-ink);
+  box-shadow:0 18px 44px rgba(16,24,40,.28),inset 0 0 0 1px var(--o-line);
+  transform-origin:50% 50%;
+  animation:n-zoom .34s cubic-bezier(.4,0,.2,1) both}
+html[data-skin="nova"] .nv-tape-close{position:absolute;right:8px;top:8px;
+  width:40px;height:40px;border:1px solid var(--o-line);border-radius:var(--n-r-sm);
+  background:transparent;color:var(--n-ink-2);font:15px var(--n-mono);cursor:pointer}
+html[data-skin="nova"] .nv-tape-kicker{font:9px var(--n-mono);letter-spacing:2.2px;
+  color:var(--o-ink-3);margin-bottom:10px}
+html[data-skin="nova"] .nv-tape-sides{display:flex;gap:6px;margin-bottom:10px}
+html[data-skin="nova"] .nv-tape-sides button{flex:1;min-height:38px;
+  border:1px solid var(--o-line);border-radius:var(--n-r-sm);
+  background:rgba(16,24,40,.03);color:var(--n-ink-2);
+  font:600 11px var(--n-sans);cursor:pointer}
+/* 「A 面 / B 面」是当前选中面，不是危险，但它也只是一个切换状态。
+ * 原来是一整块深主色实心（全站最饱的几个色块之一），现在退成
+ * 「浅底 + 主色字 + 主色细边」—— 选中靠边和字重说，不靠满铺。 */
+html[data-skin="nova"] .nv-tape-sides button.on{
+  background:var(--o-accent-soft);color:var(--o-accent-ink);
+  border-color:var(--o-accent-line);font-weight:700}
+html[data-skin="nova"] .nv-tape-list{min-height:80px}
+/* 门里放的是真实 .hw 卡片，搬进抽屉后按冷瓷语言重绘一次 */
+html[data-skin="nova"] .nv-tape-list .hw{border-radius:var(--n-r-sm);
+  border:1px solid var(--o-line-soft);background:var(--o-ceramic);
+  box-shadow:0 2px 0 rgba(16,24,40,.06);margin-bottom:8px}
+html[data-skin="nova"] .nv-tape-list .hwsec{font:700 9px var(--n-mono);
+  letter-spacing:1.4px;color:var(--o-ink-3);margin:8px 0 6px}
+html[data-skin="nova"] .nv-tape-list .hwtop b{color:var(--n-ink) !important}
+html[data-skin="nova"] .nv-tape-list .hwcourse,
+html[data-skin="nova"] .nv-tape-list .hwmeta{color:var(--n-ink-2) !important}
+html[data-skin="nova"] .nv-tape-empty{padding:22px 10px;text-align:center;
+  font:11px var(--n-mono);color:var(--o-ink-3);letter-spacing:.3px}
+html[data-skin="nova"] .nv-tape-empty b{display:block;font:700 13px var(--n-sans);
+  color:var(--n-ink-2);letter-spacing:0;margin-bottom:8px}
+html[data-skin="nova"] .nv-tape-empty u{display:block;text-decoration:none;
+  font:11px/1.7 var(--n-sans);color:var(--o-ink-3);letter-spacing:0}
+
+/* ---------- ③ 波段拨盘（B 级 · 配角） ----------
+ * 这个器官在实拍里「看不见」——它不是坏了，是只有 7px 高的一条 1px 刻度，
+ * 被当成页脚的一行字读走了（它的读数 CH 01 · TIMETABLE 就写在下面）。
+ * B 级的定位是「配角」：它应该被认出来是个东西，但不能抢 A 级的第一眼。
+ * 所以做法是「让它可辨识，而不是让它变亮」：
+ *   · 刻度从 7px 抬到 12px，5 个 20% 频点 + 一条基线 → 一眼是「量程」不是「分割线」；
+ *   · 珠子加一圈同色淡环，成为游标；
+ *   · 读数行 9px、加一条发丝上边线，跟刻度绑成一个整体；
+ *   · 全程只用中性墨 + 一支主色珠子，不加第二色相、不加发光。
+ * 动效（bead 的位移过渡、focus-visible）归 nova-motion.css，这里只定静态。 */
+html[data-skin="nova"] .nv-dial{position:relative;margin:0 12px 4px;padding:3px 0 0}
+/* 拇指热区：刻度视觉只有 12px 高，但真实可点区域撑到 ~34px。
+ * 用 ::before 外扩，不改视觉高度、不改文档流：
+ *   · 向下扩 12px —— 落进它自己的读数行区域（.nv-dial-read 不接收点击，无副作用）；
+ *   · 向上只扩 6px —— 再往上就是可滚动的 #app main 底边，
+ *     扩太多会让「滚到底再点一下」误触切台。 */
+html[data-skin="nova"] .nv-dial-scale{position:relative;display:block;height:12px;cursor:grab;
+  touch-action:none;-webkit-tap-highlight-color:transparent;
+  background:
+    repeating-linear-gradient(90deg,rgba(16,24,40,.34) 0 1px,transparent 1px 20%),
+    linear-gradient(180deg,transparent 0 11px,rgba(16,24,40,.18) 11px 12px);
+  opacity:1}
+/* 捏住旋钮时的态：光标换成抓握，珠子停止缓动（跟手才有转盘的实感） */
+html[data-skin="nova"] .nv-dial.grab .nv-dial-scale{cursor:grabbing}
+html[data-skin="nova"] .nv-dial.grab .nv-dial-bead{transition:none}
+html[data-skin="nova"] .nv-dial-scale:focus-visible{outline:2px solid var(--o-accent);
+  outline-offset:4px;border-radius:var(--n-r-xs)}
+html[data-skin="nova"] .nv-dial-scale::before{
+  content:'';position:absolute;left:-6px;right:-6px;top:-6px;bottom:-12px}
+/* 游标：原来是一颗 8px 青绿实心圆珠 + 两圈光环 —— 那是全页最后一处「会发光的小色点」，
+ * 而它测量的东西（现在是第几个频道）文字已经说了两遍（CH 01 + 中文名）。
+ * 现在只剩一条 1px 竖发丝，与刻度等高：有位置感，不构成色块。 */
+html[data-skin="nova"] .nv-dial-bead{position:absolute;left:var(--x,10%);top:3px;
+  width:1px;height:12px;margin-left:-.5px;border-radius:0;
+  background:var(--o-accent-ink);box-shadow:none;pointer-events:none;
+  transition:left .28s cubic-bezier(.4,0,.2,1)}
+html[data-skin="nova"] .nv-dial-read{display:flex;justify-content:space-between;
+  gap:8px;margin-top:5px;padding-top:4px;
+  border-top:1px solid var(--o-line-soft);
+  font:9px var(--n-mono);letter-spacing:1.2px;color:var(--o-ink-3)}
+html[data-skin="nova"] .nv-dial-read span{color:var(--o-accent-ink);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-skin="nova"] .nv-dial-read u{text-decoration:none;color:var(--o-ink-3);
+  white-space:nowrap;flex:0 0 auto}
+
+/* 换台时整舱错峰点亮 */
+html[data-skin="nova"] .nv-in{animation:n-in .34s cubic-bezier(.4,0,.2,1) both}
+
+/* ---------- ④ 剪报抽屉（C 级 · 材质） ----------
+ * 身份保留：贴歪、撕角、硬投影、双线标题 —— 这些是它的「漫画报纸纸」身份。
+ * 纸面底色归 nova-press.css（墨线 / 撕角 / 油墨），这里只保留结构与中性读数，
+ * 不再由器官层把纸钉成冷瓷白（v2 的做法，等于把材质抽掉）。 */
+html[data-skin="nova"] .nv-clip{margin:0 0 12px}
+html[data-skin="nova"] .nv-clip-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+html[data-skin="nova"] .nv-clip-tag{flex:0 0 auto;background:rgba(16,24,40,.06);
+  color:var(--o-ink-3);border:1px solid var(--o-line);
+  font:700 8px var(--n-mono);letter-spacing:1.6px;padding:4px 9px;border-radius:var(--n-r-xs);
+  transform:rotate(-1.2deg)}
+html[data-skin="nova"] .nv-clip-strip{flex:1;min-width:0;display:flex;gap:7px;
+  overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
+html[data-skin="nova"] .nv-clip-strip::-webkit-scrollbar{display:none}
+html[data-skin="nova"] .nv-clip-chip{flex:0 0 auto;min-height:34px;padding:0 13px;
+  border:1px solid var(--o-line);border-radius:var(--n-r-sm);background:var(--o-ceramic);
+  color:var(--n-ink-2);font:600 12px var(--n-sans);cursor:pointer;
+  box-shadow:0 2px 0 rgba(16,24,40,.06)}
+html[data-skin="nova"] .nv-clip-chip:active{transform:translateY(2px);box-shadow:none}
+/* 真实剪报卡：撕角 + 贴歪（这是它的介质身份，保留） */
+html[data-skin="nova"] .wiki-grid{gap:9px}
+html[data-skin="nova"] .wiki-card{
+  position:relative;border-radius:var(--n-r-xs) !important;
+  border:1px solid var(--o-line) !important;
+  background:linear-gradient(160deg,var(--o-ceramic),var(--o-ceramic-2)) !important;
+  color:var(--n-ink) !important;
+  box-shadow:2px 2px 0 rgba(16,24,40,.10) !important;
+  transform:rotate(-.8deg)}
+html[data-skin="nova"] .wiki-grid .wiki-card:nth-child(even){transform:rotate(.9deg)}
+html[data-skin="nova"] .wiki-card::after{content:'';position:absolute;right:0;bottom:0;
+  width:16px;height:16px;background:linear-gradient(225deg,transparent 48%,#E4EAED 49%)}
+html[data-skin="nova"] .wiki-cat{color:var(--o-ink-3) !important;
+  font:700 10px var(--n-mono) !important;letter-spacing:1.6px !important}
+/* 刷新提示是状态变化（不是危险）→ 主色闪一下，不用珊瑚 */
+html[data-skin="nova"] .wiki-grid.nv-flash{animation:n-flash .7s ease-out}
+@keyframes n-flash{
+  0%{box-shadow:0 0 0 0 transparent}
+  25%{box-shadow:0 0 0 3px var(--o-flash)}
+  100%{box-shadow:0 0 0 0 transparent}}
+html[data-skin="nova"] .nv-clip-world{position:fixed;inset:0;z-index:95;display:none;
+  align-items:center;justify-content:center;
+  background:var(--mask);backdrop-filter:blur(2px)}
+html[data-skin="nova"] .nv-clip.open .nv-clip-world{display:flex}
+html[data-skin="nova"] .nv-clip-card{position:relative;width:min(88vw,336px);
+  max-height:80vh;overflow:auto;padding:18px 16px 16px;border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2));
+  color:var(--n-ink);
+  box-shadow:0 18px 44px rgba(16,24,40,.28),inset 0 0 0 1px var(--o-line);
+  transform-origin:50% 50%;
+  animation:n-zoom .34s cubic-bezier(.4,0,.2,1) both;
+  cursor:grab;touch-action:none;
+  --pull:0px;--tilt:0deg;--slide:0px;
+  translate:var(--slide) var(--pull);
+  rotate:var(--tilt);
+  transition:translate .18s cubic-bezier(.2,.7,.3,1),rotate .18s cubic-bezier(.2,.7,.3,1)}
+html[data-skin="nova"] .nv-clip-card.pulling{
+  cursor:grabbing;transition:none;animation:none;opacity:.96}
+html[data-skin="nova"] .nv-clip-card.pull-in{animation:n-uncover .3s cubic-bezier(.2,.7,.3,1) both}
+html[data-skin="nova"] .nv-clip-close{position:absolute;right:8px;top:8px;width:40px;height:40px;
+  border:1px solid var(--o-line);border-radius:var(--n-r-sm);background:transparent;
+  color:var(--n-ink-2);font:15px var(--n-mono);cursor:pointer}
+html[data-skin="nova"] .nv-clip-kicker{font:9px var(--n-mono);letter-spacing:2.2px;color:var(--o-ink-3)}
+html[data-skin="nova"] .nv-clip-title{font:800 19px var(--n-sans);letter-spacing:1px;
+  margin:8px 0 12px;padding-bottom:9px;
+  border-bottom:3px double var(--o-line)}
+html[data-skin="nova"] .nv-clip-body .wiki-card{display:none !important}
+html[data-skin="nova"] .nv-clip-body .btn{width:100%;margin-top:12px}
+/* 用户 m13555：抽屉点开是空白。openCard() 现在从 __wiki 原样渲染正文/来源/
+   官方链接；这些元素原本服务半框（台面底），搬到报纸纸上要换成纸上的墨，
+   否则深色档会白字压暖棕纸。 */
+html[data-skin="nova"] .nv-clip-body .wiki-cat2{color:var(--p-ink-2)!important;
+  font:700 11px var(--n-mono);letter-spacing:1px;margin:0 0 10px}
+html[data-skin="nova"] .nv-clip-body .wiki-p{color:var(--p-ink)!important;
+  font:13px/1.85 var(--n-sans);margin:0 0 10px}
+html[data-skin="nova"] .nv-clip-body .wiki-src{color:var(--p-ink-2)!important;
+  font:11px/1.6 var(--n-mono);margin:12px 0 0;border-top:1px dashed var(--p-ink-2)}
+html[data-skin="nova"] .nv-clip-body .btn.soft{background:var(--p-ticket)!important;
+  color:var(--p-ink)!important;border:1px solid var(--p-ink)!important;
+  border-radius:var(--n-r-sm)!important;box-shadow:0 2px 0 rgba(30,27,22,.10)!important}
+html[data-skin="nova"] .nv-clip-body .btn.soft + .btn.soft{margin-top:8px}
+
+/* ---------- ⑤ 票券闸门（C 级 · 材质 · 校园事务页） ----------
+ * 身份保留：底部锯齿撕票边（clip-path）、中间的机械拨盘。
+ * 票纸底色归 nova-press.css（冲压票纸 + 齿孔 + 凹印 + 油墨），这里只给结构。
+ * 深色档仍是米黄纸（那里需要一块暖材质做对比，见文末）。 */
+html[data-skin="nova"] .nv-ticket{margin:0 0 12px}
+html[data-skin="nova"] .nv-ticket-shell{position:relative;padding:10px 11px 16px;
+  border-radius:var(--n-r-md);
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 14px),94% 100%,88% calc(100% - 14px),
+    82% 100%,76% calc(100% - 14px),70% 100%,64% calc(100% - 14px),58% 100%,
+    52% calc(100% - 14px),46% 100%,40% calc(100% - 14px),34% 100%,28% calc(100% - 14px),
+    22% 100%,16% calc(100% - 14px),10% 100%,4% calc(100% - 14px),0 100%)}
+html[data-skin="nova"] .nv-ticket-head{display:flex;justify-content:space-between;
+  align-items:center;font:9px var(--n-mono);letter-spacing:1.6px;
+  border-bottom:1px dashed var(--o-line);padding-bottom:6px}
+html[data-skin="nova"] .nv-ticket-state{font-weight:700}
+html[data-skin="nova"] .nv-ticket-gauge{display:flex;align-items:center;gap:12px;margin:10px 0 6px}
+/* 用户 m13555：「最上面的仪表盘跟死的一样，不会动，要不就换了吧」。
+   旧版 46px 圆表 + 写死 -38deg 指针 + 从没被写过的 <b>--</b> 全部删除。
+   换成一排「目标水量活档位」：读数就是 #waterTarget 当前选档，刻度格跟选档
+   一起走，撕票换档时整排翻滚一次（一次性反馈，不是 infinite 空转）。 */
+html[data-skin="nova"] .nv-ticket-read{min-width:0}
+html[data-skin="nova"] .nv-ticket-read b{display:block;font:800 20px var(--n-sans);
+  letter-spacing:.5px;font-variant-numeric:tabular-nums}
+html[data-skin="nova"] .nv-ticket-read u{display:block;text-decoration:none;font:9px var(--n-mono);
+  margin-top:3px}
+html[data-skin="nova"] .nv-ticket-note{margin:8px 0 0;font:9px/1.6 var(--n-mono)}
+html[data-skin="nova"] .nv-ticket-steps{display:flex;gap:6px;margin:2px 0 0;perspective:420px}
+html[data-skin="nova"] .nv-ticket-step{flex:1 1 0;min-width:0;padding:8px 2px;
+  border:1px solid var(--o-line);border-radius:var(--n-r-sm);
+  background:rgba(16,24,40,.035);color:var(--n-ink-2);
+  font:700 11px var(--n-mono);text-align:center;cursor:pointer;
+  font-variant-numeric:tabular-nums;transform:rotateX(0deg)}
+html[data-skin="nova"] .nv-ticket-step.on{
+  background:var(--o-accent-soft);color:var(--o-accent-ink);
+  border-color:var(--o-accent-line);
+  box-shadow:0 2px 0 rgba(16,24,40,.06)}
+html[data-skin="nova"] .nv-ticket-steps.rolled .nv-ticket-step{
+  animation:n-roll .4s cubic-bezier(.2,.7,.3,1) both}
+html[data-skin="nova"] .nv-ticket-step:focus-visible{outline:2px solid var(--o-accent);outline-offset:2px}
+@keyframes n-roll{
+  0%{transform:rotateX(0deg);opacity:1}
+  50%{transform:rotateX(68deg);opacity:.55}
+  100%{transform:rotateX(0deg);opacity:1}
+}
+/* 目标水量档位：机械拨片 */
+html[data-skin="nova"] #waterTarget{gap:5px}
+html[data-skin="nova"] #waterTarget button{
+  min-height:38px;border-radius:var(--n-r-sm)!important;
+  font:700 12px var(--n-mono)!important;transform:none!important}
+/* 目标水量档位：机械拨片。选中的那一档同样退成「浅底 + 主色边 + 深字」——
+ * 票券是 C 级，页面上不该再多出 3 块饱和实心。 */
+html[data-skin="nova"] #waterTarget button.nv-on{
+  background:var(--o-accent-soft)!important;color:var(--o-accent-ink)!important;
+  border:1px solid var(--o-accent-line)!important;
+  box-shadow:none!important;font-weight:700}
+
+/* ---------- ⑥ 刷票（D 级 · 降噪 · 饮水机解锁时的机器重连等待） ----------
+ * D 级：不许新增颜色。这里只剩「冷墨闸口 + 冷瓷票 + 主色一个状态灯」。 */
+html[data-skin="nova"] .nv-swipe{display:none;margin:0 0 14px}
+html[data-skin="nova"] .nv-swipe.on{display:block}
+html[data-skin="nova"] .nv-swipe-gate{position:relative;height:74px;border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid var(--o-line);overflow:hidden;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.45)}
+/* 读卡器：右侧一盏会亮的口 —— 状态灯只给主色，周期放慢到 3.2s（原来 1.15s 是频闪） */
+html[data-skin="nova"] .nv-swipe-reader{position:absolute;right:10px;top:50%;
+  width:12px;height:38px;margin-top:-19px;border-radius:var(--n-r-xs);
+  background:linear-gradient(180deg,var(--o-ship-win),var(--o-ship-2));
+  box-shadow:inset 0 0 0 1px var(--o-accent-line);
+  animation:n-reader 3.2s ease-in-out infinite}
+html[data-skin="nova"] .nv-swipe-slot{position:absolute;left:0;top:0;bottom:0;
+  width:100%;overflow:hidden}
+/* 票：从左边滑进来，被读卡器「刷」过去 */
+html[data-skin="nova"] .nv-swipe-card{position:absolute;top:9px;left:0;height:56px;
+  width:180px;padding:7px 9px;border-radius:var(--n-r-sm);
+  box-shadow:inset 0 0 0 1px var(--o-line),0 3px 0 rgba(16,24,40,.18);
+  animation:n-swipe 1.5s cubic-bezier(.5,0,.4,1) infinite;
+  display:flex;flex-direction:column;justify-content:center;gap:3px}
+html[data-skin="nova"] .nv-swipe-h{font:700 8px var(--n-mono);letter-spacing:2px}
+html[data-skin="nova"] .nv-swipe-t{font:600 10px var(--n-sans);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+html[data-skin="nova"] .nv-swipe-label{margin-top:7px;font:9px var(--n-mono);
+  letter-spacing:.6px;color:var(--o-accent-lit);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 自测形态：没有 app.js 上下文时也能看到刷票的样子（器官样张页用） */
+html[data-skin="nova"] .nv-swipe.demo{display:block}
+@keyframes n-swipe{
+  0%{transform:translateX(-190px)}
+  55%{transform:translateX(120px)}
+  70%{transform:translateX(120px) scaleY(1)}
+  74%{transform:translateX(120px) scaleY(.72)}
+  78%{transform:translateX(120px) scaleY(1)}
+  100%{transform:translateX(300px);opacity:0}
+}
+@keyframes n-reader{
+  0%,54%{box-shadow:inset 0 0 0 1px var(--o-accent-line)}
+  60%,74%{box-shadow:inset 0 0 0 1px var(--o-accent-lit),0 0 10px var(--o-accent-soft)}
+  80%,100%{box-shadow:inset 0 0 0 1px var(--o-accent-line)}
+}
+
+/* ---------- ⑦ 设备铭牌舱（B 级 · 配角 · 我的页） ----------
+ * 只允许 1 处强调色 → 学号是主色，状态灯也是主色（同一支），
+ * 黄铜退到「舱位编号」那一行小字之外全部撤掉。 */
+html[data-skin="nova"] .nv-plate{margin:0 0 12px}
+html[data-skin="nova"] .nv-plate-bar{display:flex;align-items:center;gap:10px;
+  padding:11px 12px;border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 2px 0 rgba(16,24,40,.10)}
+html[data-skin="nova"] .nv-plate-id{min-width:0;flex:1}
+html[data-skin="nova"] .nv-plate-id u{display:block;text-decoration:none;
+  font:8px var(--n-mono);letter-spacing:2px;color:var(--o-ship-ink-3)}
+html[data-skin="nova"] .nv-plate-id b{display:block;font:800 15px var(--n-mono);
+  color:var(--o-accent-lit);letter-spacing:.6px;margin-top:4px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 三枚状态灯（本地 / 教务 / 超星）：类名与规则保留（护栏断言 .nv-plate-led 必须在），
+ * 但它们原来是 26px 的三枚圆环并列，加一圈发光 —— 三盏并排的假仪表，
+ * 权力比「学号」还大。B 级配角只允许一处强调，所以：
+ *   · 直径降到 16px、去掉外圈描边、只留 6px 灯芯；
+ *   · 熄灭态是中性的壳内刻度灰（不再是一个个空心圆框抢视线）；
+ *   · 点亮态也只是「壳内最亮的那一档中性白」，不给主色、不给光晕 ——
+ *     B 级的那一处主色已经给了学号，灯只管通/不通，不该再分走一份强调。
+ * 三枚不再各有颜色（A 键珊瑚 / B 键紫那套已经全站撤掉）。 */
+html[data-skin="nova"] .nv-plate-leds{display:flex;gap:9px;flex:0 0 auto;
+  align-items:center;padding-bottom:9px}
+html[data-skin="nova"] .nv-plate-led{position:relative;width:16px;height:16px;
+  border-radius:50%;border:0;background:transparent;
+  display:flex;align-items:center;justify-content:center}
+html[data-skin="nova"] .nv-plate-led::before{content:'';position:absolute;
+  left:50%;top:50%;width:6px;height:6px;margin:-3px 0 0 -3px;
+  border-radius:50%;background:var(--o-ship-ink-3);
+  transition:background .3s}
+html[data-skin="nova"] .nv-plate-led u{position:absolute;top:16px;left:50%;
+  transform:translateX(-50%);text-decoration:none;
+  font:7px var(--n-mono);letter-spacing:0;color:var(--o-ship-ink-3);
+  white-space:nowrap}
+html[data-skin="nova"] .nv-plate-led.on::before{background:var(--o-ship-ink)}
+html[data-skin="nova"] .nv-plate-led.on u{color:var(--o-ship-ink-2)}
+html[data-skin="nova"] .nv-plate-sheet{margin-top:8px;padding:12px 12px 6px;
+  border-radius:var(--n-r-md);
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.60),0 2px 0 rgba(16,24,40,.10)}
+html[data-skin="nova"] .nv-plate-h{font:700 9px var(--n-mono);letter-spacing:2px;
+  color:var(--o-ink-3);padding-bottom:8px;margin-bottom:2px;
+  border-bottom:1px solid var(--o-line)}
+html[data-skin="nova"] .nv-plate-grid{display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+html[data-skin="nova"] .nv-plate-row{display:flex;justify-content:space-between;
+  align-items:baseline;gap:8px;min-height:38px;
+  border-bottom:1px solid var(--o-line-soft)}
+html[data-skin="nova"] .nv-plate-row span{font:11px var(--n-sans);color:var(--n-ink-2);
+  white-space:nowrap}
+html[data-skin="nova"] .nv-plate-row b{font:700 11px var(--n-mono);color:var(--n-ink);
+  text-align:right;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* 深色档：铭牌规格表必须整体换成夜航介质，否则浅底浅字糊成一片 */
+html[data-skin="nova"][data-theme="dark"] .nv-plate-sheet{
+  background:linear-gradient(180deg,#26314C,#1B2540) !important;
+  border-color:rgba(234,242,255,.14) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 2px 0 rgba(0,0,0,.45) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-h{
+  color:var(--n-ink-3) !important;border-bottom-color:rgba(234,242,255,.14) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row{
+  border-bottom-color:rgba(234,242,255,.09) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row span{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row b{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-bar{
+  background:linear-gradient(180deg,#101A28,#070F1C) !important}
+
+/* ---------- ⑧ 成绩卷宗（v1.1.55 新功能：成绩页） ----------
+ * 经典版是白卡片列表。NOVA 把它做成一份卷宗：统计条是仪表盘，
+ * 每条成绩是一张档案签，绩点用刻度条表示。
+ * 浅色档原来统计条和「盖着的成绩」都是深紫玻璃——一块深色方块压在冷瓷页上，
+ * 比正文还重。现在浅色档走冷瓷仪表（见文末浅色档段），深色档保留紫夜舱。
+ * 珊瑚只留在 .red（不及格）——这是它在全站唯一合法的地方。 */
+html[data-skin="nova"] .grade-stat{
+  display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;
+  padding:12px 13px;border-radius:var(--n-r-md);margin:10px 0}
+html[data-skin="nova"] .grade-stat b{font:800 24px var(--n-mono) !important;
+  letter-spacing:-.5px}
+html[data-skin="nova"] .grade-stat span{font:10px var(--n-mono) !important;
+  letter-spacing:.4px}
+html[data-skin="nova"] .grade-acts{display:flex;gap:8px;margin:0 0 10px}
+html[data-skin="nova"] .grade-acts .btn{flex:1;min-height:40px;margin:0 !important;
+  font:700 12px var(--n-mono) !important;letter-spacing:.8px !important}
+html[data-skin="nova"] .grade-box{display:flex;flex-direction:column;gap:8px}
+html[data-skin="nova"] .grade-box .hwsec{font:700 9px var(--n-mono) !important;
+  letter-spacing:2px !important;color:var(--o-ink-3) !important;
+  margin:10px 0 2px !important}
+/* 盖着的成绩：档案签背面（斜纹 + 封条） */
+html[data-skin="nova"] .grade-row.covered{
+  position:relative;overflow:hidden;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:none !important;
+  min-height:44px}
+html[data-skin="nova"] .grade-row.covered::after{
+  content:'封';position:absolute;right:10px;top:50%;transform:translateY(-50%);
+  z-index:2;font:700 10px var(--n-mono);
+  padding:2px 6px;border-radius:var(--n-r-xs)}
+/* 翻开的成绩：档案签正面 */
+html[data-skin="nova"] .grade-row:not(.covered){
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:0 2px 0 rgba(16,24,40,.08) !important;
+  animation:n-uncover .34s cubic-bezier(.4,0,.2,1) both}
+html[data-skin="nova"] .grade-row.covered,
+html[data-skin="nova"] .grade-row:not(.covered){
+  display:flex;align-items:center;gap:10px;padding:10px 11px;min-height:46px}
+html[data-skin="nova"] .grade-row b{font:600 13px var(--n-sans) !important;
+  flex:1;min-width:0}
+html[data-skin="nova"] .grade-row .grade-credit{font:9px var(--n-mono) !important;
+  white-space:nowrap}
+html[data-skin="nova"] .grade-row .grade-score{font:800 16px var(--n-mono) !important;
+  min-width:58px;text-align:right}
+/* 不及格 = 真·危险语义，珊瑚在这里合法保留 */
+html[data-skin="nova"] .grade-row .grade-score.red{color:#C23A5C !important}
+html[data-skin="nova"] .grade-row .grade-point{font:9px var(--n-mono) !important;
+  white-space:nowrap}
+/* 绩点刻度条：单色，不再青→紫渐变（两个色相 = 三个 App 拼一起的味道）。
+ * 第二轮：它是一行一块实心主色，一学期 20 门课就是 20 块实心色 ——
+ * 和批判员点名的「课程卡竖条 ×10」同一种病。退成淡线，让分数读数是唯一的强调。 */
+html[data-skin="nova"] .grade-row:not(.covered)::before{
+  content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
+  background:var(--o-accent-line)}
+html[data-skin="nova"] .grade-row{position:relative}
+html[data-skin="nova"] .grade-imp{margin:12px 0 0;border-top:1px dashed var(--o-line)}
+html[data-skin="nova"] .grade-imp summary{color:var(--o-accent-ink) !important}
+/* 空状态原来用 --n-on-2(#A9C6D2) 压浅底，3.0:1 不到 —— 是全站最明显的一处低对比 */
+html[data-skin="nova"] .grade-empty{padding:14px 8px;text-align:center;
+  font:11px var(--n-mono) !important;color:var(--o-ink-3) !important}
+@keyframes n-uncover{from{opacity:.3;transform:rotateX(58deg) translateY(-6px)}
+  to{opacity:1;transform:none}}
+
+/* ---------- ⑨ 指令终端（v1.1.55 新功能：AI 改课表） ----------
+ * 这个功能是「复制说明给 AI → 把 AI 回的指令贴回来 → 确认/撤销」。
+ * 终端是一台机器，用冷墨壳（浅色档，见文末）；深色档走紫墨。 */
+html[data-skin="nova"] .cmd-step{
+  margin:12px 0 6px;padding:10px 11px;border-radius:var(--n-r-md)}
+html[data-skin="nova"] .cmd-step::before{
+  content:'>';display:block;font:700 9px var(--n-mono);letter-spacing:2px;
+  color:var(--o-accent-lit);margin-bottom:6px;opacity:.85}
+html[data-skin="nova"] .cmd-step{
+  font:700 12px var(--n-mono) !important;letter-spacing:.6px !important}
+html[data-skin="nova"] .cmd-ta{
+  border-radius:var(--n-r-sm) !important;
+  font:11px/1.6 var(--n-mono) !important;caret-color:var(--o-accent-lit)}
+html[data-skin="nova"] .cmd-result{margin:10px 0}
+html[data-skin="nova"] .cmd-pre{
+  border-radius:var(--n-r-sm) !important;
+  font:11px/1.65 var(--n-mono) !important;white-space:pre-wrap}
+/* 指令报错 = 危险语义，珊瑚在这里合法保留 */
+html[data-skin="nova"] .cmd-step .btn{
+  flex:1;min-height:40px;margin:6px 5px 0 0 !important;
+  font:700 11px var(--n-mono) !important;letter-spacing:.8px !important}
+
+/* ---------- ⑩ 空教室矩阵 / 房间卡 ----------
+ * 身份保留：左侧舱位条 + 教室号。
+ * 收敛掉的是：四角不一（9/11/8/12）、玻璃渐变、珊瑚装饰条。
+ * 第二轮：左侧那条 3px 主色满高竖条，在 10~20 张卡上就是一排实心色块
+ * （和批判员点名的「课程卡珊瑚竖条 ×10」是同一种病，只是换了色）。
+ * 现在把竖条退成主色的淡线（--o-accent-line），「有位置」靠 FREE 二字说。 */
+html[data-skin="nova"] .room-grid{gap:9px}
+html[data-skin="nova"] .room-card{
+  position:relative;overflow:hidden;
+  border-left:2px solid var(--o-accent-line) !important;
+  border-radius:var(--n-r-md) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.60),0 2px 0 rgba(16,24,40,.08) !important;
+  padding:11px 11px 12px !important}
+html[data-skin="nova"] .room-card:active{
+  background:var(--o-accent-soft) !important;box-shadow:none !important}
+html[data-skin="nova"] .room-t{color:var(--n-ink) !important;
+  font:800 15px var(--n-mono) !important;letter-spacing:.4px !important}
+html[data-skin="nova"] .room-m{color:var(--o-ink-3) !important;font-size:10.5px !important}
+/* 「FREE」是正面语义，但草绿是第 3 个色相 → 并进主色 */
+html[data-skin="nova"] .room-f{color:var(--o-accent-ink) !important;
+  font:700 11px var(--n-mono) !important;letter-spacing:.4px !important}
+html[data-skin="nova"] .room-f::before{content:'FREE ';opacity:.6}
+html[data-skin="nova"] .chips button{
+  border-radius:var(--n-r-sm) !important;
+  font:600 12px var(--n-sans) !important}
+html[data-skin="nova"] .hwsec,.grp-head,.wiki-cat,.ph-title{
+  color:var(--o-ink-3) !important;font:700 10px var(--n-mono) !important;
+  letter-spacing:1.8px !important}
+/* 标题前的 ▮ 装饰条原来是珊瑚 —— 把威胁色当装饰，是宪法点名的第一号 bug */
+html[data-skin="nova"] .hwsec::after,.grp-head::after,.wiki-cat::after,.ph-title::after{
+  background:var(--o-line) !important;transform:none !important}
+html[data-skin="nova"][data-theme="dark"] .room-card{
+  border-color:rgba(183,155,255,.20) !important;border-left-color:var(--o-accent-line) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 2px 0 rgba(0,0,0,.45) !important}
+html[data-skin="nova"][data-theme="dark"] .room-t{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .room-m{color:var(--n-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .room-f{color:var(--o-accent-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .chips button{
+  background:rgba(255,255,255,.07) !important;border-color:rgba(183,155,255,.20) !important;
+  color:var(--n-ink-2) !important}
+/* 深色档选中态保持一支紫（浅色档改用描边式，见文末浅色档段） */
+html[data-skin="nova"][data-theme="dark"] .chips button.on{
+  background:var(--o-accent) !important;color:var(--o-accent-on) !important;
+  border-color:var(--o-accent) !important}
+html[data-skin="nova"][data-theme="dark"] .hwsec,
+html[data-skin="nova"][data-theme="dark"] .grp-head,
+html[data-skin="nova"][data-theme="dark"] .wiki-cat,
+html[data-skin="nova"][data-theme="dark"] .ph-title{color:var(--o-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .hwsec::after,
+html[data-skin="nova"][data-theme="dark"] .grp-head::after,
+html[data-skin="nova"][data-theme="dark"] .wiki-cat::after,
+html[data-skin="nova"][data-theme="dark"] .ph-title::after{
+  background:rgba(234,242,255,.16) !important}
+
+/* ---------- 磁带门 · 深色档：米黄磁带壳在紫夜舱里太抢眼，改成深色树脂磁带 ---------- */
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell{
+  background:linear-gradient(165deg,var(--o-ship),var(--o-ship-2)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 3px 0 rgba(0,0,0,.45) !important;
+  color:var(--o-ship-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell:active{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07),0 1px 0 rgba(0,0,0,.45) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-top u,
+html[data-skin="nova"][data-theme="dark"] .nv-tape-bot u{color:var(--o-ship-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-card{
+  background:linear-gradient(165deg,#2E2350,#1B1434) !important;
+  color:var(--n-ink) !important;
+  box-shadow:0 18px 44px rgba(0,0,0,.72),inset 0 0 0 1px rgba(183,155,255,.26) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-win{
+  background:linear-gradient(180deg,var(--o-ship-win),var(--o-ship-win-2)) !important;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.6),inset 0 0 0 1px rgba(183,155,255,.18) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-reel{border-color:rgba(239,233,255,.40) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-close{
+  border-color:rgba(183,155,255,.30) !important;color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-kicker{color:var(--o-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-sides button{
+  background:rgba(255,255,255,.06) !important;
+  border-color:rgba(183,155,255,.22) !important;color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-sides button.on{
+  background:var(--o-accent-soft) !important;border-color:var(--o-accent-line) !important;
+  color:var(--o-accent-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-list .hw{
+  background:rgba(255,255,255,.055) !important;
+  border-color:rgba(183,155,255,.20) !important;
+  box-shadow:0 2px 0 rgba(0,0,0,.4) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-list .hwsec{color:var(--o-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-list .hwtop b{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-list .hwcourse,
+html[data-skin="nova"][data-theme="dark"] .nv-tape-list .hwmeta{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-empty{color:var(--n-ink-2) !important}
+
+/* ---------- 分段开关（seg）：经典版是牛皮纸底 + 蓝色块，NOVA 换成舱位键 ---------- */
+html[data-skin="nova"] .seg{
+  border:1px solid var(--o-line) !important;
+  border-radius:var(--n-r-md) !important;padding:3px !important}
+html[data-skin="nova"] .seg button{
+  color:var(--n-ink-2) !important;border-radius:var(--n-r-sm) !important;
+  font:700 12px var(--n-mono) !important;letter-spacing:.6px !important}
+html[data-skin="nova"][data-theme="dark"] .seg{
+  background:rgba(255,255,255,.05) !important;
+  border-color:rgba(183,155,255,.20) !important;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.35)}
+html[data-skin="nova"][data-theme="dark"] .seg button{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .seg button.on{
+  background:var(--o-accent) !important;
+  color:var(--o-accent-on) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.20) !important}
+
+/* ---------- ⑪ 专注仪表（学习页 · 番茄钟/专注计时） ----------
+ * 身份保留：大号等宽读数 + 底部量程刻度 + 阶段灯。
+ * 浅色档深紫底换成冷墨仪表（见文末），深色档保持紫夜舱。 */
+html[data-skin="nova"] .focus-face{
+  position:relative;overflow:hidden;text-align:left;
+  padding:14px 12px 10px;border-radius:var(--n-r-md);margin:0 0 10px}
+html[data-skin="nova"] .focus-time{
+  display:block;text-align:left;
+  font:700 46px/1.02 var(--n-mono) !important;
+  letter-spacing:-2px !important;
+  font-variant-numeric:tabular-nums}
+html[data-skin="nova"] .focus-phase{
+  display:inline-flex;align-items:center;gap:6px;
+  font:700 10px var(--n-mono) !important;letter-spacing:2px !important;
+  color:var(--o-accent-lit) !important;margin-bottom:6px}
+html[data-skin="nova"] .focus-phase::before{
+  content:'';width:7px;height:7px;border-radius:50%;background:var(--o-accent-lit);
+  box-shadow:0 0 0 3px var(--o-accent-soft);animation:n-breath 2s ease-in-out infinite}
+html[data-skin="nova"] .focus-stat{
+  font:10px var(--n-mono) !important;letter-spacing:.4px !important;
+  color:var(--o-ship-ink-2) !important;margin-top:6px !important}
+html[data-skin="nova"] .focus-acts{display:flex;gap:8px;margin-top:10px}
+html[data-skin="nova"] .focus-acts .btn{
+  flex:1;margin-top:0 !important;min-height:42px;
+  font:700 12px var(--n-mono) !important;letter-spacing:.8px !important}
+html[data-skin="nova"] .focus-acts .btn.ghost{flex:0 0 40% !important}
+html[data-skin="nova"] #focusCard .card-title .pill{
+  background:var(--o-accent-soft) !important;color:var(--o-accent-ink) !important;
+  border:1px solid var(--o-accent-line) !important;border-radius:var(--n-r-xs) !important;
+  font:700 10px var(--n-mono) !important}
+/* ======================================================================
+   器官 ⑧：像素掌机舱（GBA / 像素 / Switch）— D 级 · 降噪
+   舱格是 app.js 真实的 .c 课程块，这里只加掌机操作层与点阵介质。
+   D 级铁律：不许新增颜色。原来 A/B 键一个是珊瑚一个是紫罗兰（两个色相），
+   现在收成同一支主色的两档明度，靠位置区分而不是靠换色。
+   第二轮再降一层：它原来压在课表网格上，2px 主色描边 + 2px 硬投影 = 一块贴纸。
+   现在描边回到 1px、硬投影撤掉、内边距收紧 —— 它还在，但不再举手。
+   ====================================================================== */
+html[data-skin="nova"] .nv-pixel{
+  position:relative;display:flex;align-items:center;gap:8px;margin:0 0 8px;
+  padding:6px 8px;border-radius:var(--n-r-sm);
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid rgba(234,246,250,.10);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+html[data-skin="nova"] .nv-pixel-screen{
+  flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:1px;
+  padding:4px 7px;border-radius:var(--n-r-xs);background:var(--o-ship-win-2);
+  box-shadow:inset 0 0 0 1px rgba(234,246,250,.08)}
+html[data-skin="nova"] .nv-pixel-wk{
+  font:800 15px/1 var(--n-mono) !important;letter-spacing:1.6px !important;
+  color:var(--o-accent-lit) !important}
+html[data-skin="nova"] .nv-pixel-date{
+  font:8px var(--n-mono) !important;letter-spacing:.6px !important;
+  color:var(--o-ship-ink-2) !important}
+html[data-skin="nova"] .nv-pixel-pad{display:flex;align-items:center;gap:8px;flex:0 0 auto}
+html[data-skin="nova"] .nv-pixel-dpad{
+  display:grid;grid-template-columns:repeat(3,21px);grid-template-rows:repeat(3,21px);gap:1px}
+html[data-skin="nova"] .nv-pixel-dpad .nv-pixel-btn.up{grid-area:1/2}
+html[data-skin="nova"] .nv-pixel-dpad .nv-pixel-btn.left{grid-area:2/1}
+html[data-skin="nova"] .nv-pixel-dpad .nv-pixel-btn.right{grid-area:2/3}
+html[data-skin="nova"] .nv-pixel-dpad .nv-pixel-btn.down{grid-area:3/2}
+html[data-skin="nova"] .nv-pixel-face{display:flex;flex-direction:column;gap:4px}
+/* D-pad 四键原来是青描边方块 ×4（4 处高饱和）→ 现在无描边，只靠壳内色差 */
+html[data-skin="nova"] .nv-pixel-btn{
+  width:21px;height:21px;border-radius:var(--n-r-xs);padding:0;
+  background:var(--o-ship-win);
+  border:0;
+  color:var(--o-ship-ink-2);font:700 9px var(--n-mono);
+  box-shadow:none;display:flex;align-items:center;justify-content:center}
+/* AB 键：同一支主色的两档明度（A 亮 B 暗），不再是一个珊瑚一个紫 */
+html[data-skin="nova"] .nv-pixel-btn.a{width:28px;height:28px;border-radius:50%;
+  color:var(--o-accent-lit);border-color:var(--o-accent-lit)}
+html[data-skin="nova"] .nv-pixel-btn.b{width:28px;height:28px;border-radius:50%;
+  color:var(--o-accent);border-color:var(--o-accent-line)}
+html[data-skin="nova"] .nv-pixel-btn:active{transform:translateY(2px);box-shadow:none}
+
+/* ======================================================================
+   器官 ⑨：截止矩阵（赛博朋克 / 黑客帝国）— D 级 · 降噪
+   读数是真的，下落的字符只是氛围。
+   原来四列是 青/紫/草绿/珊瑚 四个色相 —— 一屏四个色 = 灾难。
+   现在四列是同一支主色的四个明度档：数据雨只表达密度，不表达颜色。
+   第二轮再降一层：它原来是一条独立的深色条 + 黄铜数字，等于在页面里
+   开了第二个 UI（D 级器官不该有自己的界面）。现在它退成「一段安静的读数」——
+   没有自己的底色、没有自己的边框，数据雨是页面底色上的一层极淡纹理。
+   ====================================================================== */
+html[data-skin="nova"] .nv-rain{
+  position:relative;margin:0 0 12px;padding:8px 0 9px;border-radius:0;
+  background:none;border:0;border-top:1px solid var(--o-line-soft);
+  overflow:hidden}
+/* 读数行：原来是「标题 + 三列读数」挤在一行右对齐，390px 下
+   hwStat 的真值「2 待做 / 0 待考」会把左边两列压成叠字（实拍里唯一还在打架的地方）。
+   改成两段式：标题一行、读数一行三列等分 —— 三列各自 flex:1 1 0 + min-width:0，
+   真值再长也只会自己省略，永远不会压到隔壁列。 */
+html[data-skin="nova"] .nv-rain-bar{
+  position:relative;z-index:2;display:block}
+/* 「DEADLINE」这个小标题原来是主色发光字 —— D 级不该发光，改中性 */
+html[data-skin="nova"] .nv-rain-t{
+  display:block;
+  font:700 9px var(--n-mono) !important;letter-spacing:1.8px !important;
+  color:var(--o-ink-3) !important;white-space:nowrap;margin-bottom:4px}
+html[data-skin="nova"] .nv-rain-segs{
+  display:flex;gap:10px;align-items:flex-start}
+html[data-skin="nova"] .nv-rain-seg{
+  display:flex;flex-direction:column;align-items:flex-start;
+  flex:1 1 0;min-width:0;line-height:1.15}
+html[data-skin="nova"] .nv-rain-seg u{text-decoration:none;font:8px var(--n-mono);letter-spacing:1px;
+  color:var(--o-ink-3);white-space:nowrap}
+/* 数字原来是黄铜（第 3 个材质色）→ 正文墨色。它是读数，不是铭牌。 */
+html[data-skin="nova"] .nv-rain-seg b{display:block;width:100%;
+  font:700 10px var(--n-mono);color:var(--n-ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-skin="nova"] .nv-rain-cols{
+  position:absolute;inset:0;z-index:1;pointer-events:none;display:flex;gap:14px;
+  justify-content:space-around;opacity:.16;
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 40%,#000 80%,transparent);
+  mask-image:linear-gradient(180deg,transparent,#000 40%,#000 80%,transparent)}
+/* 四列同色，只靠不透明度分远近 —— 一个色相，四个浓度 */
+html[data-skin="nova"] .nv-rain-col{
+  font:8px/1.5 var(--n-mono);letter-spacing:2px;color:var(--o-accent-ink);
+  writing-mode:vertical-rl;text-orientation:upright;
+  animation:n-rain 7s linear infinite}
+html[data-skin="nova"] .nv-rain-col:nth-child(2){animation-duration:9s;opacity:.7}
+html[data-skin="nova"] .nv-rain-col:nth-child(3){animation-duration:11s;opacity:.45}
+html[data-skin="nova"] .nv-rain-col:nth-child(4){animation-duration:13s;opacity:.3}
+@keyframes n-rain{from{transform:translateY(-40%)}to{transform:translateY(40%)}}
+
+/* ======================================================================
+   器官 ⑩：拍立得照片墙（宝丽来）— C 级 · 材质
+   身份保留：贴歪、相纸留白、投影。相纸的本色就是「暖白」，
+   这是全站唯一允许的一块暖色（介质，不是强调）。
+   把 #F6F1E6（偏黄）提到 #FAF7F2，黄味退掉一半，仍是相纸不是白卡。
+   第二轮：相纸再退半步（#FBFAF7，「像纸」而不是「像旧照片」），
+   并且把照片区的兜底底纹从暖沙 #E7D8BC 换成中性冷灰 ——
+   真图还没加载时，8 张暖沙色方块本身就是全站最大的一片高饱和暖色。
+   真图不动（那是用户自己的照片），只改「没有图的时候」。
+   ====================================================================== */
+html[data-skin="nova"] .nv-polaroid{margin:0 0 10px}
+html[data-skin="nova"] .nv-polaroid-bar{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+html[data-skin="nova"] .nv-polaroid-tag{
+  background:#FBFAF7 !important;color:#3C4248 !important;
+  padding:3px 9px;border-radius:var(--n-r-xs);transform:rotate(-1.4deg);
+  font:800 9px var(--n-mono) !important;letter-spacing:1.6px !important;
+  box-shadow:1px 1px 0 rgba(16,24,40,.16)}
+html[data-skin="nova"] .nv-polaroid-note{
+  font:9px var(--n-mono) !important;color:var(--o-ink-3) !important;letter-spacing:.4px !important}
+html[data-skin="nova"] .nv-darkroom{
+  border:1.5px dashed var(--o-line);border-radius:var(--n-r-md);
+  padding:16px 12px;text-align:center;
+  background:repeating-linear-gradient(45deg,var(--o-line-soft) 0 8px,transparent 8px 16px)}
+html[data-skin="nova"] .nv-darkroom-t{font:9px var(--n-mono);letter-spacing:1.2px;color:var(--o-ink-3)}
+html[data-skin="nova"] .nv-polaroid-grid{gap:12px !important}
+html[data-skin="nova"] .nv-polaroid-grid .ph-card{
+  background:#FBFAF7 !important;padding:7px 7px 20px !important;
+  border:none !important;border-radius:var(--n-r-xs) !important;
+  box-shadow:0 3px 8px rgba(16,24,40,.16) !important;
+  transform:rotate(-1.1deg)}
+html[data-skin="nova"] .nv-polaroid-grid .ph-card:nth-child(even){transform:rotate(1.4deg)}
+html[data-skin="nova"] .nv-polaroid-grid .ph-card:active{transform:rotate(0) scale(.97)}
+/* 没有真实照片时 app.css 给的兜底是「暖沙底 + 斜条纹」，8 张铺开就是最大的一片暖色。
+ * 这里换成同明度的中性冷灰 + 更淡的条纹，让「待加载」看起来是留白而不是旧相纸。 */
+html[data-skin="nova"] .nv-polaroid-grid .ph-img{
+  border-radius:var(--n-r-xs) !important;
+  background-color:#E6EAEC !important;
+  background-image:repeating-linear-gradient(45deg,
+    rgba(16,24,40,.055) 0 2px,transparent 2px 9px) !important;
+  filter:contrast(1.02)}
+/* 说明文字：app.css 把 .ph-cap 做成「贴在图底的白色字 + 深渐变」，
+ * 在 NOVA 里那张深渐变压到 1.54:1，白字读不出来。
+ * 拍立得本来就该把说明写在白边下沿，所以这里让它回到正常流里的
+ * 一行小字：去掉绝对定位与渐变，字色用墨阶，字号抬到可读下限。 */
+html[data-skin="nova"] .nv-polaroid-grid .ph-cap{
+  position:static !important;left:auto !important;right:auto !important;
+  bottom:auto !important;display:block;
+  background:transparent !important;
+  color:var(--n-ink-2) !important;
+  font:500 11px/1.35 var(--n-sans) !important;
+  text-align:center !important;padding:6px 2px 0 !important;
+  letter-spacing:0 !important;word-break:break-word}
+
+/* ======================================================================
+   器官 ⑪：手绘涂鸦层（涂鸦 / 素描线稿）— D 级 · 降噪
+   只做笔触，不承载信息。它原来是一排三笔（波浪 + 折线 + 五角星），
+   三个形状 + 三个色相 = 页脚开了一个小画廊。
+   D 级只许「一笔、一色、一笔触」：留第一笔（唯一的曲线，也是最像手抖的那笔），
+   另两笔（折线 / 星形）连形状一起收掉。
+   DOM 不删（那是 JS 的写域），这里用 display:none 让它们不占位。
+   ====================================================================== */
+html[data-skin="nova"] .nv-doodle{
+  display:flex;align-items:flex-end;gap:12px;margin:0 0 8px;padding:0;
+  color:var(--o-ink-3);opacity:.5;pointer-events:none}
+html[data-skin="nova"] .nv-doodle-svg{width:40px;height:16px;flex:0 0 auto;opacity:1}
+/* 第二笔（折线）与第三笔（星形）：D 级不加色，也不该有三个形状 */
+html[data-skin="nova"] .nv-doodle-svg:nth-child(2),
+html[data-skin="nova"] .nv-doodle-svg:nth-child(3){display:none}
+html[data-skin="nova"] .nv-doodle svg{overflow:visible}
+
+/* ---- 深色档：紫夜舱介质（只换介质，不改结构） ---- */
+html[data-skin="nova"][data-theme="dark"] .nv-pixel{
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border-color:var(--o-accent-line)}
+html[data-skin="nova"][data-theme="dark"] .nv-pixel-screen{
+  background:var(--o-ship-win-2);box-shadow:inset 0 0 0 2px rgba(183,155,255,.22)}
+html[data-skin="nova"][data-theme="dark"] .nv-pixel-btn{
+  background:var(--o-ship-win);
+  border-color:transparent;color:var(--o-ship-ink-2)}
+html[data-skin="nova"][data-theme="dark"] .nv-rain{
+  background:none;
+  border-top-color:rgba(234,242,255,.10)}
+html[data-skin="nova"][data-theme="dark"] .nv-rain-t{color:var(--o-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-rain-seg u{color:var(--o-ink-3)}
+html[data-skin="nova"][data-theme="dark"] .nv-rain-seg b{color:var(--n-ink)}
+html[data-skin="nova"][data-theme="dark"] .nv-rain-col{color:var(--o-accent-ink)}
+html[data-skin="nova"][data-theme="dark"] .nv-polaroid-note,
+html[data-skin="nova"][data-theme="dark"] .nv-darkroom-t{color:var(--o-ink-3)}
+html[data-skin="nova"][data-theme="dark"] .nv-doodle{color:var(--o-ink-3)}
+html[data-skin="nova"][data-theme="dark"] .nv-doodle-svg:nth-child(2),
+html[data-skin="nova"][data-theme="dark"] .nv-doodle-svg:nth-child(3){display:none}
+/* 当前周 · 深色档：浅色档把它改成白瓷实心（那是「冷白仪表盘」的语言）。
+ * 但在紫夜舱里，主色本身就是紫，一整块紫实心是这台机器的正确表达，
+ * 近白实心反而会在满屏深紫里戳出一个洞。所以深色档保留主色满铺，
+ * 只把字色/边色换成紫夜舱的深字与亮边。 */
+html[data-skin="nova"][data-theme="dark"] .nv-wk.on{
+  background:var(--o-accent);color:var(--o-accent-on);
+  border-color:var(--o-accent-lit);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.24),0 2px 0 rgba(0,0,0,.30)}
+
+/* ======================================================================
+   浅色档专用：材质让位（纸与票交给 press / brass / campuscard）
+   —— v3 材质轴回迁。上一版这段的标题是「介质替换（去纸感）」，那是 v2 的
+      判断：把米黄纸当第四种介质从 nova 里赶出去，于是纸感全站消失，器官
+      一律冷瓷，只剩形状没有材质。
+   —— v3 的判断（NOVA-SIGNATURE §2.1 / §3.5）：纸是 C 级器官的合法材质，
+      不是异物。正确做法是降饱和 + 统一光照，不是删掉。
+   —— 所以这一段现在只做两件事：
+      ① 读数与刻度的**中性阶**（内容区不许带材质色，铁律二）；
+      ② 底色一律让位：纸面底色归 nova-medium.css（--n-m-paper），
+         票券的齿孔/凹印/油墨归 nova-press.css，校园卡面归 nova-campuscard.css。
+         本文件不再钉任何底色，免得把风格文件刚画上的材质盖掉。
+   —— 深色档不进来：那里需要一块暖材质做对比，米黄纸是对的。
+   ====================================================================== */
+
+/* ① 票券：底色让位（--n-m-paper 在 nova-medium.css），这里只管中性读数与刻度 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-shell{
+  color:var(--n-ink)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-head{color:var(--n-ink-2)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-state{color:var(--o-accent-ink)}
+/* 活档位刻度格：浅色档由材质层给纸面，选中态走 .nv-ticket-step.on。
+   旧版那圈 conic 假表盘随 m13555 一并删除（它既不动也不承载数据）。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-read b{color:var(--n-ink)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-read u{color:var(--n-ink-2)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-ticket-note{color:var(--n-ink-2)}
+html[data-skin="nova"]:not([data-theme="dark"]) #waterTarget button{
+  border:1px solid var(--o-line)!important;
+  color:var(--n-ink)!important;
+  box-shadow:0 2px 0 rgba(16,24,40,.08)!important}
+
+/* ② 刷票票面：底色让位给 nova-campuscard.css（砖红校园卡），
+   这里只留中性读数色 —— 卡面本身是实物，不吃瓷也不吃纸。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-swipe-h{color:var(--o-ink-3)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-swipe-t{color:var(--n-ink)}
+
+/* ③ 成绩卷宗：深紫玻璃 → 冷瓷仪表（浅色档不该有一块比正文还重的方块） */
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-stat{
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.60),0 2px 0 rgba(16,24,40,.08)}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-stat b{color:var(--o-accent-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-stat span{color:var(--o-ink-3) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row.covered{
+  background:repeating-linear-gradient(135deg,rgba(16,24,40,.05) 0 8px,rgba(16,24,40,.08) 8px 16px) !important;
+  border:1px solid var(--o-line) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row.covered b{color:var(--o-ink-3) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row.covered .grade-credit{
+  color:var(--o-ink-3) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row.covered::before{display:none}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row.covered::after{
+  color:var(--o-ink-3);border:1px solid var(--o-line)}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row:not(.covered){
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2)) !important;
+  border:1px solid var(--o-line) !important;
+  color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row b{color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row .grade-credit,
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row .grade-point{color:var(--o-ink-3) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row .grade-score{color:var(--n-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .grade-row .grade-score.muted{color:var(--o-ink-3) !important}
+
+/* ④ 指令终端：紫墨 → 冷墨（终端是机器，浅色页上仍是一块深色，只是不再发紫） */
+html[data-skin="nova"]:not([data-theme="dark"]) .cmd-step{
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07);
+  color:var(--o-ship-ink) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .cmd-ta{
+  background:rgba(8,18,24,.92) !important;color:var(--o-ship-ink) !important;
+  border:1px solid var(--o-line) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .cmd-ta::placeholder{color:rgba(234,246,250,.40)}
+html[data-skin="nova"]:not([data-theme="dark"]) .cmd-pre{
+  background:rgba(8,18,24,.94) !important;color:var(--o-ship-ink) !important;
+  border:1px solid var(--o-line) !important}
+/* 报错仍是红：这是第 3 级威胁色，全站只在这里和不及格成绩出现 */
+html[data-skin="nova"]:not([data-theme="dark"]) .cmd-pre.bad{
+  background:rgba(52,12,24,.94) !important;border-color:rgba(255,110,143,.45) !important;
+  color:#FFD3E0 !important}
+
+/* ⑤ 专注仪表：深紫 → 冷墨仪表（大数字从金币黄改成近白，比黄更冷静也更值钱） */
+html[data-skin="nova"]:not([data-theme="dark"]) .focus-face{
+  background:linear-gradient(180deg,var(--o-ship),var(--o-ship-2));
+  border:1px solid var(--o-line);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+html[data-skin="nova"]:not([data-theme="dark"]) .focus-face::after{
+  content:'';position:absolute;left:12px;right:12px;bottom:6px;height:6px;
+  background:repeating-linear-gradient(90deg,rgba(234,246,250,.28) 0 1px,transparent 1px 9px);
+  opacity:.6}
+html[data-skin="nova"]:not([data-theme="dark"]) .focus-time{color:#F2FBFA !important}
+
+/* ⑥ 房间卡 / 选中 chips / 分段开关：去掉玻璃渐变与满铺高饱和底 */
+html[data-skin="nova"]:not([data-theme="dark"]) .room-card{
+  background:var(--o-ceramic) !important;
+  border:1px solid var(--o-line) !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .chips button{
+  background:var(--o-ceramic) !important;border:1px solid var(--o-line) !important;
+  color:var(--n-ink-2) !important}
+/* 选中态：浅底 + 实心边 + 深字。满铺荧光青是在跟主内容抢注意力。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .chips button.on{
+  background:var(--o-accent-soft) !important;
+  color:var(--o-accent-ink) !important;
+  border:1px solid var(--o-accent-line) !important;
+  box-shadow:inset 0 0 0 1px rgba(31,167,154,.10) !important;
+  font-weight:700 !important}
+html[data-skin="nova"]:not([data-theme="dark"]) .seg{
+  background:rgba(16,24,40,.04) !important;
+  box-shadow:inset 0 1px 2px rgba(16,24,40,.05)}
+/* 分段开关的选中态同理：原来是一块深主色实心，压在近白底上像一张贴纸。
+ * 浅色档统一成「淡主色底 + 主色细边 + 深主色字」，选中靠对比而不是靠饱和度。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .seg button.on{
+  background:var(--o-accent-soft) !important;
+  color:var(--o-accent-ink) !important;
+  border:1px solid var(--o-accent-line) !important;
+  box-shadow:none !important;
+  font-weight:700 !important}
+
+/* ⑦ 铭牌规格表与剪报抽屉的冷瓷底（深色档有自己的夜航介质，见上）
+ * 注：这里原来写的是 .nv-plate-shell —— 那个类名在 JS 里不存在（JS 建的是
+ * .nv-plate-sheet），是一段空规则。改成真实类名，浅色档的冷瓷底才真的生效。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-sheet{
+  background:linear-gradient(180deg,var(--o-ceramic),var(--o-ceramic-2)) !important;
+  border-color:var(--o-line) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.60),0 2px 0 rgba(16,24,40,.10) !important}
+
+@keyframes n-breath{0%,100%{opacity:1}50%{opacity:.3}}
+
+@keyframes n-gear{to{transform:rotate(360deg)}}
+@keyframes n-zoom{
+  from{opacity:0;transform:translate(var(--dx,0),var(--dy,0)) scale(.22)}
+  to{opacity:1;transform:translate(0,0) scale(1)}
+}
+@keyframes n-in{from{opacity:.2;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-pulley,
+  html[data-skin="nova"] .nv-reel,
+  html[data-skin="nova"] .nv-tape-card,
+  html[data-skin="nova"] .nv-rain-col,
+  html[data-skin="nova"] .nv-swipe-reader,
+  html[data-skin="nova"] .nv-swipe-card,
+  html[data-skin="nova"] .focus-phase::before,
+  html[data-skin="nova"] .nv-in{animation:none !important}
+  html[data-skin="nova"] .nv-clip-card{animation:none !important;transition:none !important}
+  /* 倒计时那一行：停呼吸但停在可读的浓度，不许消失（它是信息，不是装饰） */
+  html[data-skin="nova"] .nv-belt-next{animation:none !important;opacity:.8}
+}
+
+/* ---------- 材质手感层（用户 m12051：每个器官按自己的材质被操作） ----------
+ * 票券=撕根 / 铭牌=掀盖 / 矩阵=扫描 / 拍立得=抽相纸。
+ * 位移全用独立 translate/rotate 属性，不碰各材质层的 transform。 */
+html[data-skin="nova"] .nv-ticket-shell{cursor:grab;touch-action:pan-y;--tear:0px;
+  translate:var(--tear) 0;transition:translate .2s cubic-bezier(.2,.7,.3,1)}
+html[data-skin="nova"] .nv-ticket-shell.tearing{cursor:grabbing;transition:none;
+  filter:drop-shadow(0 0 6px rgba(16,24,40,.14))}
+html[data-skin="nova"] .nv-plate-bar{cursor:pointer;touch-action:pan-y;--cover:0px;
+  translate:0 var(--cover);transition:translate .2s cubic-bezier(.2,.7,.3,1)}
+html[data-skin="nova"] .nv-plate-bar.lifting{transition:none}
+html[data-skin="nova"] .nv-plate.folded .nv-plate-sheet{display:none}
+html[data-skin="nova"] .nv-plate.folded .nv-plate-bar{--cover:0px}
+html[data-skin="nova"] .nv-rain-bar{cursor:crosshair;touch-action:pan-y;--scan:0px}
+html[data-skin="nova"] .nv-rain-bar.scanning::after{content:'';position:absolute;
+  left:var(--scan);top:0;bottom:0;width:2px;background:var(--n-cyan);
+  box-shadow:0 0 10px 2px var(--n-cyan);opacity:.7;pointer-events:none}
+html[data-skin="nova"] .nv-rain-bar{position:relative;overflow:hidden}
+html[data-skin="nova"] .nv-polaroid-grid{cursor:grab;touch-action:pan-y}
+html[data-skin="nova"] .nv-polaroid-grid.developing .ph-card{filter:saturate(.4) sepia(.15) brightness(1.06);
+  translate:0 var(--draw,0px);transition:translate .12s linear}
+html[data-skin="nova"] .nv-polaroid-grid .ph-card.picked{outline:2px solid var(--n-cyan);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-ticket-shell,
+  html[data-skin="nova"] .nv-plate-bar{transition:none !important}
+  html[data-skin="nova"] .nv-ticket-steps.rolled .nv-ticket-step{animation:none !important}
+}
+
+/* ---- v1.1.60：拨盘并进底栏、传送带跟随课表滚动（m15143 / m15311）----
+   经典皮肤零回归：这两条只在 NOVA 下生效，.nv-dial/.nv-belt 由器官层动态创建。 */
+html[data-skin="nova"] #tabs { position: relative; padding-top: 34px; }
+html[data-skin="nova"] #tabs > .nv-dial {
+  position: absolute; top: 0; left: 0; right: 0;
+  margin: 0 12px; padding: 2px 0 0; z-index: 1;
+}
+html[data-skin="nova"] #tab-kb > .nv-belt { margin: 0 0 10px; }

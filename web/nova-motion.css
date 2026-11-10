@@ -1,0 +1,447 @@
+/* NOVA 动效收敛层
+   写域：本文件（web/nova-motion.css）。由 motion-rhythm 负责。
+   宪法：design/sketch/NOVA-SIGNATURE.md §3
+   铁律：只传达信息；统一时长/曲线令牌；循环动效全站只允许 2 处；
+        装饰动效降为静态或仅 hover 触发一次；prefers-reduced-motion 覆盖全部。
+
+   ==========================================================================
+   唯一判据
+   ==========================================================================
+   「这个动效删掉，用户会丢失信息吗？」
+     会  → 留（且必须落在令牌时长内）
+     不会 → 删（或降为静态，只在交互那一下动一次）
+   ==========================================================================
+
+   为什么这一层要存在（不是审美洁癖，是九个周期同时在跑）：
+    宪法 §7 记的 bug「循环动效九条周期同时在跑」，收尾实测确实是 9 条 ——
+    它们分布在 skin + organs 两层（下文 §2 逐条给行号，行号以收尾时的
+    nova-skin.css / nova-organs.css 为准）：
+       n-vapor 18s（蒸汽波透视网格）      / n-scan 8s（HUD 扫描线）
+       n-gear 12s（顶栏双滑轮）           / n-gear 6s（磁带卷轴）
+       n-belt-tick 6.4s（倒计时读数）     / n-breath 2s（专注阶段灯）
+       n-rain 7/9/11/13s（数据雨四列）    / n-reader 3.2s（读卡器）
+       n-swipe 1.5s（票面反复横滑）
+    其中 1.5s 与 2s 已经进入「闪烁」区间，读久了眼睛发酸；
+    而它们承载的信息量是 0 —— 读数、文字、颜色一个字都没少。
+    按判据砍掉 8 条，只保留 A 级器官各 1 处「机器还活着」的极小呼吸。
+
+    9 条的去向（这是本层的账）：
+      砍掉 8 条 → §2 ①②④⑤⑦⑧⑨⑩（终态各自有静态兜底）
+      接管 1 条 → n-belt-tick：宿主 .nv-belt-next 是全站唯一「数值真在变」
+                  的文字，它该活；改由 §1 的 n-loop-belt 同源替换参数
+                  （7s / Δ.18 / 令牌曲线）—— 不是砍掉，是把它改合规。
+      最终全站只剩 2 处循环 → §1：.nv-belt-next 7s、.nv-tape .nv-reel::after 8s
+      （后者是新增：卷轴停转之后，「磁带还在走」的信号改由轴心呼吸承担）
+
+    另外三条循环（n-gear 24s 票券外圈 / n-gear 12s 的 .nv-pulley /
+    n-breath 6s 卡片飞行石）已被上游（organ-color / skin-color）先一步移除，
+    这里仍各留一条静态兜底规则 —— 不是重复劳动，是防回退：
+    谁哪天把上游那行加回来，本层依旧把它按住。
+
+   加载序（index.html 实测 2025-11）：
+     app.css → nova-skin.css → nova-organs.css → nova-medium.css →
+     nova-pixel.css → nova-motion.css（本文件）→ pop.css
+   也就是说：本文件能直接压住 app 层与 nova 各层，但 pop.css 在**本文件之后**，
+   覆盖弹层时一律要带 !important。
+   ========================================================================== */
+
+/* ==========================================================================
+   §0 动效令牌（全站唯一真源）
+   --------------------------------------------------------------------------
+   时长三档，只许用这三档，不许再出现 .16s / .28s / .3s / .34s 这类散值。
+     dur-1 150ms = 交互反馈（按下、选中、拨片、状态灯换色）
+     dur-2 240ms = 状态变化（换台、点阵刷新、读数位移）
+     dur-3 320ms = 面板进出（磁带门、剪报抽屉、成绩翻开）
+   曲线只有两条：
+     进 = cubic-bezier(.2,.7,.3,1)   起步快、收尾软 —— 「东西进来了」
+     出 = cubic-bezier(.4,0,.2,1)    起步稳、收尾急 —— 「东西走了」
+   ========================================================================== */
+html[data-skin="nova"]{
+  --n-dur-1:150ms;
+  --n-dur-2:240ms;
+  --n-dur-3:320ms;
+  --n-ease-in:cubic-bezier(.2,.7,.3,1);
+  --n-ease-out:cubic-bezier(.4,0,.2,1);
+}
+
+/* ==========================================================================
+   §1 唯一保留的两处循环（全站就这两条，多一条都不许）
+   --------------------------------------------------------------------------
+   规矩：周期 ≥6s、幅度极小、只用透明度，不许扫光/位移/旋转。
+   A 级器官（周次传送带 / 磁带门）各一处，作用是「这台机器还在通电」，
+   不是装饰；B/C/D 级一个都不给。
+
+   ① 传送带：正下方那行倒计时读数（.nv-belt-next）慢呼吸 7s，1 → .82。
+      为什么是它而不是游标针 .nv-needle：organ-color 已把针改成 1px 哑光
+      发丝（nova-organs.css:119，alpha .34），「当前第几周」由 .nv-wk.on 的
+      实心格独家承担 —— 在一根 1px 发丝上做 1→.82 的透明呼吸，肉眼 0 收益，
+      却要占一个合成层，正好是这一层要清掉的东西。
+      而倒计时读数是全站唯一「数值正在走」的文字（距上课 01:20 / 今日无课），
+      它的呼吸对应的是「这台机器正在计时」，这是真信息。
+   ② 磁带门：卷轴轴心点（.nv-reel::after）慢呼吸 8s，1 → .72。
+      轴心是「磁带在走」的唯一信号，门内读数不可见时靠它判断还在播。
+
+    注意上游 organs.css 在 .nv-belt-next 上也挂了 n-belt-tick 6.4s(.55→.9)，
+    幅度偏大（Δ.35，11px 等宽小字会读成「这行在闪/像禁用」）。
+    本层用一个同名来源的动画把它整体替换掉：周期 7s、幅度 Δ.18，
+    曲线收到令牌里 —— 不是「再加一条循环」，是把那一条改成合规的。
+   ========================================================================== */
+@keyframes n-loop-belt{
+  0%,100%{opacity:1}
+  50%    {opacity:.82}
+}
+@keyframes n-loop-tape{
+  0%,100%{opacity:1}
+  50%    {opacity:.72}
+}
+html[data-skin="nova"] .nv-belt-next{
+  animation:n-loop-belt 7s var(--n-ease-out) infinite !important}
+html[data-skin="nova"] .nv-tape .nv-reel::after{
+  animation:n-loop-tape 8s var(--n-ease-out) infinite !important}
+
+/* ==========================================================================
+   §2 砍掉的循环 —— 每一条都写清终态怎么留住
+   --------------------------------------------------------------------------
+   原则：`animation:none` 不许让任何一块视觉消失。
+        所以「杀动画」后面紧跟一条静态兜底，只改 animation / opacity /
+        background-position / transform 这几个不承载颜色的属性 ——
+        配色归 skin-color / organ-color 那两位，这里不抢。
+   ========================================================================== */
+
+/* ① n-vapor 18s（蒸汽波透视网格缓移）→ 静态。
+   底：nova-skin.css 里那两层 repeating-linear-gradient、perspective(420px)
+       rotateX(62deg)、上下遮罩全部由基础规则保留；这里只把 background-position
+       钉回 0 0，即动画的起始帧。网格线一根不少，只是不再爬。 */
+html[data-skin="nova"] #grid::after{
+  animation:none !important;
+  background-position:0 0,0 0 !important}
+
+/* ② n-scan 8s（HUD 扫描线 4px 漂移）→ 静态。
+   底：两层全在 —— 底部那圈青色辉光
+       （radial-gradient(ellipse 62% 88% at 50% 104%,…transparent 72%)）
+       与每 4px 一条的细横线（repeating-linear-gradient 0deg …1px,transparent 1px 4px）。
+       静止在 background-position:0 0 时，细横线本身就是「玻璃里的扫描栅」，
+       不需要让它爬才认得出来。 */
+html[data-skin="nova"] #grid::before{
+  animation:none !important;
+  background-position:0 0 !important}
+
+/* ③ n-breath 6s（飞行石指示灯呼吸，卡片右上角）→ 静态。
+   实际状态：skin-color 已经把它**删掉了**（nova-skin.css:225-226
+   `.card-title::after{content:none !important}` —— 每张卡一枚跳动金点正是
+   「彩色贴纸感」的主要来源）。所以这条属于防回退：万一上游把 content 加回来，
+   本层也保证它是常亮不喘，而不是重新开始呼吸。
+   兜底：radial-gradient 珠体 + 外发光在基础规则里，opacity 钉 1 = 灯亮着
+        （亮=有内容），只是不喘。删掉会丢信息吗？灯在不在是信息，喘不喘不是。 */
+html[data-skin="nova"] .card-title::after{
+  animation:none !important;
+  opacity:1 !important}
+
+/* ④ n-gear 12s（顶栏两个铜滑轮）×2 处 → 静态。
+   底：conic-gradient 八等分齿纹 + inset 阴影全在基础规则里，
+       轮子照样看得出是轮子（静态齿轮不会让人误判成圆点）。 */
+html[data-skin="nova"] #top .week-row::before,
+html[data-skin="nova"] #top .week-row::after,
+html[data-skin="nova"] .nv-pulley{
+  animation:none !important;
+  transform:none !important}
+
+/* ⑤ 磁带卷轴：不再自转（2026-11-08 改为手指驱动走带）。
+   底：conic-gradient 辐条 + 金轴心点全在。
+   注意这里只停 animation，**不能写 transform:none !important** ——
+   器官层的 .nv-reel 用 transform:rotate(var(--spin)) 接手指的走带位移，
+   motion 层在它之后加载，一条 !important 的 transform 会把整条交互吃掉。
+   「磁带在走」这条信息现在由真实的手势承担，不需要假循环来表达。 */
+html[data-skin="nova"] .nv-reel{animation:none !important}
+
+/* ⑥ 票券仪表盘外圈 → 整块删了（用户 m13555：「跟死的一样，不会动」）。
+    换成目标水量活档位：读数/刻度/撕票换档在 nova-organs.js 的 paint() 里联动，
+    换档翻滚是 .nv-ticket-steps.rolled 的一次性反馈，不归本层的循环动效管。 */
+
+/* ⑦ n-rain 7/9/11/13s（数据雨四列下落）→ 静态。
+   底：四列字符原地不动，靠父层 .nv-rain-cols 的 opacity 与上下遮罩
+       仍读作一层「机房底噪」；真实读数在 .nv-rain-seg 的文字上，一个字没少。
+       注意 nth-child(2..4) 只改了 animation-duration 与各自 opacity，
+       会被 animation:none 的 animation-name 一并压住；仍然逐条列出，
+       防止以后有人改成单属性写法。
+       **父层 opacity 刻意不覆盖** —— 它是 organs 层的视觉权重（当前 .16），
+       D 级降噪层不该因为"静止了"就被我调亮；本层只负责让它别动。 */
+html[data-skin="nova"] .nv-rain-col,
+html[data-skin="nova"] .nv-rain-col:nth-child(2),
+html[data-skin="nova"] .nv-rain-col:nth-child(3),
+html[data-skin="nova"] .nv-rain-col:nth-child(4){
+  animation:none !important;
+  transform:none !important}
+
+/* ⑧ n-reader（读卡器槽口闪；organ-color 已把 1.15s 放慢到 3.2s，仍是闪烁）→ 静态。
+   底：基础规则的槽体渐变（--o-ship-win → --o-ship-2）+ inset 1px 描边
+       （--o-accent-line）就是「这个口在、可以插」的样子，停在这一帧完全成立。
+       注意别指望「常亮暖光」：0 0 10px 那束只在 keyframes 60%~74% 里出现，
+       主线里没有 —— 砍掉动画就是回到 0%/54% 的待机帧，不是把灯点亮再冻住。
+       等机器的回应由 .nv-swipe-label 的文字承担。 */
+html[data-skin="nova"] .nv-swipe-reader{
+  animation:none !important}
+
+/* ⑨ n-swipe 1.5s（票面反复从左滑到右）→ 静态停靠。
+   底：票面 DOM 与纸壳质感全在；这里把它停进闸口左侧、opacity 钉 1，
+       看上去是一张「已插入、等读取」的票。反复滑动本身不传递任何进度，
+       而它 1.5s 一闪一闪会让整个饮水机模块读起来像坏了。 */
+html[data-skin="nova"] .nv-swipe-card{
+  animation:none !important;
+  transform:translateX(0) !important;
+  opacity:1 !important}
+
+/* ⑩ n-breath 2s（专注阶段灯 2s 呼吸）→ 静态常亮。
+   底：7px 圆点（background:var(--o-accent-lit)）+ 3px 光环
+       （box-shadow:0 0 0 3px var(--o-accent-soft)）都写在基础规则里，
+       本层只把 opacity 钉回 1（keyframes 的 0%/100% 帧本来就是 1）。
+       阶段是「学习/休息」由 .focus-phase 的文字说明，灯只是状态色；
+       2s 一次的全屏呼吸在阅读区里就是干扰，而它不承载任何随时间变化的信息。 */
+html[data-skin="nova"] .focus-phase::before{
+  animation:none !important;
+  opacity:1 !important}
+
+/* ⑪ n-belt-tick 6.4s（传送带下方倒计时读数 .55 → .9）—— 不是砍除项，是接管项。
+   这一条是 organ-color 在我改这层期间新加的（nova-organs.css 里 .nv-belt-next
+   上），算下来是改动前的第 9 条循环。它的宿主正是全站唯一「数值真的在变」的
+   那行文字，所以按判据它**该活**，只是原来的参数不合规：
+     · 6.4s 周期贴着宪法下限，Δ.35 幅度对 11px 等宽小字来说就是「在闪」；
+     · 曲线 ease-in-out 不在两条令牌曲线里。
+    → 不砍，改由 §1 的 n-loop-belt 同源替换（7s、Δ.18、var(--n-ease-out)）。
+      这里不留任何规则，只留这条说明：谁再往 .nv-belt-next 上加 animation，
+      先看 §1。 */
+
+/* ==========================================================================
+   §3 一次性动画归一（留，但必须是令牌时长 + 令牌曲线）
+   --------------------------------------------------------------------------
+   这些是「状态变化那一下」，删掉会丢信息（门开没开、成绩翻没翻开），
+   所以保留，只把散值收进令牌：.34s → var(--n-dur-3)，.7s → var(--n-dur-3)。
+   上限 400ms（宪法 §3），320ms 落在里面。
+   ========================================================================== */
+
+/* 磁带门 / 剪报抽屉：从触点放大进来（原点 var(--ox/--oy) 由 JS 写） */
+html[data-skin="nova"] .nv-tape-card,
+html[data-skin="nova"] .nv-clip-card{
+  animation:n-zoom var(--n-dur-3) var(--n-ease-in) both !important}
+
+/* 换台整舱错峰点亮。
+   错峰来自 JS 的内联 animation-delay（每条 +34ms，最多 6 条 = 204ms），
+   所以这里刻意不加 !important —— 作者层的 !important 会压掉内联 delay，
+   把错峰一口气抹平成同时亮。每条自身只走 dur-1：
+   204 + 150 = 354ms，仍在「状态变化 ≤400ms」里。 */
+html[data-skin="nova"] .nv-in{
+  animation:n-in var(--n-dur-1) var(--n-ease-in) both}
+
+/* 成绩翻开（档案签正面） */
+html[data-skin="nova"] .grade-row:not(.covered){
+  animation:n-uncover var(--n-dur-3) var(--n-ease-in) both !important}
+
+/* 剪报联动高亮：0.7s 太长，收到 dur-3，只闪一圈就收 */
+html[data-skin="nova"] .wiki-grid.nv-flash{
+  animation:n-flash var(--n-dur-3) var(--n-ease-out) !important}
+
+/* ==========================================================================
+   §4 transition 归一：不许再出现 ease / linear / 自定义数值
+   ========================================================================== */
+
+/* 表单输入（nova-skin.css 里是 .16s ease ×3）→ dur-1 进 */
+html[data-skin="nova"] .fr-input,
+html[data-skin="nova"] .gate-input,
+html[data-skin="nova"] .wiki-search,
+html[data-skin="nova"] .adm-in,
+html[data-skin="nova"] .rm-sel{
+  transition:border-color var(--n-dur-1) var(--n-ease-in),
+             box-shadow var(--n-dur-1) var(--n-ease-in),
+             background var(--n-dur-1) var(--n-ease-in) !important}
+
+/* 波段拨盘珠（nova-organs.css 里是 .28s 自定义曲线）→ dur-2 出 */
+html[data-skin="nova"] .nv-dial-bead{
+  transition:left var(--n-dur-2) var(--n-ease-out) !important}
+
+/* 铭牌状态灯（nova-organs.css 里是 .3s）→ dur-2 出 */
+html[data-skin="nova"] .nv-plate-led::before{
+  transition:background var(--n-dur-2) var(--n-ease-out),
+             box-shadow var(--n-dur-2) var(--n-ease-out) !important}
+
+/* 可按的器官键：只给「按下/选中」这一下反馈，全部 dur-1。
+   注意不碰课表格子（#grid .c / .cell）与像素舱键（.nv-pixel-btn）——
+   它们是有意的硬切状态机（transition:none），平滑化会让点阵发虚。 */
+html[data-skin="nova"] .nv-wk,
+html[data-skin="nova"] .nv-tape-shell,
+html[data-skin="nova"] .nv-tape-sides button,
+html[data-skin="nova"] .nv-clip-chip,
+html[data-skin="nova"] #waterTarget button{
+  transition:transform var(--n-dur-1) var(--n-ease-out),
+             filter var(--n-dur-1) var(--n-ease-out),
+             background-color var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out) !important}
+
+/* ==========================================================================
+   §4b 接管旧 classic 层（app.css）与弹层（pop.css）
+   --------------------------------------------------------------------------
+   为什么必须补这一节：app.css 是 nova 皮肤之前的「西部长皮」层，全文没有一处
+   data-skin 前缀，但它对 nova 皮肤**一样生效** —— 里面的 .1s / .12s / .14s /
+   .22s / .26s 全是宪法 §3 之外的散值，而且曲线是 ease（.2,.7,.3,1 与
+   (.4,0,.2,1) 都不是）。只归一 nova-* 三个文件，等于灯修了一半。
+   pop.css 反过来：它在 index.html 里排在本文件**之后**，所以要压它一律带
+   !important。
+
+   保留判断（逐条过判据）：
+     留 —— 按下/选中这一下的位移与变色（.1s~.14s）：它是「我点到了」的反馈，
+           删掉用户会怀疑没点中。
+     留 —— 面板/抽屉/引导页入场（.2s~.22s）：它告诉用户「东西从哪冒出来的」。
+     收 —— 全部并进 dur-1 / dur-2 / dur-3 + 两条令牌曲线，一个散值都不留。
+   ========================================================================== */
+
+/* —— ① 按下/选中反馈：全部 dur-1（150ms）出曲线 —— */
+html[data-skin="nova"] .pill{
+  transition:transform var(--n-dur-1) var(--n-ease-out),
+             background var(--n-dur-1) var(--n-ease-out),
+             color var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out),
+             opacity var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .btn{
+  transition:transform var(--n-dur-1) var(--n-ease-out),
+             opacity var(--n-dur-1) var(--n-ease-out),
+             background-color var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .btn-sm{
+  transition:transform var(--n-dur-1) var(--n-ease-out),
+             background-color var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out),
+             opacity var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] #tabs button{
+  transition:color var(--n-dur-1) var(--n-ease-out),
+             background-color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .hw,
+html[data-skin="nova"] .wiki-card,
+html[data-skin="nova"] .ph-card,
+html[data-skin="nova"] .chips button{
+  transition:transform var(--n-dur-1) var(--n-ease-out),
+             background-color var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .mtd-cb{
+  transition:background var(--n-dur-1) var(--n-ease-out),
+             border-color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .seg button{
+  transition:background var(--n-dur-1) var(--n-ease-out),
+             color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .fr-hint,
+html[data-skin="nova"] .gate-live{
+  transition:color var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .gate-more span{
+  transition:color var(--n-dur-1) var(--n-ease-out),
+             background var(--n-dur-1) var(--n-ease-out)}
+html[data-skin="nova"] .apk-pick{
+  transition:border-color var(--n-dur-1) var(--n-ease-out),
+             background var(--n-dur-1) var(--n-ease-out),
+             transform var(--n-dur-1) var(--n-ease-out)}
+
+/* —— ② 拖拽/翻转类：dur-2（240ms）进曲线 ——
+   .tut-strip 是引导卡横向拖拽轨道，.tut-dots i 是它下面的进度点（宽度 6→18px）。
+   这两个都不是「按下」，是「位置变了」，所以走 dur-2 而不是 dur-1。 */
+html[data-skin="nova"] .tut-strip{
+  transition:transform var(--n-dur-2) var(--n-ease-in)}
+html[data-skin="nova"] .tut-dots i{
+  transition:width var(--n-dur-2) var(--n-ease-in),
+             background var(--n-dur-2) var(--n-ease-in)}
+
+/* —— ③ 面板/抽屉入场：dur-3（320ms）进曲线 ——
+   .sh-box 详情面板、.upd-box 更新、.onb-box 引导、.ntc-box 通知、
+   .tut-box 教程、.disc-box 免责：都是「一块面从下面/后面冒出来」，
+   删掉会丢失「它从哪来」的空间关系 → 留，但收进 320ms 令牌。 */
+html[data-skin="nova"] .sh-box{
+  animation:up var(--n-dur-3) var(--n-ease-in)}
+html[data-skin="nova"] .upd-box{
+  animation:updIn var(--n-dur-3) var(--n-ease-in)}
+html[data-skin="nova"] .onb-box,
+html[data-skin="nova"] .ntc-box,
+html[data-skin="nova"] .tut-box,
+html[data-skin="nova"] .disc-box{
+  animation:onbIn var(--n-dur-3) var(--n-ease-in)}
+
+/* —— ④ 弹层（pop.css 排在本文件之后 → 必须 !important）——
+   时序硬约束：pop.js 关弹窗时是「加 .pop-out → setTimeout(remove,180)」，
+   所以退出过渡必须 ≤180ms，dur-1 = 150ms 安全；超过就会被硬切，反而更难看。
+   入场：dur-1 进曲线（弹层是「立刻要你看」的东西，不该慢悠悠）。 */
+html[data-skin="nova"] .pop-alert{
+  animation:popAlertIn var(--n-dur-1) var(--n-ease-in) !important}
+html[data-skin="nova"] .pop-alert.out,
+html[data-skin="nova"] .pop-alert.pop-out{
+  transition:opacity var(--n-dur-1) var(--n-ease-out),
+             transform var(--n-dur-1) var(--n-ease-out) !important}
+html[data-skin="nova"] .pop-confirm{
+  animation:popConfirmIn var(--n-dur-1) var(--n-ease-in) !important}
+html[data-skin="nova"] .pop-toast{
+  animation:popToastIn var(--n-dur-1) var(--n-ease-in) !important}
+html[data-skin="nova"] .pop-toast.out{
+  transition:opacity var(--n-dur-1) var(--n-ease-out) !important}
+html[data-skin="nova"] .pop-tip{
+  animation:popTipIn var(--n-dur-1) var(--n-ease-in) !important}
+
+/* ==========================================================================
+   §5 装饰降级：默认全静，只在用户动它的那一下给反馈
+   --------------------------------------------------------------------------
+   用 filter / outline 而不是 box-shadow —— 宪法 §1.4 光源铁律：
+   阴影只向下、高光只在上边缘，hover 抬高阴影会打光。
+   ========================================================================== */
+html[data-skin="nova"] .nv-wk:hover{
+  filter:brightness(1.18)}
+html[data-skin="nova"] .nv-wk.on:hover{
+  filter:brightness(1.05)}
+html[data-skin="nova"] .nv-tape-shell:hover{
+  filter:brightness(1.04)}
+html[data-skin="nova"] .nv-clip-chip:hover{
+  filter:brightness(1.06)}
+html[data-skin="nova"] #waterTarget button:hover{
+  filter:brightness(1.03)}
+
+/* 键盘/无障碍聚焦：静态描边，不动、不闪 */
+html[data-skin="nova"] .nv-wk:focus-visible,
+html[data-skin="nova"] .nv-tape-shell:focus-visible,
+html[data-skin="nova"] .nv-tape-sides button:focus-visible,
+html[data-skin="nova"] .nv-clip-chip:focus-visible,
+html[data-skin="nova"] .nv-pixel-btn:focus-visible,
+html[data-skin="nova"] #waterTarget button:focus-visible,
+html[data-skin="nova"] .nv-dial-scale:focus-visible{
+  outline:2px solid var(--n-cyan);
+  outline-offset:2px}
+
+/* 装饰层（雨列 / 齿轮 / 扫描线）默认不接收指针，避免「看着能动」的误导 */
+html[data-skin="nova"] .nv-rain-cols,
+html[data-skin="nova"] .nv-pulley{
+  pointer-events:none}
+
+/* ==========================================================================
+   §6 减少动效总闸
+   --------------------------------------------------------------------------
+   只关「动」，不改「看得见」：不 display:none、不改 opacity 终态、不改布局。
+   系统开了「减少动态效果」的用户拿到的是一套完全静止、但信息量一点没少的
+   舱体。
+   ========================================================================== */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"],
+  html[data-skin="nova"] *,
+  html[data-skin="nova"] *::before,
+  html[data-skin="nova"] *::after{
+    animation:none !important;
+    transition-duration:0.01ms !important;
+    transition-delay:0ms !important;
+    animation-delay:0ms !important;
+    animation-iteration-count:1 !important;
+    scroll-behavior:auto !important}
+
+  /* 两处循环也停；静态终态由 §1 / §2 的兜底保留（读数与轴心 opacity 为 1） */
+  html[data-skin="nova"] .nv-belt-next,
+  html[data-skin="nova"] .nv-tape .nv-reel::after{
+    animation:none !important;
+    opacity:1 !important}
+
+  /* 被 animation 一口气藏起来的东西（n-zoom 从 scale(.22) 起）必须回到终态 */
+  html[data-skin="nova"] .nv-tape-card,
+  html[data-skin="nova"] .nv-clip-card,
+  html[data-skin="nova"] .nv-in,
+  html[data-skin="nova"] .grade-row:not(.covered){
+    opacity:1 !important;
+    transform:none !important}
+}

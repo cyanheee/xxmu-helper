@@ -91,6 +91,44 @@ ok(E.findAircon([{ roomfullname: '5层照明_44511', roomverify: '104-26--84-445
 ok(E.findAircon([]) === null, '空列表返回 null');
 ok(E.findAircon(null) === null, 'null 返回 null');
 
+console.log('\n多间房列全（v1.1.62 绑定防呆）:');
+/* 学号名下常挂好几间（自己宿舍 + 误绑的别校区），不能只取第一间。 */
+const multi = [
+  { roomfullname: '河南医药大学西校区_第一学生公寓_5层空调_1505', roomverify: '105-21--63-1505' },
+  { roomfullname: '河南医药大学南校区_1号学生公寓_5层空调_11505', roomverify: '104-23--63-11505' },
+  { roomfullname: '河南医药大学南校区_1号学生公寓_5层照明_11505', roomverify: '104-23--62-11505' },
+];
+const ac = E.airconRooms(multi);
+ok(ac.length === 2 && ac[0].roomverify === '105-21--63-1505' && ac[1].roomverify === '104-23--63-11505',
+  'airconRooms 列全两间空调、排除照明', ac.map(x => x.roomverify).join('/'));
+ok(E.findAircon(multi).roomverify === '105-21--63-1505', 'findAircon 仍取第一间空调（兼容旧调用）');
+ok(E.airconRooms(null).length === 0, 'airconRooms(null) 不炸');
+
+console.log('\n套间 AB 房自然排序（v1.1.62，官方把 AB 追加在末尾）:');
+/* 官方 5 层空调 45 间里 22514B 是最后一条，老 Number(name) 排序得 NaN 沉底。 */
+const suite = [
+  { name: '22510' }, { name: '22514' }, { name: '22515' },
+  { name: '22513' }, { name: '22512' }, { name: '22511' }, { name: '22514B' },
+];
+const sorted = E.roomSort(suite).map(x => x.name).join(',');
+ok(sorted === '22510,22511,22512,22513,22514,22514B,22515',
+  '22514B 紧跟 22514、而不是沉在末尾', sorted);
+ok(suite[6].name === '22514B', 'roomSort 不改原数组（返回副本）');
+/* 2 层套间 22214A / 22214B 同主号也要按字母排 */
+const ab = E.roomSort([{ name: '22214B' }, { name: '22215' }, { name: '22214' }, { name: '22214A' }])
+  .map(x => x.name).join(',');
+ok(ab === '22214,22214A,22214B,22215', 'A/B 后缀按字母紧跟主号', ab);
+/* 无法解析的房号沉底但不炸 */
+const weird = E.roomSort([{ name: '未知' }, { name: '22510' }]).map(x => x.name).join(',');
+ok(weird === '22510,未知', '非数字房号沉底、不 NaN 乱序', weird);
+ok(E.roomSort(null).length === 0, 'roomSort(null) 不炸');
+
+console.log('\n入口卡房间名压缩（v1.1.62）:');
+ok(E.roomBrief('河南医药大学南校区-1号学生公寓-5层空调-11505') === '南校区 1号学生公寓 5层空调 11505',
+  '去校名前缀、连字符换空格', E.roomBrief('河南医药大学南校区-1号学生公寓-5层空调-11505'));
+ok(E.roomBrief('新乡医学院_西校区_1505') === '西校区 1505', '旧校名也去掉', E.roomBrief('新乡医学院_西校区_1505'));
+ok(E.roomBrief('') === '', '空串不炸', E.roomBrief(''));
+
 console.log('\n剩余度数取值:');
 /* detaillist 可能有多段（电/空调分项），取最大值。
  * 取第一个会在分项顺序变化时给出错的数字。 */

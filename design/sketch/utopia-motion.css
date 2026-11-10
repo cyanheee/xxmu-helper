@@ -1,0 +1,110 @@
+/* ============================================================
+   UTOPIA MOTION — 八风格等额动效层（POCKET 原型专用）
+   "所有人的乌托邦"：每种风格一个席位、份额接近、错峰运行、谁都不扩音。
+
+   席位表（每格 1 个动效，面积/时长/亮度都压在同一量级）：
+     1 CRT/赛博   扫描线下移  4px / 8s linear infinite（StyleKit 实测节奏）
+     2 蒸汽朋克   齿轮慢转    1:4 传动比，24s / 6s，只两枚
+     3 怀旧       电源 LED    2s 呼吸（1s 暗→1s 亮，PWM 占空比语义）
+     4 像素/GBA   ? 砖眨动   步进 4 帧 / 1.6s steps(4)，无抗锯齿
+     5 拼贴       标签微摆    ±1.2deg / 7s ease-in-out（唯一人味）
+     6 西部       针脚 marching ants 12s linear（皮革缝线在走）
+     7 蒸汽波     落日缓升    18s ease-in-out（暖光与雾紫交替，不闪）
+     8 黑客帝国   数字雨      9s 慢速下落，单列，只屏幕内
+
+   三条防腻约束：
+     - 全部动画只作用 opacity / transform / background-position，不改布局，零重排。
+     - 全部周期 ≥ 1.6s，错峰（4/8/24/2/1.6/7/12/18/9s），不出现同步闪烁。
+     - prefers-reduced-motion 一键全停；正文与输入框绝不参与任何动效。
+   ============================================================ */
+
+/* ---------- 1 CRT / 赛博：扫描线下移 ---------- */
+@keyframes utopia-scan{from{background-position:0 0,0 0,0 0,0 0}to{background-position:0 0,0 0,0 4px,0 0}}
+html[data-skin="console"] #screen::before{
+  animation:utopia-scan 8s linear infinite;
+}
+
+/* ---------- 2 蒸汽朋克：两枚齿轮，1:4 传动 ---------- */
+@keyframes utopia-gear{to{transform:rotate(360deg)}}
+@keyframes utopia-gear-rev{to{transform:rotate(-360deg)}}
+#gearA,#gearB{
+  position:absolute;z-index:3;pointer-events:none;
+  border-radius:50%;border:2px dashed rgba(199,154,75,.55);
+  background:conic-gradient(from 0deg,
+    rgba(199,154,75,.30) 0 8%,transparent 8% 16%,
+    rgba(199,154,75,.30) 16% 24%,transparent 24% 32%,
+    rgba(199,154,75,.30) 32% 40%,transparent 40% 48%,
+    rgba(199,154,75,.30) 48% 56%,transparent 56% 64%,
+    rgba(199,154,75,.30) 64% 72%,transparent 72% 80%,
+    rgba(199,154,75,.30) 80% 88%,transparent 88% 100%);
+}
+#gearA{width:26px;height:26px;right:14px;bottom:14px;animation:utopia-gear 24s linear infinite}
+#gearB{width:14px;height:14px;right:38px;bottom:10px;animation:utopia-gear-rev 6s linear infinite}
+
+/* ---------- 3 怀旧：POWER LED 2s 呼吸 ---------- */
+@keyframes utopia-breath{0%,100%{opacity:1;box-shadow:0 0 6px #F0B95C}50%{opacity:.32;box-shadow:0 0 2px #F0B95C}}
+html[data-skin="console"] #status .led{animation:utopia-breath 2s ease-in-out infinite}
+
+/* ---------- 4 像素/GBA：? 砖步进闪，硬边无过渡 ---------- */
+@keyframes utopia-brick{0%,74%{opacity:.9}75%,100%{opacity:.25}}
+html[data-skin="console"] .grid-mini i.today::after{
+  content:'?';display:block;font:9px/20px ui-monospace,monospace;text-align:center;
+  color:#23180C;background:#F0B95C;
+  animation:utopia-brick 1.6s steps(4,end) infinite;
+}
+
+/* ---------- 5 拼贴：唯一一张贴歪标签，7s 微摆 ---------- */
+@keyframes utopia-tape{0%,100%{transform:rotate(-1.2deg)}50%{transform:rotate(1deg)}}
+html[data-skin="console"] .slot:nth-of-type(3n+2) .slot-h{
+  display:inline-block;transform-origin:left center;
+  animation:utopia-tape 7s ease-in-out infinite;
+}
+
+/* ---------- 6 西部：针脚 marching ants ---------- */
+@keyframes utopia-stitch{to{background-position:18px 0,0 0}}
+html[data-skin="console"] .slot{
+  border-bottom:1px dashed rgba(199,154,75,.42);
+  background-image:repeating-linear-gradient(90deg,rgba(199,154,75,.14) 0 6px,transparent 6px 9px);
+  background-size:18px 1px;background-position:0 100%;background-repeat:repeat-x;
+  animation:utopia-stitch 12s linear infinite;
+}
+
+/* ---------- 7 蒸汽波：落日缓升 + 雾紫交替（18s，不闪） ---------- */
+@keyframes utopia-sunset{
+  0%,100%{opacity:.12;transform:translateY(4px)}
+  50%{opacity:.22;transform:translateY(-4px)}
+}
+#sun{
+  position:absolute;left:0;right:0;bottom:0;height:46%;z-index:1;pointer-events:none;
+  background:
+    radial-gradient(ellipse 65% 100% at 50% 100%,rgba(240,185,92,.30),transparent 72%),
+    linear-gradient(180deg,transparent 0%,rgba(154,140,216,.14) 100%);
+  animation:utopia-sunset 18s ease-in-out infinite;
+}
+
+/* ---------- 8 黑客帝国：单列数字雨，9s 慢落，只屏幕内 ---------- */
+@keyframes utopia-rain{from{transform:translateY(-100%)}to{transform:translateY(100%)}}
+#rain{
+  position:absolute;right:6px;top:0;bottom:0;width:9px;z-index:2;overflow:hidden;
+  font:8px/11px ui-monospace,monospace;letter-spacing:0;
+  color:rgba(240,185,92,.38);text-shadow:0 0 5px rgba(240,185,92,.30);
+  writing-mode:vertical-rl;pointer-events:none;
+}
+#rain span{display:inline-block;animation:utopia-rain 9s linear infinite}
+#rain span:nth-child(2){animation-duration:13s;animation-delay:-4s;opacity:.6}
+
+/* ---------- 按键：街机 :active 4px 位移 + 100ms 瞬时反馈 ---------- */
+html[data-skin="console"] #ab button{transition:transform .1s steps(2,end),box-shadow .1s steps(2,end)}
+html[data-skin="console"] #ab button:active{transform:translateY(4px)}
+html[data-skin="console"] #dpad button{transition:color .1s steps(2,end),text-shadow .1s steps(2,end)}
+
+/* ---------- 全局闸：减少动效一键全停 ---------- */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="console"] #screen::before,
+  #gearA,#gearB,
+  html[data-skin="console"] #status .led,
+  html[data-skin="console"] .grid-mini i.today::after,
+  html[data-skin="console"] .slot:nth-of-type(3n+2) .slot-h,
+  html[data-skin="console"] .slot,
+  #sun,#rain span{animation:none !important}
+}

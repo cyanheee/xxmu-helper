@@ -131,6 +131,41 @@ def fetch_schedule(cookie, user, xn="2026", xq="0"):
     ref = BASE + "/student/xkjg.wdkb.jsp?menucode=S20301"
     return get_gbk(path, cookie, ref)
 
+
+# ---------------- 成绩（只读；v1.1.55 糖梨借鉴「成绩盖着翻开」的数据侧预留） ----------------
+# 说明：青果成绩页的真实 JSP 路径需在**登录后**用带 Cookie 的会话现场核验，
+# 这里不臆造 URL、不硬猜参数。约定几条候选路径逐个试探，谁返回带成绩表的
+# 真 HTML 就用谁；凭证失效/网关维护页统一识别成 STALE，绝不把提示页当 0 分。
+GRADE_PATHS = (
+    "/student/xscj.stuckcj.jsp?menucode=S40303",     # 学生成绩（常见青果菜单）
+    "/student/xscj.wdcj.jsp?menucode=S40303",
+    "/student/cjcx.xscj.jsp?menucode=S40303",
+)
+
+def fetch_grades(cookie, user, xn="2026", xq="0"):
+    """只读拉成绩原始 HTML。返回 (html, path) 或抛 RuntimeError（凭证失效/没找到）。
+
+    结果交给前端 grades.js 整理/导入：分数读不出来一律是「情况不明」，
+    绝不落成 0 分或已完成。不代查别人、不提交任何东西。
+    """
+    ref = BASE + "/frame/homes.action"
+    last = ""
+    for path in GRADE_PATHS:
+        try:
+            html = get_gbk(path, cookie, ref)
+        except Exception as ex:          # noqa: BLE001 —— 任一候选失败就试下一个
+            last = "%s: %s" % (type(ex).__name__, ex)
+            continue
+        if not html:
+            continue
+        if "凭证已失效" in html or "请重新登录" in html:
+            raise RuntimeError("STALE: 教务凭证已失效，请重新登录一次")
+        # 成绩表里通常带「课程名称 / 学分 / 成绩」表头；登录 stub 只有一句 alert
+        if ("课程名称" in html or "课程名" in html) and ("学分" in html or "成绩" in html):
+            return html, path
+        last = "候选 %s 返回的不是成绩表（%d 字节）" % (path, len(html))
+    raise RuntimeError("成绩页未定位到：" + (last or "全部候选无响应"))
+
 if __name__ == "__main__":
     import sys
     ck = load_session()

@@ -1,0 +1,279 @@
+/* NOVA 风格层 C：赛博朋克 / HUD —— 单色相 · 高对比 · 数据感
+ * ======================================================================
+ * 写域：本文件 = web/nova-cyber.css。只做「材质与版式」，不碰 DOM、不碰 JS、
+ *       不碰文案。数据由 nova-organs.js 注入，本文件只做版式。
+ *
+ * 负责（NOVA-SIGNATURE §3.5.1 认领表）：
+ *   ① rain  截止矩阵  .nv-rain / .nv-rain-bar / .nv-rain-t / .nv-rain-segs /
+ *                     .nv-rain-seg / .nv-rain-cols / .nv-rain-col   （D 级 · 降噪）
+ *                     → 电路板走线 + 焊盘 + 1px 静态扫描线
+ *   ② dial  波段拨盘  .nv-dial / .nv-dial-scale / .nv-dial-bead / .nv-dial-read
+ *                     （B 级 · 配角）→ HUD 切角取景框 + 发丝读数
+ *
+ * 三个咬合点（§3.5.2）：
+ *   咬合 1  .nv-pulley::after —— 西部传送带那对黄铜齿轮上的一道静态扫描高光。
+ *           齿轮本体（黄铜色、棘轮齿、转速）归 nova-brass.css，且该文件文件头
+ *           第 33-34 行明写「::after 刻意留空，赛博扫描高光由 nova-cyber.css 追加」
+ *           —— 这就是那个空位，本文件只补这一条 1px 高光，不动轮廓、不改色相。
+ *   咬合 2  rain 的矩阵里要读 tape 的作业数 —— 那是 JS 层（Lead 写域）。
+ *           本文件只负责矩阵版式：给读数行留结构位，不写死任何数字。
+ *   咬合 2b .nv-tape-shell::after —— 冷墨树脂舱的极细斜纹 + 上缘 1px 高光。
+ *           舱体底色/结构归 nova-organs.css 与 nova-brass.css（两者写域），
+ *           本文件只叠材质，一个像素的几何都不改。
+ *
+ * 【这个文件为什么存在（判据）】
+ *   「这个效果删掉，用户会丢失信息吗？」—— 赛博材质层本身不承载信息，所以它必须
+ *   安静到可以删：全部是 ≤6% 的纹理与 1px 的线，不新增色块、不新增高饱和色相、
+ *   不新增一处会动的东西。本层唯一做的一件有信息量的事，是让「读数」读起来像仪表
+ *   而不是像三行正文 —— 靠等宽字 + 字距 + 亮度对比，不靠颜色。
+ *
+ * 【铁律（每条都能被 tools/test_nova_material.js 验）】
+ *   · 赛博 = 单色相 + 高对比 + 数据感，不是彩虹霓虹。organs 层已把 rain 四列四色相
+ *     收成「一色四浓度」（.7/.45/.3），本层沿这个方向，绝不退回彩色。
+ *   · 电路板走线用「不完全等距」：7px 与 11px 两套栅格叠在一起（拍频 77px），
+ *     焊盘再用 34×26 与 27×31 两套错位贴图 —— 等距单栅格在 66px 高的条里会读成
+ *     表格，两种间距交错才会读成「板」。
+ *   · 扫描线是「痕迹」不是「动画」：一条 1px 静态亮线，全层零 animation、零
+ *     transition。全站只允许 2 处循环，都在 nova-motion.css，本层一条都没有。
+ *   · 切角只用 clip-path，只切上左 + 下右两角，只给 dial 一个器官（§3.5.3）。
+ *   · 光源铁律：box-shadow 的 y ≥ 0；高光只在上边缘（inset 0 1px 0）。
+ *   · 圆角只用 0 / 8px / 12px / 令牌；材质色 S ≤ 45%；深色档不用纯黑做底。
+ *   · 全部规则包在 html[data-skin="nova"] 内；深色档另起
+ *     html[data-skin="nova"][data-theme="dark"]。
+ *
+ * 【alpha 的算法（这层所有数值都是算出来的，不是挑出来的）】
+ *   有两类位置，同一个 alpha 在那里看起来差一个数量级：
+ *     a) 直接画在卡片底上的（.nv-rain::before 的走线、边框、扫描线）——
+ *        卡片底是冷瓷白 #FDFEFF 附近，alpha .09 的走线≈#EDF2F1，是「细看才见」；
+ *     b) 画在已有 opacity 层里的 —— 例如 .nv-rain-cols 自带 opacity:.16，
+ *        往它身上叠 .06 的纹理，净效果是 .06×.16≈.01，等于白画。
+ *   所以走线/焊盘/扫描线一律画在 .nv-rain::before / ::after 这两个**没有被
+ *   opacity 打折**的伪元素上（组内自带的 .16 只负责让字符变淡，不负责拖累纹理）。
+ *
+ * 私有令牌命名空间 --c-*（cyber），与 skin 的 --n-*、organs 的 --o-*、
+ * press 的 --p-*、brass 的 --br-* 分开，一眼看得出这颗色是谁的。
+ * ====================================================================== */
+
+/* ======================================================================
+   ① 令牌：冷线、冷读数 —— 一色两档，一盏灯
+   浅色档走「冷墨 + 主板青灰」：赛博感来自亮度对比与线密度，不来自饱和度。
+   --c-edge S20 / --c-read S12 / --c-read-lo S6，都远低于 45% 的材质上限 ——
+   它们旁边是冷瓷白卡片，一高饱和就变成第二个强调色（§0.0 铁律二）。
+   ====================================================================== */
+html[data-skin="nova"]{
+  --c-edge: #7FA9A2;                    /* 切角亮边 / 刻度头：主板青灰（S 20%） */
+  --c-frame: rgba(127,169,162,.34);     /* 取景框 1px：能被看见，但不宣布自己是按钮 */
+  --c-wash: rgba(122,160,155,.055);     /* 面板冷洗：只给「这是一块面板」的暗示 */
+  --c-read: #5E6B78;                    /* 读数主值：冷石墨（S 12%），白底 5.9:1 */
+  --c-read-lo: #7C8892;                 /* 读数标签：再退一档（S 6%） */
+  --c-trace: rgba(46,122,120,.09);      /* 铜箔走线：细看才见的工程栅格 */
+  --c-pad: rgba(58,138,132,.13);        /* 焊盘：比走线实一点，仍是纹理 */
+  --c-scan: rgba(84,196,186,.34);       /* 扫描线：1px，静态 */
+  --c-sheen: rgba(255,255,255,.045);    /* 树脂斜纹：1px on 4px，平均提亮 1.1% */
+}
+
+/* ======================================================================
+   ② rain 截止矩阵 —— 电路板 + 静态扫描线
+   结构不动（organs 已定：标题一行 + 三列等分读数 + 背后四列数据雨）。
+   本层只做三件事：
+     1) 在读数之下铺一张电路板（.nv-rain::before，z0）；
+     2) 压一条 1px 静态扫描亮线（.nv-rain::after，z1）；
+     3) 把读数从「三行正文」拉成「仪表读数」：等宽 + 高字距 + 制表位对齐。
+   叠层顺序（从下到上）：电路板 z0 → 数据雨字符 z1 → 扫描线 z1（DOM 在其后）
+   → 读数文字 z2（organs 给的 .nv-rain-bar{position:relative;z-index:2}）。
+   这条顺序是扫描线敢横穿整个面板的原因：它穿字而过，但从不盖在字上面。
+   ====================================================================== */
+html[data-skin="nova"] .nv-rain::before{
+  content:'';position:absolute;inset:0;z-index:0;pointer-events:none;
+  background-image:
+    /* 三套竖线（主栅 7px / 次栅 11px / 总线 41px，alpha 逐级抬） */
+    repeating-linear-gradient(90deg,var(--c-trace) 0 1px,transparent 1px 7px),
+    repeating-linear-gradient(90deg,var(--c-trace) 0 1px,transparent 1px 11px),
+    repeating-linear-gradient(90deg,var(--c-pad) 0 1px,transparent 1px 41px),
+    /* 两套横线（7px / 11px），与竖线同一套拍频 */
+    repeating-linear-gradient(0deg,var(--c-trace) 0 1px,transparent 1px 7px),
+    repeating-linear-gradient(0deg,var(--c-trace) 0 1px,transparent 1px 11px),
+    /* 两套焊盘：34×26 与 27×31 两套周期错位，避免焊点排成等距队列 */
+    radial-gradient(circle at 5px 4px,var(--c-pad) 0 1.5px,transparent 1.5px),
+    radial-gradient(circle at 17px 13px,var(--c-pad) 0 1px,transparent 1px);
+  background-size:auto,auto,auto,auto,auto,34px 26px,27px 31px;
+  background-position:0 0,0 0,0 0,0 0,0 0,0 0,6px 4px;
+  /* 上下淡出：板子是从背后压过来的一层底，不是贴在卡片上的一张纸 */
+  -webkit-mask-image:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent);
+  mask-image:linear-gradient(180deg,transparent,#000 22%,#000 78%,transparent);
+}
+/* 扫描线：1px 横线，两端渐隐（HUD 里的扫描束不会走到边框外）。
+   top:42% 落在读数行——它穿过字符矩阵，但由于 z1 < 读数的 z2，它永远在字后面。 */
+html[data-skin="nova"] .nv-rain::after{
+  content:'';position:absolute;left:0;right:0;top:42%;height:1px;z-index:1;
+  pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--c-scan) 16%,var(--c-scan) 84%,transparent);
+}
+/* 读数行左侧竖线：把「文本」变成「面板上的读数区」。1px，只有它自己的高度。 */
+html[data-skin="nova"] .nv-rain-bar{
+  padding-left:8px;border-left:1px solid var(--c-trace);
+}
+/* 标题前的 3×3 方块：数据来源位（HUD 的 marker）。只是标记，不加一个字 ——
+   文案仍是 JS 注入的 'DEADLINE MATRIX'，本层一个字都不改、不加、不删。 */
+html[data-skin="nova"] .nv-rain-t{
+  position:relative;padding-left:7px;
+}
+html[data-skin="nova"] .nv-rain-t::before{
+  content:'';position:absolute;left:0;top:50%;width:3px;height:3px;
+  margin-top:-1.5px;background:var(--c-edge);opacity:.7;
+}
+/* 三列读数：每列头上一条 1px 端口线（焊点引出的感觉），数字走制表宽度 ——
+   换数时字宽不抖，这是「数据感」的一半，也是仪表与正文最大的区别。 */
+html[data-skin="nova"] .nv-rain-seg{
+  padding-top:4px;border-top:1px solid var(--c-trace);
+}
+html[data-skin="nova"] .nv-rain-seg u{
+  letter-spacing:.12em;
+}
+html[data-skin="nova"] .nv-rain-seg b{
+  font-variant-numeric:tabular-nums;letter-spacing:.02em;
+}
+
+/* ======================================================================
+   ③ dial 波段拨盘 —— HUD 切角取景框 + 发丝读数
+   B 级配角的定位是「被认出来是个东西」，不是「变亮」。所以：
+     · 取景框 = 只切上左 + 下右两角的 9px 斜角（四角全切像按钮，两角才像取景器）；
+     · 框线 1px、面板一层几乎透明的冷洗，靠 silhouette 认形状；
+     · 切角处的斜边要单独补 —— 见下方 ⚠。
+   ⚠ 切角不能加在 .nv-dial 本身上：.nv-dial-scale::before 是向下外扩 12px 的
+     拇指热区（organs :266-267），clip-path 会把这个热区一起裁掉 ——
+     切角会变成「那一角点不到」。所以框画在 ::before 上，命中区域一个像素不少。
+   ⚠ 切角也不能只靠 inset 描边：inset box-shadow 只在矩形的四条边上画，
+     斜角处是空的（描边会在切口处断开）。所以 ::before 的四条边改用
+     background 的 1px 渐变层画（它们同样被 clip-path 裁，于是上/左两条线
+     自然从 x=9 / y=9 起笔，正好接上斜角），斜角本身交给 ::after 的两枚 9×9 贴片。
+   ====================================================================== */
+html[data-skin="nova"] .nv-dial::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  clip-path:polygon(9px 0,100% 0,100% calc(100% - 9px),
+    calc(100% - 9px) 100%,0 100%,0 9px);
+  background-image:
+    linear-gradient(var(--c-frame),var(--c-frame)),
+    linear-gradient(var(--c-frame),var(--c-frame)),
+    linear-gradient(var(--c-frame),var(--c-frame)),
+    linear-gradient(var(--c-frame),var(--c-frame)),
+    linear-gradient(158deg,var(--c-wash),transparent 62%);
+  background-size:100% 1px,100% 1px,1px 100%,1px 100%,100% 100%;
+  background-position:0 0,0 100%,0 0,100% 0,0 0;
+  background-repeat:no-repeat;
+}
+/* 斜边亮边：两枚 9×9 的贴片，各画一条 135deg 的 1px 线。
+   左上那枚画的是「左下→右上」的对角线（正是上左切口的方向），右下同理。 */
+html[data-skin="nova"] .nv-dial::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  background-image:
+    linear-gradient(135deg,transparent calc(50% - .55px),var(--c-edge) calc(50% - .55px) calc(50% + .55px),transparent calc(50% + .55px)),
+    linear-gradient(135deg,transparent calc(50% - .55px),var(--c-edge) calc(50% - .55px) calc(50% + .55px),transparent calc(50% + .55px));
+  background-size:9px 9px,9px 9px;
+  background-position:left top,right bottom;
+  background-repeat:no-repeat,no-repeat;
+  opacity:.72;
+}
+/* 游标：organs 已把它削成 1px 竖发丝（正确 —— 位置感靠线不靠色块）。
+   本层只补一个 3×1 的 T 型刻度头，读作「游标指在这条线上」。
+   颜色取 --o-accent-ink（就是那根发丝自己的颜色）—— 这个器官仍然只有一处强调色。 */
+html[data-skin="nova"] .nv-dial-bead::after{
+  content:'';position:absolute;left:50%;top:-2px;width:3px;height:1px;
+  margin-left:-1.5px;background:var(--o-accent-ink);
+}
+/* 发丝读数：等宽 + 拉开字距 + 冷灰。取值的强调从「彩色」换成「亮度」——
+   HUD 的读数不靠色相说话，靠主值/标签的两级亮度差说话。 */
+html[data-skin="nova"] .nv-dial-read{
+  font-family:var(--n-mono);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:.16em;
+}
+html[data-skin="nova"] .nv-dial-read span{
+  color:var(--c-read);font-weight:500;
+}
+html[data-skin="nova"] .nv-dial-read u{
+  color:var(--c-read-lo);letter-spacing:.14em;
+}
+
+/* ======================================================================
+   ④ 咬合点 1：黄铜齿轮上的静态扫描高光（.nv-pulley::after）
+   这对齿轮是 A 级传送带的零件，nova-brass.css 已把它做成 22px 黄铜棘轮盘
+   （opacity:.92、::before 是棘轮齿、::after 刻意留空给本文件）。
+   本层不动轮廓、不动黄铜、不动齿，只在盘面正中补一条 1px 的横向高光弦 ——
+   一道「被扫过」的痕迹。高光用暖白而不是冷青：它必须是一束光，不能是一块色。
+   用 rgba(234,246,250,…) 这类近白，在黄铜 #8C7038 上约 2.6:1，够看清是光；
+   换成 --c-edge 的青灰则会和黄铜打架，读成「涂了一道漆」。
+   ====================================================================== */
+html[data-skin="nova"] .nv-pulley::after{
+  content:'';position:absolute;left:2px;right:2px;top:50%;height:1px;
+  margin-top:-.5px;pointer-events:none;
+  background:linear-gradient(90deg,transparent,
+    rgba(234,246,250,.45) 24%,rgba(234,246,250,.62) 50%,rgba(234,246,250,.45) 76%,transparent);
+}
+
+/* ======================================================================
+   ⑤ 咬合点 2b：冷墨树脂舱的材质（.nv-tape-shell::after）
+   只写材质，不写内容区：一层 4px 周期的 135° 极细斜纹 + 上缘 1px 高光。
+   斜纹的周期与角度是「树脂浇注时的流痕」，不是装饰图案 —— 1px on 4px 的白色
+   .045 平均只提亮 1.1%，所以它必须淡到只有斜看才察觉；上缘高光严格 1px、
+   只在上边（光源铁律）。舱体底色/边框/结构全归 organs 与 brass，本层不改几何。
+   pointer-events:none —— 它是一个 <button>，材质层绝不能吃掉点击。
+   ====================================================================== */
+html[data-skin="nova"] .nv-tape-shell{
+  position:relative;
+}
+html[data-skin="nova"] .nv-tape-shell::after{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  border-radius:var(--n-r-md);
+  background-image:repeating-linear-gradient(135deg,
+    var(--c-sheen) 0 1px,transparent 1px 4px);
+  box-shadow:inset 0 1px 0 rgba(234,246,250,.10);
+}
+
+/* ======================================================================
+   ⑥ 深色档：紫夜舱里的荧光点阵
+   深色档的赛博不是「更亮的青」，是「紫夜里的荧光点阵」：
+   走线换紫罗兰的最低一档，扫描线只比浅色档亮一点点（alpha .14，仍是静态），
+   读数从冷石墨换成冷紫白。底色一律不用纯黑 —— 纯黑会把这层点阵读成噪点。
+   ====================================================================== */
+html[data-skin="nova"][data-theme="dark"]{
+  --c-edge: #8E85B8;                    /* 紫夜线材（S 26%） */
+  --c-frame: rgba(142,133,184,.38);
+  --c-wash: rgba(158,140,255,.075);
+  --c-read: #C9C2E0;                    /* 读数主值：冷紫白（S 33%） */
+  --c-read-lo: #8B83A8;                 /* 读数标签（S 9%） */
+  --c-trace: rgba(158,140,255,.11);
+  --c-pad: rgba(158,140,255,.16);
+  --c-scan: rgba(176,158,255,.14);
+  --c-sheen: rgba(196,182,255,.05);
+}
+html[data-skin="nova"][data-theme="dark"] .nv-pulley::after{
+  /* 紫夜舱里齿轮的金属被压暗，高光要跟着降一档，否则这颗 22px 的零件会亮成主色 */
+  background:linear-gradient(90deg,transparent,
+    rgba(239,233,255,.38) 24%,rgba(239,233,255,.54) 50%,rgba(239,233,255,.38) 76%,transparent);
+}
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell::after{
+  box-shadow:inset 0 1px 0 rgba(196,182,255,.13);
+}
+
+/* ======================================================================
+   ⑦ 减少动效
+   本层没有任何动画、也没有任何 transition —— 全部装饰都是静态纹理与 1px 线。
+   这条规则的作用是「声明 + 兜底」：将来若有人往本层加动效，这里会自动关掉，
+   且不改变任何可见元素的存在与布局（不出 display:none、不改 opacity）。
+   ====================================================================== */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-rain::before,
+  html[data-skin="nova"] .nv-rain::after,
+  html[data-skin="nova"] .nv-rain-col,
+  html[data-skin="nova"] .nv-rain-cols,
+  html[data-skin="nova"] .nv-dial::before,
+  html[data-skin="nova"] .nv-dial::after,
+  html[data-skin="nova"] .nv-dial-bead,
+  html[data-skin="nova"] .nv-dial-bead::after,
+  html[data-skin="nova"] .nv-pulley::after,
+  html[data-skin="nova"] .nv-tape-shell::after{
+    animation:none !important;
+    transition:none !important;
+  }
+}

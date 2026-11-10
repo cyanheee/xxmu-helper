@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">河医大助手</string>
+    <string name="widget_today_desc">今日课程 · 第几周 · 下节课教室</string>
 </resources>

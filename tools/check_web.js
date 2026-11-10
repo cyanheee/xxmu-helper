@@ -33,7 +33,8 @@ if (lb[1] !== '河医大助手') fail('manifest 的 android:label 不是「河�
 const KNOWN_ORDER = ['index.html', 'app.js', 'about.js', 'license.js', 'sync.js', 'water.js',
   'auth.js', 'wiki.js', 'guide.js', 'jsQR.js', 'onboard.js', 'disc.js', 'tut.js',
   'chaoxing.js', 'data.js', 'homework.js', 'mytodo.js', 'focus.js', 'reminder.js', 'elec.js',
-  'free.js', 'theme.js', 'app.css'];
+  'free.js', 'theme.js', 'nova-skin.js', 'nova-organs.js', 'lesson-cmd.js', 'grades.js',
+  'app.css', 'nova-skin.css', 'nova-organs.css'];
 const webDir = path.join(root, 'web');
 const names = fs.readdirSync(webDir)
   .filter(f => /\.(html|js|css)$/i.test(f) && fs.statSync(path.join(webDir, f)).isFile())
@@ -669,17 +670,33 @@ const badClaim = /已开阀，可以接水了|已经开启了.*正在出水/.tes
 console.log('  不再声称「已开阀/正在出水」  =', !badClaim);
 if (badClaim) fail('app.js 又出现「已开阀 / 正在出水」的文案（手机只能解锁，出水要人在机器上按）');
 
-/* ③ 定量放水三件套：watchVolume、到量发停止、停止只用 goodsId。 */
+/* ③ v1.1.60 诚实版：防忘关 guard、停止只用 goodsId、绝不换算毫升。 */
 has(water, 'function watchVolume(', 'water.js watchVolume');
-has(water, "if (!stopSent && s.amount > 0 && s.amount >= tgt)", 'water.js 到量触发');
 has(water, 'function endWaterTarget(', 'water.js 停止发命令');
 has(water, "return call('goods/endWater', { goodsId: String(goodsId) });", '停止用 goodsId');
 has(app, 'WATER.watchVolume(', 'app.js 用 watchVolume');
-has(idx, 'id="waterTarget"', 'index.html 目标水量 chips');
-/* 目标水量确实可持久化，且默认 0（不限量）。 */
-has(water, "const K_TARGET = 'xxmu_water_target';", 'water.js 目标水量 pref 键');
-has(water, 'function targetMl()', 'water.js targetMl');
-has(water, 'function setTargetMl(', 'water.js setTargetMl');
+has(idx, 'id="waterTarget"', 'index.html 最长放水 chips');
+has(water, "const K_GUARD = 'xxmu_water_guard';", 'water.js 防忘关 pref 键');
+has(water, 'function guardSec()', 'water.js guardSec');
+has(water, 'function setGuardSec(', 'water.js setGuardSec');
+has(water, 'function startClock()', 'water.js 防忘关起表');
+has(water, 'elapsedMs >= guardMs', 'water.js 防忘关超时主触发');
+has(water, 'setTimeout(tick, FIRST_GAP)', 'water.js 轮询循环');
+has(app, '我已按下出水键', 'app.js 手动起表兜底按钮');
+has(idx, 'data-sec="0"', 'index.html 档位是秒而非毫升');
+/* 云端实锤放水途中无实时量、无定量入参：假系数 / 计时换算 / 到量自停全部退役
+   （用户 m14830 禁止由 400↔1600 反推系数）。 */
+['AMOUNT_ML', 'volumePlan', 'PRICE_HOT', 'PRICE_PURE', 'targetMl', 'setTargetMl',
+ 'flowRate', 'setFlowRate', 'unitYuan', 'K_RATE', 'K_UNIT', 'K_TARGET'].forEach(name => {
+  const hit = waterBare.indexOf(name) >= 0;
+  console.log('  water.js 已无 ' + name.padEnd(14) + '=', !hit);
+  if (hit) fail('water.js 还残留 ' + name + '（v1.1.60 已删假系数/计时换算）');
+});
+['到量会自动停', '计时估算', 'WATER.volumePlan(', 'WATER.targetMl('].forEach(t => {
+  const hit = appBare.indexOf(t) >= 0;
+  console.log('  app.js 已无 ' + t.padEnd(18) + '=', !hit);
+  if (hit) fail('app.js 还残留「' + t + '」（v1.1.60 不再承诺按量自停）');
+});
 
 /* ④ 自动重绑：只在明确的平台拒绝时重试，余额/签约类错误不许重试。 */
 has(water, 'function unlockWithRebind(', 'water.js unlockWithRebind');
@@ -807,22 +824,79 @@ const badLinks = (site.match(/href\s*=\s*["'](https?:\/\/[^"']+)/gi) || [])
 console.log('  超链接均指向白名单域名            =', badLinks.length === 0);
 if (badLinks.length) fail('官网有不认识的超链接：' + badLinks.slice(0, 3).join(', '));
 
-/* app.css 的配色要和官网一致，否则「同一个产品两张脸」。
- * v1.1.53 起两边都是「西部涂鸦本」：判据不再是某个色值，
- * 而是「两边都用同一套纸/墨/砖红变量」，换皮肤只改这一处就够。 */
+/* 官网与 App 同源验收（v1.1.56 改版）。
+ * 旧判据要求官网和 web/app.css 共用「西部涂鸦 --paper/--ink/--red/--mist」；
+ * 这一版按 YG 指令把官网也重做成 NOVA「万象舱」，经典皮肤仍留在 app.css 里
+ * 给用户切回去，所以两边不再是同一套旧令牌。
+ * 新判据 = 官网真源 site-style.css 与 NOVA 覆盖层 nova-skin.css 共用同一套
+ * 冷瓷白/舷窗/霓虹令牌，且内联样式与真源逐字一致（tools/apply_site_style.py）。 */
 const appCss = read('web/app.css');
+const novaCss = read('web/nova-skin.css');
+const siteCss = read('design/sketch/site-style.css');
 const tokOf = (src, name) => {
   const m = src.match(new RegExp(name.replace(/[-]/g, '\\-') + '\\s*:\\s*([^;}]+)'));
   return m ? m[1].trim() : null;
 };
-const SKIN_TOKENS = ['--paper', '--ink', '--accent', '--red', '--mist'];
-const skinDiff = SKIN_TOKENS.filter(k => {
-  const a = tokOf(appCss, k), b = tokOf(site, k);
-  return !a || !b || a.toLowerCase() !== b.toLowerCase();
+/* 官网真源用 --shell/--glass/--cyan，App 覆盖层用 --n-shell/--n-glass/--n-cyan，
+ * 名称带前缀但值必须逐字相同，这才叫同源。 */
+const NOVA_PAIRS = [['--shell', '--n-shell'], ['--glass', '--n-glass'],
+  ['--cyan', '--n-cyan'], ['--coral', '--n-coral'], ['--violet', '--n-violet'],
+  ['--coin', '--n-coin'], ['--brass', '--n-brass'], ['--tape', '--n-tape']];
+const novaDiff = NOVA_PAIRS.filter(([a, b]) => {
+  const x = tokOf(siteCss, a), y = tokOf(novaCss, b);
+  return !x || !y || x.toLowerCase() !== y.toLowerCase();
 });
-const sameSkin = skinDiff.length === 0;
-console.log('  官网与 App 共用同一套西部涂鸦令牌  =', sameSkin, skinDiff.length ? ('差: ' + skinDiff.join(',')) : '');
-if (!sameSkin) fail('官网要和 web/app.css 用同一套西部涂鸦令牌（对不上：' + skinDiff.join(', ') + '）');
+const sameSkin = novaDiff.length === 0;
+console.log('  官网与 App 共用同一套 NOVA 令牌  =', sameSkin,
+  novaDiff.length ? ('差: ' + novaDiff.map(p => p[0]).join(',')) : '');
+if (!sameSkin) fail('官网与 NOVA 覆盖层令牌不同源（对不上：' + novaDiff.map(p => p[0]).join(', ') + '）');
+/* 真源注释里含字面量 "<style>…</style>"，按 <head> 内首尾标签取整段 */
+const headHtml = site.slice(0, site.toLowerCase().indexOf('</head>'));
+const sOpen = headHtml.toLowerCase().indexOf('<style>');
+const sClose = headHtml.toLowerCase().lastIndexOf('</style>');
+const siteInline = sOpen >= 0 && sClose > sOpen ? headHtml.slice(sOpen + 7, sClose).trim() : '';
+const siteSame = siteInline === siteCss.trim();
+if (!siteSame) fail('官网内联样式与 design/sketch/site-style.css 真源不一致（跑 tools/apply_site_style.py）');
+console.log('  官网内联样式 = 真源逐字一致        =', siteSame);
+/* 经典皮肤必须还在，否则用户切不回去 */
+if (!/--paper\s*:/.test(appCss)) fail('app.css 的经典皮肤令牌被误删，用户切不回经典');
+console.log('  经典皮肤可回退（--paper 仍在 app.css）=', /--paper\s*:/.test(appCss));
+
+/* ---- 官网深色档（紫夜舱）必须与 App 深色档同源 ----
+ * 官网跟 App 一样有浅/深两档。浅色档已由上面的 NOVA_PAIRS 验过，
+ * 这里再验深色档：App 的 html[data-skin="nova"][data-theme="dark"] 块
+ * 与官网的 @media (prefers-color-scheme:dark) 块令牌必须逐字相同，
+ * 否则官网深色会长成另一套颜色，跟 App 对不上。 */
+const darkSeg = (src, marker) => {
+  const i = src.indexOf(marker);
+  return i < 0 ? '' : src.slice(i, i + 2000);
+};
+const tokMap = (src) => {
+  const out = {};
+  const re = /(--[a-z0-9-]+)\s*:\s*([^;}]+)/g;
+  let m;
+  while ((m = re.exec(src))) out[m[1]] = m[2].trim().toLowerCase();
+  return out;
+};
+const appDarkTok = tokMap(darkSeg(novaCss, 'html[data-skin="nova"][data-theme="dark"]{\n'));
+const siteDarkTok = tokMap(darkSeg(siteCss, '@media (prefers-color-scheme:dark)'));
+const DARK_PAIRS = [['--n-shell', '--shell'], ['--n-shell-2', '--shell2'],
+  ['--n-glass', '--glass'], ['--n-glass-deep', '--glass-deep'],
+  ['--n-ink', '--ink'], ['--n-ink-2', '--ink2'], ['--n-ink-3', '--ink3'],
+  ['--n-coral', '--coral'], ['--n-cyan', '--cyan'], ['--n-violet', '--violet'],
+  ['--n-coin', '--coin'], ['--n-grass', '--grass'], ['--n-orange', '--orange'],
+  ['--n-brass', '--brass'], ['--n-brass-2', '--brass2'], ['--n-mist', '--mist'],
+  ['--n-tape', '--tape'], ['--n-tape-2', '--tape2'], ['--n-tape-ink', '--tape-ink']];
+const darkDiff = DARK_PAIRS.filter(([a, b]) => !appDarkTok[a] || !siteDarkTok[b]
+  || appDarkTok[a] !== siteDarkTok[b]);
+const sameDark = darkDiff.length === 0;
+console.log('  官网深色档 = App 紫夜舱同源       =', sameDark,
+  darkDiff.length ? ('差: ' + darkDiff.map(p => p[0]).join(',')) : '');
+if (!sameDark) fail('官网深色档与 App 深色档不同源（对不上：' + darkDiff.map(p => p[0]).join(', ') + '）');
+/* 深色档不许纯黑，也不许掉回旧深棕紫 */
+if (!siteDarkTok['--shell'] || siteDarkTok['--shell'] === '#000000') fail('官网深色档底色是纯黑');
+if (!siteDarkTok['--shell'] || siteDarkTok['--shell'] === '#3b3225') fail('官网深色档掉回旧深棕紫');
+if (!siteDarkTok['--cyan'] || siteDarkTok['--cyan'] !== '#9e8cff') fail('官网深色档主光不是紫罗兰');
 
 // ---- v1.1.19：微信内置浏览器的下载提示 ----
 /* 真机实测：微信里点下载会被拦截，但会弹「在浏览器中打开」。
@@ -871,12 +945,19 @@ IMG_FILES.forEach(n => {
   if (!exists) fail(IMG_DIR + '/' + n + ' 不存在或太小（官网会显示破图）');
 });
 
-/* 页面里引用的每个 /img/ 路径都必须真的存在 —— 少一个就是破图。 */
-const imgRefs = [...new Set((site.match(/\/img\/[a-z0-9-]+\.svg/g) || []))];
-console.log('  官网引用图片数                    =', imgRefs.length);
-if (imgRefs.length < 3) fail('官网至少应有三张界面示意图（课表/学习/饮水机）');
+/* 页面里引用的每个示意图路径都必须真的存在 —— 少一个就是破图。
+ * v1.1.54c：三张示意图内联进 index.html（首页请求数 5→2，解决跨洋往返）；
+ * v1.1.56 NOVA 换肤时改成外链 img/shot-*.svg（相对路径，file:// 本地渲染
+ * 与 Pages 线上都成立），所以断言要同时认绝对 /img/ 与相对 img/。
+ * 注：内联的旧版 <svg class="shot"> 已由 tools/apply_site_shots.py 换成外链。 */
+const imgRefs = [...new Set((site.match(/[a-z0-9-]+\.svg/g) || [])
+  .map(n => (site.includes('img/' + n) ? 'img/' + n : n)))]
+  .filter(n => /img\//.test(n));
+const inlineShots = (site.match(/<svg class="shot"/g) || []).length;
+console.log('  官网引用图片数                    =', imgRefs.length + '（外链） / ' + inlineShots + '（内联）');
+if (inlineShots < 3 && imgRefs.length < 3) fail('官网至少应有三张界面示意图（内联或 /img/ 外链均可）');
 imgRefs.forEach(r => {
-  const p = path.join(root, IMG_DIR, r.replace('/img/', ''));
+  const p = path.join(root, IMG_DIR, r.replace(/^.*img\//, ''));
   if (!fs.existsSync(p)) fail('官网引用了不存在的图片 ' + r);
 });
 
@@ -891,7 +972,7 @@ IMG_FILES.forEach(n => {
 });
 
 /* 联系方式：QQ 号、GitHub 必须是完整的 https 绝对链接。 */
-has(site, '572833261', '官网写了作者 QQ');
+has(site, '692962849', '官网写了作者 QQ');
 has(site, 'https://github.com/cyanheee/xxmu-helper', '官网写了 GitHub 绝对链接');
 has(site, '1097668324', '官网写了群号');
 const relGh = /href="(?!https?:\/\/)github\.com/.test(site);
@@ -1152,6 +1233,33 @@ if (!/\.elec-entry-num\{/.test(cssTxt)) fail('app.css 缺少入口卡数字样�
 if (!/\.elec-entry-refresh\{/.test(cssTxt)) fail('app.css 缺少入口卡刷新按钮样式 .elec-entry-refresh');
 if (!/\.elec-entry-right\{/.test(cssTxt)) fail('app.css 缺少入口卡右侧布局 .elec-entry-right');
 
+/* ---- v1.1.62：空调房绑定防呆 + 套间 AB ----
+ * 真机两件事：①有人绑到别校区，度数看着「不对」其实是另一间房的真数；
+ * ②南校区 2 公寓套间 AB 房（22514B）选房页找不到。官方接口实测 AB 房
+ * 是返回的、但追加在列表末尾，老 Number(name) 排序得 NaN 沉底。 */
+console.log('\nv1.1.62 checkpoints（空调房绑定防呆 + 套间 AB）:');
+has(idx, 'id="elecEntryRoom"', '入口卡印出当前绑定哪间房 #elecEntryRoom');
+if (!/\.elec-entry-room\{/.test(cssTxt)) fail('app.css 缺少入口卡房间名样式 .elec-entry-room');
+has(elec, "const num = $('elecEntryOdd'), sub = $('elecEntrySub'), room = $('elecEntryRoom')",
+  'paintEntry 取到了 #elecEntryRoom');
+has(elec, 'roomBrief(cur.name)', '入口卡房间名走 roomBrief 压短');
+has(elec, 'function roomSort', 'elec 有房间自然排序 roomSort');
+has(elec, 'function roomKey', 'elec 有房间排序键 roomKey（主号+字母后缀）');
+if (elec.indexOf('/^(\\d+)([A-Za-z]*)$/') < 0)
+  fail('roomKey 没用「数字+字母后缀」拆 AB 房号（/^(\\d+)([A-Za-z]*)$/ 不在了）');
+has(elec, '.then(roomSort)', '四级选择器房间列表走 roomSort（AB 紧跟主号）');
+has(elec, 'function airconRooms', 'elec 有 airconRooms（列全多间空调房）');
+has(elec, 'if (ac.length > 1) { chooseRoom(acct, ac, t); return; }',
+  'autoPick 登记多间房时不再盲选第一间，交给学生自己认');
+has(elec, 'function chooseRoom', 'elec 有 chooseRoom 多房点选');
+has(elec, "'pick-cell' + (k === 'r' && /[A-Za-z]/.test(nm) ? ' suite' : '')",
+  'AB 房 cell 带 suite 高亮类');
+if (!/\.pick-cell\.suite\{/.test(cssTxt)) fail('app.css 缺少 AB 房高亮样式 .pick-cell.suite');
+has(elec, 'elec-checkline', '半框有「房间不对就换」明示');
+has(elec, 'roomSort, roomKey, roomBrief, chooseRoom', 'v1.1.62 新函数已导出');
+if (/Number\(a\.name\)\s*-\s*Number\(b2\.name\)/.test(elec))
+  fail('elec.js 还在用 Number(name) 排房号（AB 房会沉底）');
+
 // ---- v1.1.38：全校空闲教室（青果 SB12）+ 教务登录页在手机上能看见表单 + 登录状态不再误报 ----
 /* 三件事都在这一版：
  * ① free.js 走「校区 → 教学楼 → 房间 → 整栋一周矩阵」，矩阵页是 GBK、<TABLE> 大写、
@@ -1411,7 +1519,10 @@ has(wrk, "'no-cache'", '老 URL 仍 no-cache（不缓存旧包）');
 has(pgw, 'versionedApk', 'Pages 层有版本化 APK 缓存分支');
 has(pgw, "'&r=' + encodeURIComponent(rv)", '缓存键带 Range（4 段不互相覆盖）');
 has(pgw, "x-pages-cache', 'hit'", 'Pages 层有命中标记，线上可验');
-has(pgw, 'HOME_TTL = 300', '官网首页短 TTL');
+/* v1.1.54c：卡顿根因是跨洋往返次数，不是字节数。首页 TTL 300→86400、
+ * 并给 Worker 缓存键加 BUILD 版本号（改 BUILD 即整批失效），所以这里不再要求 300。 */
+has(pgw, 'HOME_TTL = 86400', '官网首页长 TTL（86400）');
+has(pgw, 'const BUILD =', '缓存键带 BUILD 版本号（改皮肤即整批失效）');
 has(pyp, "'/v1/apk?v=' + sha[:12]", 'publish_apk 生成版本化 URL');
 has(pys, "'?v=' + facts['sha256'][:12]", 'set_latest 也补 ?v=');
 has(app, 'url.indexOf(self) === 0', 'App 内下载仍前缀匹配（带 query 不外链）');
@@ -1555,6 +1666,61 @@ console.log('  index.html CJK              =', cjk);
 console.log('  mojibake                    =', mojibake);
 if (cjk < 2000) fail('index.html 中文字符过少（' + cjk + '），可能被写坏');
 if (mojibake) fail('检测到乱码指纹（曾用 PowerShell 写坏过中文源文件）');
+
+/* ---- v1.1.55：糖梨借鉴落地的静态锚点 ----
+ * 这些功能的失败方式全是静默的：脚本漏引、按钮漏绑、DSL 没叠加、小组件没注册。
+ * 真机上只表现成「点了没反应」，所以出包前必须按结构钉一遍。 */
+console.log('\nv1.1.55 checkpoints（糖梨借鉴：DSL / 成绩 / 小组件 / 否决清单）:');
+const lcmd = read('web/lesson-cmd.js');
+const grd = read('web/grades.js');
+const maniNew = read('android/AndroidManifest.xml');
+const widget = read('android/src/com/xxmu/helper/ClassWidget.java');
+has(app, 'LessonCmd.apply', '课表 load() 叠加了 AI 改课表指令');
+has(app, "getElementById('kbCmdBtn')", 'AI 改课表入口按钮已绑定');
+has(app, "getElementById('gradeEntry')", '成绩入口按钮已绑定');
+has(idx, '<script src="lesson-cmd.js">', 'index.html 引入 lesson-cmd.js');
+has(idx, '<script src="grades.js">', 'index.html 引入 grades.js');
+has(idx, 'id="kbCmdBtn"', 'index.html 有 AI 改课表按钮');
+has(idx, 'id="gradeEntry"', 'index.html 有成绩按钮');
+has(lcmd, 'function parse(text, c0)', 'DSL 解析器存在');
+has(lcmd, 'if (errors.length) return { ops: [], errors, head: HEAD }', '任一行坏→整批拒绝');
+has(lcmd, 'function contextText(', '生成给 AI 的说明文本');
+has(lcmd, 'function diff(', '预览差异');
+has(lcmd, 'function undo()', '可撤销');
+has(grd, 'function scoreOf(v)', '成绩三态判定');
+has(grd, 'function computeGpa(list)', '绩点计算');
+has(grd, 'function parseImport(text)', '导入整批校验');
+has(grd, '点一下翻开', '新成绩盖着翻开');
+has(maniNew, 'android:name=".ClassWidget"', 'manifest 注册桌面小组件');
+has(widget, 'public class ClassWidget extends AppWidgetProvider', '小组件类存在');
+has(widget, 'public static void refresh(Context ctx)', '小组件定义了即时刷新入口');
+has(read('android/src/com/xxmu/helper/MainActivity.java'),
+  'ClassWidget.refresh(MainActivity.this)', '课表写完就重画小组件');
+has(read('core/kingo.py'), 'def fetch_grades(', '成绩抓取预留（只读）');
+has(read('DESIGN.md'), '用户明确否决过的设计', 'DESIGN.md 有否决清单');
+
+/* ---- v1.1.56 小组件 NOVA 舱体：桌面上的最后一块旧皮肤 ----
+ * 小组件跑在桌面，没有 App 的深浅上下文，所以只出一套中性深舱。
+ * 漏改不会报错、只会「桌面上还是牛皮纸」，所以钉死颜色。 */
+const wLayout = read('android/res/layout/widget_today.xml');
+const wBg = read('android/res/drawable/widget_bg.xml');
+const wStyle = read('android/res/values/styles.xml');
+has(wBg, '#9E8CFF', '小组件底是 NOVA 紫罗兰描边');
+has(wBg, '#1D1538', '小组件底是 NOVA 深紫玻璃');
+has(wLayout, '#9E8CFF', '小组件标题是 NOVA 紫');
+has(wStyle, '#EFE9FF', '小组件行文是 NOVA 浅紫字');
+has(wStyle, 'monospace', '小组件用等宽字');
+for (const [name, txt] of [['widget_bg', wBg], ['widget_today', wLayout], ['styles', wStyle]]) {
+  if (/#FAF3E2|#EFE2C8|#A89070|#3B3225/.test(txt)) {
+    fail(name + ' 里还残留旧西部涂鸦纸色');
+  }
+}
+{
+  const t = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_tangli.js')], { encoding: 'utf8' });
+  console.log('  DSL/成绩离线测试              =', t.status === 0 ? 'PASS' : 'FAIL');
+  if (t.status !== 0) fail('糖梨借鉴离线测试未通过：' + ((t.stdout || '') + (t.stderr || '')).trim().split('\n').slice(-3).join(' | '));
+}
 
 console.log('\n' + (bad === 0 ? '[PASS] 静态体检全部通过' : '[FAIL] ' + bad + ' 项未过'));
 process.exit(bad === 0 ? 0 : 1);

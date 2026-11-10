@@ -214,8 +214,13 @@ const AUTH = (() => {
       if (typeof XXMU === 'undefined' || !XXMU.net) { reject(new Error('no-host')); return; }
       const key = keyOfAdmin();
       if (!key) { reject(new Error('还没填管理员口令')); return; }
-      XXMU.net(baseNow() + '/v1/admin/photo/raw?k=' + encodeURIComponent(k || ''),
-        'GET', '', '', 'x-admin-key: ' + key, '0').then(raw => {
+      /* v1.1.62：改走 fetchAny 双入口回退，不再单发 baseNow()。审核页
+       * 一次要拉好几张大图（横滑按需取），主域名偶发 403/超时时单发会
+       * 整批「取图失败」；fetchAny 跟 config / check 一样在 www 与
+       * pages.dev 之间回退，通了记住 liveHost。 */
+      fetchAny('/v1/admin/photo/raw?k=' + encodeURIComponent(k || ''),
+        'GET', '', '', '', key).then(raw => {
+        if (isNetFail(raw)) { reject(new Error(String(raw).slice(4))); return; }
         const r = XXMU.splitResp(raw);
         if (r.code === -1) { reject(new Error(r.body)); return; }
         if (r.code < 200 || r.code >= 300) { reject(new Error('HTTP ' + r.code)); return; }
@@ -403,6 +408,47 @@ const AUTH = (() => {
     });
   }
 
+  /* v1.1.62：把「进门时手填的畸形学号」对齐成教务网登录的真实学号。
+   *
+   * 起因（m01941）：管理台「使用名单」里 202611 / 120261200112 这种号被标
+   * 「格式异常（手填）」——那是进门时用户随手填的，服务端 idx 存的就是它；
+   * 教务网登录的真实学号只在本机 pref（LICENSE.noteKbAccount），从不上报。
+   * 现在教务登录成功后读到真号，就地做四件事，让「教务网学号 == 软件学号」：
+   *   1) 本地登记换真号  2) xxmu_user 一起换（界面/空调都读它）
+   *   3) 立刻复核，解除 syncSchedule 的「两号不一致」门禁
+   *   4) 重新领票并把畸形号塞进 renameFrom，服务端一次 idxApply 完成名单改号
+   *
+   * 护栏只认「手填的是畸形号 + 教务读到的是正常 11 位 20xx 号」这一种。
+   * 两个都正常却不一致（拿别人学号）是原有的人工拦截场景，交给弹窗让用户
+   * 自己改，绝不在这里悄悄覆盖；没读真号 / 读到学习通手机号也不动。 */
+  function alignKbAccount(kb, old) {
+    const GOOD = /^20\d{2}\d{7}$/;   // 本校在册学号：11 位、20xx 开头
+    const real = String(kb || '').trim();
+    const from = String(old || '').trim();
+    if (!GOOD.test(real) || GOOD.test(from) || !from || real === from) return false;
+
+    // 1) 换号（activate 会顺手清掉旧核对记录）
+    LICENSE.activate(real, '');
+    // 2) app.js 的 currentUser() / elec.js 的 account() 都读 xxmu_user
+    try { if (typeof Host !== 'undefined' && Host.setPref) Host.setPref('xxmu_user', real); } catch (e) {}
+    try { localStorage.setItem('xxmu_user', real); } catch (e) {}
+    // 3) 复核：写回 K_ACCT_KB=real、K_VERIFIED=real，课表同步不再被拦
+    if (LICENSE.noteKbAccount) LICENSE.noteKbAccount(real);
+    // 4) 重新领一张绑真号的票（HMAC 含学号，旧票不能沿用），并补报 renameFrom。
+    //    领票失败不影响本地对齐，下次静默复检会补上；绝不因联网挡学生进门。
+    try {
+      postJson('/v1/activate', Object.assign({
+        id: real, code: '', fp: fingerprint(), tag: deviceTag(), renameFrom: from,
+      }, verBody())).then(function (res) {
+        if (res && res.ok && res.ticket) {
+          saveTicket(res.ticket, res.exp);
+          setRole(res.role === 'admin' ? 'admin' : '');
+        }
+      }, function () {});
+    } catch (e) {}
+    return true;
+  }
+
   function deviceTag() {
     try {
       if (typeof Host !== 'undefined' && Host.deviceInfo) {
@@ -559,9 +605,10 @@ const AUTH = (() => {
 
     /* ---- 校园图片审核（v1.1.6） ---- */
     photos() { return getJson('/v1/admin/photos', this.key); },
-    photoAct(act, k, cap) {
-      return postJson('/v1/admin/photo',
-        { act: act, k: k || '', cap: cap == null ? '' : cap }, this.key);
+    photoAct(act, k, cap, rot) {
+      const body = { act: act, k: k || '', cap: cap == null ? '' : cap };
+      if (rot != null) body.rot = rot;
+      return postJson('/v1/admin/photo', body, this.key);
     },
     /* 取任意状态的图片字节（含待审/已下架）。
      *
@@ -664,7 +711,7 @@ const AUTH = (() => {
 
   const api = {
     K_TICKET, K_EXP, K_ROLE,
-    fingerprint, activate, check, localValid, usable, clearTicket,
+    fingerprint, activate, alignKbAccount, check, localValid, usable, clearTicket,
     ticket, expAt, versionInfo, needUpgrade, cmpVer, deviceTag,
     curCode, curVer, devQuota, verBody,
     role, isAdmin, setRole,
@@ -689,6 +736,23 @@ const AUTH = (() => {
     enumerable: true,
     get: function () { return baseNow(); },
   });
+
+  /* v1.1.62 兜底：老用户升级上来时可能已经登录过教务，
+   * pref 里 K_ACCT_KB 存着真号、K_ID 却还是当初手填的畸形号，
+   * 又不会立刻再登录一次教务。延迟一小会儿用已有真号补做对齐。
+   * 包在 timer + try 里：QA 出图夹具杀掉所有 timer，这行不会跑，
+   * 也不会在页面初始化阶段碰 localStorage / Host 出现意外。 */
+  try {
+    setTimeout(function () {
+      try {
+        const a = LICENSE.accounts();
+        if (a && a.kb && a.id && a.kb !== a.id && !a.verified
+            && /^20\d{2}\d{7}$/.test(a.kb)) {
+          alignKbAccount(a.kb, a.id);
+        }
+      } catch (e) {}
+    }, 1200);
+  } catch (e) {}
 
   return api;
 })();

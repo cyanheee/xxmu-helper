@@ -1,0 +1,361 @@
+/* NOVA 风格层 A：漫画 / 报纸 / 复古票券（纸质载体）
+ * ======================================================================
+ * 写域：本文件 = web/nova-press.css。只做两件器官的「材质层」：
+ *   ① clipping 剪报抽屉（WIKI 页）→ 报纸纸 + 墨线 + 撕角 + 纸纤维
+ *   ② ticket  票券闸门（校园事务页）→ 冲压票纸 + 齿孔 + 凹印 + 油墨
+ * 宪法：design/sketch/NOVA-SIGNATURE.md v3 §0.0 双轴 / §3.5.1 认领表 /
+ *       §3.5.2 三个咬合点 / §3.5.3 冲突消解 / §4 排版。
+ *
+ * 【这个文件为什么存在】
+ *   v2 把「米黄纸」当成第四种介质整体退役，结果是融合做成了「一家独大」。
+ *   v3 的判定是：纸是 C 级器官的合法材质，问题不在纸，在于它没有和别的材料
+ *   共用同一盏灯。所以本层不新增颜色体系，只做三件事：给纸（低饱和）、
+ *   给墨线（近黑、不纯黑）、给同一条光（阴影只向下、高光只在上边缘）。
+ *
+ * 【铁律（每条都能被 tools/test_nova_material.js 验）】
+ *   · box-shadow 的 y 一律 ≥ 0；高光只用 inset 0 1px 0。
+ *   · border-radius 只用 0 / var(--n-r-sm) / var(--n-r-md)；
+ *     撕角与撕票边用 clip-path 表达，不算圆角。
+ *   · 材质色 S ≤ 45%：报纸纸 23%、票纸 32%、墨 15%。
+ *   · 无循环动效；有 prefers-reduced-motion 段。
+ *   · 全部规则包在 html[data-skin="nova"] 内；深色档另起
+ *     html[data-skin="nova"][data-theme="dark"]，不用纯黑做底。
+ *
+ * 【写域边界（重要，别越界）】
+ *   · 纸面底色归本文件：nova-organs.css 已在自己的注释里写明「纸面底色归
+ *     nova-press.css」，organs 只留结构与中性读数。
+ *   · 不许改 organs 的 .nv-ticket-shell 撕票 clip-path（:351-356），
+ *     本文件只往纸面上加质感，不动那条锯齿。
+ *   · 不许画批注：.nv-clip-card 的 ::before / ::after 留给 nova-anime.css 的
+ *     手绘批注。本文件一律不使用 .nv-clip-card 的伪元素，只把右下角留空（见 ③）。
+ *   · 内容区文字仍是中性阶（organ-color 的活）。本文件只在「把它们搬到纸上」
+ *     之后校正对比度，不改字号/字重。
+ *
+ * 【!important 说明（整份文件统一）】
+ *   organs 层的纸面规则写的是 background 简写（`background:linear-gradient(...)
+ *   ... !important`），简写会同时声明 background-color 与 background-image。
+ *   本文件必须逐条改 background-color / background-image / color / border，
+ *   只写非 important 的 background-image 会被简写的 important 分量压掉 ——
+ *   纸底就永远显示不出来（这一版之前正是如此，实测截图仍是冷瓷白卡）。
+ *   所以凡是要「从 organs 手里接管纸面」的声明一律 !important。
+ *   私有令牌命名空间 --p-*（press）：与 organs 的 --o-*、skin 的 --n-* 分开，
+ *   一眼能看出这颗色是谁的。
+ * ====================================================================== */
+
+/* ======================================================================
+   ① 令牌：纸、墨、票纸 —— 三种材质，一盏灯
+   这节解决的是「纸得有纸的样子，但不能变成第二个强调色」。
+   浅色档的纸刻意比 v1 的 #F2E9DA 更灰更淡（S 45% → 23%），因为它旁边就是
+   冷瓷白卡片；纸一黄，同屏就出现两个色相在打架（§0.0 铁律二）。墨线取
+   #1E1B16 而不是 #000：纯黑在浅色页上会像「挖了个洞」，近黑才读作印刷油墨。
+   ====================================================================== */
+html[data-skin="nova"]{
+  /* 报纸纸：暖中性偏灰。S≈23%，比 --n-m-paper(#EDE5D0) 更灰，
+     所以它能压在瓷白卡片旁边而不抢注意力。 */
+  --p-paper: #E6E1D7;
+  --p-paper-lo: #D9D2C4;   /* 纸的暗部 / 折痕：只在纤维叠层里用，不做整块底 */
+  --p-paper-hi: #F2EEE6;   /* 纸的亮部：纸不是平的，顶光那一下靠它 */
+  /* 票纸：同一族暖，但色相往黄绿挪 ~15°（§3.5.3：票纸要跟黄铜的橙金 ~40° 拉开），
+     并且更「脆」——冲压纸比报纸纸更紧实、略深一档。S≈32%。
+     为什么不明度更高：第一版取 #E5E2CC（L85，与报纸纸基本同亮），灰度截图里
+     两种纸糊成一片，只靠橙色差分开 —— 违反 §1.2「去色也要分得清」。
+     现在 L81，与报纸纸 1.05:1、与页面底 1.17:1、与瓷白卡片 1.36:1，
+     再加 1px 墨线，三层都立得住。 */
+  --p-ticket: #E0DDC2;
+  --p-ticket-lo: #CFCBA9;
+  --p-hole: #C9C2AE;       /* 齿孔/打孔点的内壁：比纸暗，不是洞 */
+  /* 墨：印刷油墨的近黑。--p-ink 只给线、规矩、标题；正文仍是 organ-color 的活。 */
+  --p-ink: #1E1B16;
+  --p-ink-2: #4A443A;      /* 次级墨：小字、注脚、日期 */
+  /* 纸面顶光：同一个太阳，纸吃光比瓷面少一点（瓷 .62 / 纸 .55） */
+  --p-light: inset 0 1px 0 rgba(255,255,255,.55);
+}
+
+/* ======================================================================
+   ② 报纸纸：剪报纸片 .wiki-card
+   这节解决的是「一眼认出这是报纸」。做法只有三样东西：
+   墨线（1px 近黑实线）+ 纸纤维（两组不同周期的极淡斜纹，故意不等距）+
+   撕角（clip-path 锯掉右下角，露出后面那张相纸）。
+   为什么纤维不等距：等距的斜纹在缩略图上会读成表格/铁丝网，
+   那是「电路板」的语言，不是纸的语言（§3.5.3 语言不许串味）。
+   ====================================================================== */
+html[data-skin="nova"] .wiki-card{
+  background-color:var(--p-paper) !important;
+  /* 叠层顺序（从下往上）：纸的明暗 → 印刷网点 → 横纤维 → 竖纤维 → 顶光 */
+  background-image:
+    var(--p-light),
+    repeating-linear-gradient(101deg,rgba(30,27,22,.055) 0 1px,transparent 1px 7px),
+    repeating-linear-gradient(17deg,transparent 0 11px,rgba(30,27,22,.035) 11px 12px),
+    radial-gradient(120% 90% at 14% 6%,rgba(255,255,255,.50),transparent 62%),
+    linear-gradient(184deg,var(--p-paper-hi),var(--p-paper) 44%,var(--p-paper-lo)) !important;
+  color:var(--p-ink) !important;
+  /* 墨线：印在纸上的框，不是卡片描边 —— 所以它比 --o-line 硬、且只有 1px */
+  border:1px solid var(--p-ink) !important;
+  /* 报纸是方的。organs 给的 4px 小圆角会让它读成「卡片」，这里归零。
+     撕角交给下面的 clip-path，不靠圆角。 */
+  border-radius:0 !important;
+  /* 咬合点 1（§3.5.2）：剪报压在拍立得相纸上。
+     接触阴影只向下 1~2px —— 两种材料接住同一条高光（inset 顶光）与同一条阴影
+     （0 1px 2px）。这样它们才是「搭在一起」，不是「并排两张图」。 */
+  box-shadow:
+    var(--p-light),
+    0 1px 2px rgba(30,27,22,.22),
+    0 1px 0 rgba(30,27,22,.14) !important;
+  /* 撕角：右下角咬掉一个不规则口子（三段锯齿，不用直线，直线读成狗耳朵）。
+     缺口在卡片内侧一点点，不画出容器外；同时给右下留出 14px 安全边，
+     免得咬到末行字。 */
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 21px),
+    calc(100% - 6px) calc(100% - 14px),calc(100% - 12px) calc(100% - 9px),
+    calc(100% - 10px) calc(100% - 3px),calc(100% - 16px) 100%,0 100%);
+  padding-bottom:12px;
+}
+
+/* 旧撕角三角（organs 用一块中性色画的假缺口）现在被真缺口取代：
+   它的颜色是冷瓷灰，压在暖纸上会露馅，所以这里停掉它，撕角交给上面的 clip-path。 */
+html[data-skin="nova"] .wiki-card::after{content:none !important}
+
+/* 纸上的小字：organs / skin 给的是冷瓷底上的灰（--n-ink-3 #7B8B99），
+   搬到纸上之后只剩 ~3.2:1。这里校正到次级墨（--p-ink-2，实测 6.9:1）。
+   只是把对比度拉回 AA，不改字号字重（那是 type-audit 的活）。 */
+html[data-skin="nova"] .wiki-src{color:var(--p-ink-2) !important}
+
+/* ======================================================================
+   ③ 剪报抽屉：.nv-clip-card 与它的一套小件
+   这节解决的是「点开一条剪报，展开的还是一张报纸，不是一块白卡」。
+   抽屉卡 = 一整版报纸：纸底 + 墨线 + 报头（kicker）+ 分格横线（title）+ 正文。
+   【批注位】右下角留 30px 空白带：nova-anime.css 的手绘批注落在
+   .nv-clip-card 的伪元素上。本文件不碰这两个伪元素，也不给它设 z-index，
+   让批注层自然地盖在纸面上（那是 §3.5.2 咬合点 2）。
+   ====================================================================== */
+html[data-skin="nova"] .nv-clip-card{
+  background-color:var(--p-paper) !important;
+  background-image:
+    var(--p-light),
+    repeating-linear-gradient(101deg,rgba(30,27,22,.05) 0 1px,transparent 1px 6px),
+    repeating-linear-gradient(17deg,transparent 0 13px,rgba(30,27,22,.032) 13px 14px),
+    linear-gradient(182deg,var(--p-paper-hi),var(--p-paper) 50%,var(--p-paper-lo)) !important;
+  color:var(--p-ink) !important;
+  border:1px solid var(--p-ink);
+  /* 报纸是一个版：内边距给足（§4 ≥12px），右下再空出一条批注带 */
+  padding:20px 16px 30px;
+  box-shadow:
+    var(--p-light),
+    0 1px 2px rgba(30,27,22,.24),
+    0 14px 32px -10px rgba(16,24,40,.30) !important;
+}
+
+/* 报头：CAMPUS WIKI 那一行 —— 报纸的刊头是等宽小字 + 大字距，靠字号差立层级 */
+html[data-skin="nova"] .nv-clip-kicker{color:var(--p-ink-2) !important}
+/* 分格横线（§3.5.1 漫画风：粗横线 + 字重 700 做分格感）。
+   organs 用的是 3px double 的淡灰；这里换成 2px 实墨线 —— 报纸的分格线是印上去的，
+   不是描边，所以它必须和墨线同色。不加斜体、不加渐变。 */
+html[data-skin="nova"] .nv-clip-title{
+  color:var(--p-ink) !important;
+  border-bottom:2px solid var(--p-ink) !important;
+}
+/* 抽屉里的关闭钮：墨线方钮，8px 控件圆角（organs 给的是 4px，§4 只许 8/12） */
+html[data-skin="nova"] .nv-clip-close{
+  border:1px solid var(--p-ink) !important;
+  border-radius:var(--n-r-sm) !important;
+  background:transparent !important;
+  color:var(--p-ink) !important;
+}
+/* 剪报标签条：一叠贴在版面上的纸条。
+   标签是「贴上去的纸」，所以它比卡片更小、更歪（organs 已给 rotate(-1.2deg)），
+   纸底用同一张报纸纸 —— 同一叠纸不可能有两种白度。 */
+html[data-skin="nova"] .nv-clip-tag{
+  background:var(--p-paper) !important;
+  border:1px solid var(--p-ink) !important;
+  border-radius:0 !important;
+  color:var(--p-ink) !important;
+  box-shadow:0 1px 1px rgba(30,27,22,.18) !important;
+}
+html[data-skin="nova"] .nv-clip-chip{
+  background:var(--p-paper) !important;
+  border:1px solid var(--p-ink) !important;
+  border-radius:var(--n-r-sm) !important;
+  color:var(--p-ink) !important;
+  box-shadow:0 1px 1px rgba(30,27,22,.16) !important;
+}
+
+/* ======================================================================
+   ④ 冲压票纸：.nv-ticket-shell
+   这节解决的是「一眼认出这是票，不是一张黄色卡片」。票的三件套：
+   ① 冲压凹印：纸被机器压过一圈，边缘陷下去 —— 内阴影 + 一道内白线；
+   ② 齿孔/打孔线：一排等距小孔，孔壁比纸暗（--p-hole），不是洞；
+   ③ 油墨发虚：大字不做模糊（模糊在手机上等于脏），用两层极淡的错位投影
+      模拟「墨没吃透纸」—— 这是印刷事故，不是发光。
+   organs 的撕票锯齿（clip-path）一个字都不动：那是票根被撕开的边，
+   本文件只给纸面加质感。
+   ====================================================================== */
+html[data-skin="nova"] .nv-ticket-shell{
+  position:relative;
+  background-color:var(--p-ticket) !important;
+  background-image:
+    /* 水印竖条：冲压票纸的底色不是平的，是有一道道极淡的机器纹 */
+    repeating-linear-gradient(90deg,rgba(30,27,22,.028) 0 1px,transparent 1px 9px),
+    var(--p-light),
+    linear-gradient(180deg,var(--p-ticket),var(--p-ticket-lo)) !important;
+  color:var(--p-ink) !important;
+  border:1px solid var(--p-ink) !important;
+  /* 凹印：贴地内阴影（y 为正）+ 一圈被人手摸白的压边 */
+  box-shadow:
+    var(--p-light),
+    inset 0 1px 2px rgba(30,27,22,.16),
+    inset 0 0 0 1px rgba(255,255,255,.42),
+    0 2px 0 rgba(30,27,22,.16) !important;
+}
+/* 齿孔线：票根与票面之间那一排小孔。用 radial 点阵平铺（9px 一节），
+   颜色取 --p-hole（暗一档的纸），所以它读作「纸被压穿了」而不是「画了一排黑点」。 */
+html[data-skin="nova"] .nv-ticket-shell::before{
+  content:'';
+  position:absolute;
+  left:11px;right:11px;bottom:15px;
+  height:3px;
+  background-image:radial-gradient(circle 1.5px at 4px 50%,var(--p-hole) 99%,transparent 100%);
+  background-size:9px 3px;
+  background-repeat:repeat-x;
+  pointer-events:none;
+}
+/* 打孔点下方的撕票虚线：一条极短的墨线断续，提示「从这里撕」 */
+html[data-skin="nova"] .nv-ticket-shell::after{
+  content:'';
+  position:absolute;
+  left:11px;right:11px;bottom:9px;
+  height:1px;
+  background-image:repeating-linear-gradient(90deg,var(--p-ink-2) 0 4px,transparent 4px 8px);
+  opacity:.42;
+  pointer-events:none;
+}
+/* 油墨：大字（档位读数）墨没吃透纸 —— 两层 0.3~0.4px 的错位淡影，
+   不许用 blur（blur 在 1x 屏上会糊成脏点）。 */
+html[data-skin="nova"] .nv-ticket-read b{
+  color:var(--p-ink) !important;
+  text-shadow:.4px .3px 0 rgba(30,27,22,.16),-.3px .2px 0 rgba(30,27,22,.10);
+}
+html[data-skin="nova"] .nv-ticket-head{
+  color:var(--p-ink-2) !important;
+  border-bottom:1px dashed var(--p-ink-2) !important;
+  text-shadow:.3px .2px 0 rgba(30,27,22,.12);
+}
+html[data-skin="nova"] .nv-ticket-note{color:var(--p-ink-2) !important}
+/* 活档位刻度格：结构/翻滚在 nova-organs.css，这里只给票纸的冲压凹印。
+   旧版「机械刻盘」.nv-ticket-dial 随 m13555 删掉 —— 那是一块不会动的假表。
+   选中态不用满铺主色，改用更深的票纸 + 实墨边（符合纸质器官的身份）。 */
+html[data-skin="nova"] .nv-ticket-step{
+  background-color:var(--p-ticket) !important;
+  background-image:repeating-linear-gradient(101deg,rgba(30,27,22,.04) 0 1px,transparent 1px 6px) !important;
+  border-color:var(--p-ink-2) !important;
+  color:var(--p-ink-2) !important;
+  box-shadow:inset 0 1px 2px rgba(30,27,22,.14),inset 0 0 0 1px rgba(255,255,255,.42) !important;
+}
+html[data-skin="nova"] .nv-ticket-step.on{
+  background-color:var(--p-ticket-lo) !important;
+  border-color:var(--p-ink) !important;
+  color:var(--p-ink) !important;
+}
+
+/* ======================================================================
+   ⑤ 深色档：旧报纸在紫夜舱里
+   这节解决的是「深色档不许把纸变成黑块」。纸在夜里不是黑的，是「吸了夜色的
+   旧纸」：底色降到深灰紫（不纯黑，§2.3），墨线反过来变成浅色（印在暗纸上的
+   白墨），纸纤维仍然存在，只是对比更低。
+   ====================================================================== */
+html[data-skin="nova"][data-theme="dark"]{
+  /* v3 修复（V3-VERIFY P1-4）：原来的纸是「紫」（#2A2340 / #2E2742），
+     读出来是「紫色的卡片」而不是「吸了夜色的旧纸」——纸的材质身份丢了。
+     改成同一明度的暖棕（H≈28°, S≈20%），在紫夜舱里像被灯光照到的旧报纸。 */
+  --p-paper: #33291F;
+  --p-paper-lo: #2A2118;
+  --p-paper-hi: #3E3226;
+  --p-ticket: #392E22;
+  --p-ticket-lo: #2E251A;
+  /* 齿孔的孔壁在夜里必须比纸**暗**：光进不去才叫孔。
+     （第一版取 #4A4064 比票纸还亮，读出来是「一排发光的小点」，实际截图证实。） */
+  --p-hole: #1B1730;
+  --p-ink: #D8CFC0;
+  --p-ink-2: #A99F8E;
+  --p-light: inset 0 1px 0 rgba(255,255,255,.07);
+}
+html[data-skin="nova"][data-theme="dark"] .wiki-card{
+  background-color:var(--p-paper) !important;
+  background-image:
+    var(--p-light),
+    repeating-linear-gradient(101deg,rgba(216,207,192,.045) 0 1px,transparent 1px 7px),
+    repeating-linear-gradient(17deg,transparent 0 11px,rgba(216,207,192,.028) 11px 12px),
+    linear-gradient(184deg,var(--p-paper-hi),var(--p-paper) 46%,var(--p-paper-lo)) !important;
+  color:var(--p-ink) !important;
+  border-color:var(--p-ink) !important;
+  box-shadow:
+    var(--p-light),
+    0 1px 2px rgba(0,0,0,.42),
+    0 1px 0 rgba(0,0,0,.30) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .wiki-src{color:var(--p-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-card{
+  background-color:var(--p-paper) !important;
+  background-image:
+    var(--p-light),
+    repeating-linear-gradient(101deg,rgba(216,207,192,.04) 0 1px,transparent 1px 6px),
+    linear-gradient(182deg,var(--p-paper-hi),var(--p-paper) 52%,var(--p-paper-lo)) !important;
+  color:var(--p-ink) !important;
+  border-color:var(--p-ink);
+}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-kicker,
+html[data-skin="nova"][data-theme="dark"] .nv-clip-title{color:var(--p-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-title{border-bottom-color:var(--p-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-close{
+  border-color:var(--p-ink) !important;
+  color:var(--p-ink) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-clip-tag,
+html[data-skin="nova"][data-theme="dark"] .nv-clip-chip{
+  background:var(--p-paper) !important;
+  border-color:var(--p-ink) !important;
+  color:var(--p-ink) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-shell{
+  background-color:var(--p-ticket) !important;
+  background-image:
+    repeating-linear-gradient(90deg,rgba(216,207,192,.03) 0 1px,transparent 1px 9px),
+    var(--p-light),
+    linear-gradient(180deg,var(--p-ticket),var(--p-ticket-lo)) !important;
+  color:var(--p-ink) !important;
+  border-color:var(--p-ink) !important;
+  box-shadow:
+    var(--p-light),
+    inset 0 1px 2px rgba(0,0,0,.42),
+    inset 0 0 0 1px rgba(255,255,255,.05),
+    0 2px 0 rgba(0,0,0,.40) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-read b{color:var(--p-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-head{color:var(--p-ink-2) !important;border-bottom-color:var(--p-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-note{color:var(--p-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-step{
+  background-color:var(--p-ticket) !important;
+  color:var(--p-ink-2) !important;
+  border-color:var(--p-ink-2) !important;
+}
+html[data-skin="nova"][data-theme="dark"] .nv-ticket-step.on{
+  background-color:var(--p-ticket-lo) !important;
+  color:var(--p-ink) !important;
+  border-color:var(--p-ink) !important;
+}
+
+/* ======================================================================
+   ⑥ reduced-motion
+   本节解决的是「纸不该自己动」。本文件没有任何动画，这一段是把「万一以后
+   有人给纸加了过渡」的门先关上：只停过渡与动画，不动布局、不动可见性
+   （不许 display:none —— 关动效不等于藏东西）。
+   ====================================================================== */
+@media (prefers-reduced-motion: reduce){
+  html[data-skin="nova"] .wiki-card,
+  html[data-skin="nova"] .nv-clip-card,
+  html[data-skin="nova"] .nv-clip-tag,
+  html[data-skin="nova"] .nv-clip-chip,
+  html[data-skin="nova"] .nv-ticket-shell,
+  html[data-skin="nova"] .nv-ticket-step{
+    transition:none !important;
+    animation:none !important;
+  }
+}

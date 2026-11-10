@@ -485,6 +485,19 @@ window.__onLoginDone = function (ok, acct) {
     }
   } catch (e) {}
 
+  /* v1.1.62：读到的是教务网真实学号、而当初进门填的是畸形号（6/10/12 位、
+   * 1 开头那种），说明名单里那条「格式异常（手填）」就是这次该纠正的。
+   * 就地对齐：本地登记 + xxmu_user 换成真号、复核解除同步门禁、
+   * 重新领票并通知服务端名单改号。对齐成功后 chk 变成 ok=true，
+   * 下面就不会再弹「两个号不一样」，__onLoginSuccess 直接去同步课表。 */
+  if (!chk.unknown && chk.ok === false && typeof AUTH !== 'undefined' && AUTH.alignKbAccount) {
+    try {
+      if (AUTH.alignKbAccount(chk.acct, chk.id)) {
+        chk = LICENSE.noteKbAccount(chk.acct);
+      }
+    } catch (e) {}
+  }
+
   if (chk.unknown) {
     XXMU.toast(acct ? ('登录成功（账号 ' + acct + '）') : '登录成功');
   } else if (chk.ok) {

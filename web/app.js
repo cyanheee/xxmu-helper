@@ -156,8 +156,9 @@ function renderWeek() {
 
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
-  grid.style.gridTemplateColumns = `18px repeat(7,1fr)`;
-  grid.style.gridAutoRows = '44px';
+  // v3：与 web/app.css 的 .grid 同步（JS 内联优先于 CSS，改一处必须两处一起改）
+  grid.style.gridTemplateColumns = `34px repeat(7,1fr)`;
+  grid.style.gridAutoRows = '56px';
 
   const todayW = weekOf(new Date());
   const todayD = (new Date().getDay() + 6) % 7 + 1; // 周一=1 … 周日=7
@@ -668,7 +669,14 @@ function fmtLeft(h) {
   if (h == null) return '';
   if (h < 0) return '已过期';
   if (h < 1) return '还剩 ' + Math.max(1, Math.round(h * 60)) + ' 分钟';
-  if (h < 48) return '还剩 ' + Math.floor(h) + ' 小时 ' + Math.round((h % 1) * 60) + ' 分';
+  if (h < 48) {
+    /* 分钟四舍五入会进位到 60（还剩 25 小时 60 分），这里先归一化再拼字 */
+    let hh = Math.floor(h);
+    let mm = Math.round((h % 1) * 60);
+    if (mm >= 60) { mm -= 60; hh += 1; }
+    if (mm === 0) return '还剩 ' + hh + ' 小时';
+    return '还剩 ' + hh + ' 小时 ' + mm + ' 分';
+  }
   return '还剩 ' + Math.floor(h / 24) + ' 天';
 }
 
@@ -992,6 +1000,13 @@ function renderHomework() {
 /** 一条作业/考试卡片 */
 function cardOf(x) {
   const it = el('div', 'hw');
+  /* v1.1.57：把原始状态词挂到 DOM 上，供皮肤层按语义重上色。
+   * 为什么需要它：下面这三种颜色是**内联 style**（bar.style.background /
+   * badge.style.color），外部 CSS 读不到「这条是未开始还是未交」，
+   * 只能一刀切把它压成单色、把状态语义一起丢掉。
+   * 挂在属性上之后，经典皮肤完全不受影响（它没有对应的属性选择器），
+   * 万象舱皮肤可以自己决定「未开始用中性、逾期用珊瑚」，各层不打架。 */
+  it.setAttribute('data-st', x.status || '');
   const color = HW_COLORS[x.status] || '#9aa0a6';
   const bar = el('i', 'hwbar');
   bar.style.background = color;
@@ -1184,8 +1199,8 @@ const CxUI = (() => {
     if (b) b.onclick = () => sync(false);
     const c = $('btnCxOut');
     if (c) {
-      c.onclick = () => {
-        if (!confirm('断开学习通？下次要看作业需要重新登录。')) return;
+      c.onclick = async () => {
+        if (!await askConfirm('断开学习通？下次要看作业需要重新登录。', { danger: true })) return;
         CX.logout();
         paint();
         renderHomework();
@@ -1353,6 +1368,23 @@ function load() {
   READ_ERR.schedule = '';
   READ_ERR.homework = '';
   DATA = readExternal() || readCached() || window.SCHEDULE || { courses: [] };
+  /* v1.1.55：叠加 AI 改课表指令（借鉴 tangli「烫梨指令」）。
+   * 只改内存里渲染用的这一份，绝不写回缓存 / 外部 schedule.json ——
+   * 指令是「盖在上面的一层」，撤销、清空、换数据源都立刻恢复原始课表。
+   * 必须在算 PERIODS / cnt / renderWeek 之前叠加，否则画面和统计还是老数据；
+   * ctx.times 先从原始 DATA 取（叠加本身要用校方作息校验钟点指令）。 */
+  const _baseTimes = Array.isArray(DATA.times) ? DATA.times : [];
+  if (typeof LessonCmd !== 'undefined') {
+    const _ops = LessonCmd.loadOps();
+    if (_ops.length) {
+      DATA = Object.assign({}, DATA, {
+        courses: LessonCmd.apply(DATA.courses || [], _ops, {
+          start: iso(START), times: _baseTimes,
+          totalWeeks: TOTAL_WEEKS, today: iso(new Date()),
+        }),
+      });
+    }
+  }
   /* PERIODS 必须兜底。
    *
    * 原来写的是 `Math.max(14, ...DATA.courses.flatMap(c => c.periods))`：
@@ -1405,6 +1437,43 @@ function load() {
       document.getElementById('totalweeks').textContent = TOTAL_WEEKS;
       XXMU.toast('已保存：第 1 周从 ' + ds + ' 开始，共 ' + wk + ' 周');
     };
+
+    /* ---- 一键套用常见学期（省得自己查校历） ----
+     * 「填一个日期」是最容易卡住人的一步：校历上写的是「8 月底开学」，
+     * 但第 1 周周一是哪天，得自己数。这里给几个最常见的套法，
+     * 点一下就把日期/周数填好，人只需要核对。 */
+    const quick = document.getElementById('setQuick');
+    if (quick && !quick._bound) {
+      quick._bound = true;
+      /* 「8 月最后一个周一」= 8 月里最晚的那个周一 */
+      const lastMondayOfAug = () => {
+        const y = START.getFullYear();
+        const d = new Date(y, 7, 31);
+        const back = (d.getDay() + 6) % 7;   // 退到周一
+        d.setDate(d.getDate() - back);
+        return d;
+      };
+      const firstMondayOfSep = () => {
+        const y = START.getFullYear();
+        const d = new Date(y, 8, 1);
+        const fwd = (8 - d.getDay()) % 7;    // 推到周一
+        d.setDate(d.getDate() + fwd);
+        return d;
+      };
+      quick.querySelectorAll('button[data-q]').forEach(b => {
+        b.onclick = () => {
+          const q = b.getAttribute('data-q');
+          if (q === 'aug') sd.value = iso(lastMondayOfAug());
+          else if (q === 'sep') sd.value = iso(firstMondayOfSep());
+          else if (q === 'w20') sw.value = 20;
+          else if (q === 'w21') sw.value = 21;
+          else if (q === 'w22') sw.value = 22;
+          quick.querySelectorAll('button[data-q]').forEach(x => x.classList.remove('on'));
+          b.classList.add('on');
+          XXMU.toast('已填好，核对一下再点「保存并立即生效」。');
+        };
+      });
+    }
   })();
   const at = DATA.synced_at
     ? new Date(DATA.synced_at * 1000).toLocaleString('zh-CN', { hour12: false })
@@ -1576,11 +1645,11 @@ function refreshAcctUI() {
 
 /** 退出本机账号：和关于页那个按钮走同一套逻辑，收口到一个函数避免两处不同步。
  *  顺序：先 Cookie（异步投递）→ 再 clearAccount（同步删文件+pref）→ 重载。 */
-function exitAccount() {
-  if (!confirm('退出这台手机上的账号？\n\n' +
+async function exitAccount() {
+  if (!await askConfirm('退出这台手机上的账号？\n\n' +
     '会清除：激活状态、课表缓存、作业缓存、学习通记录、教务登录。\n' +
     '不会清除：设备指纹（换回原账号不算新设备）。\n\n' +
-    '退出后回到开始页，需要重新填学号。')) return;
+    '退出后回到开始页，需要重新填学号。', { danger: true })) return;
   const has = (typeof Host !== 'undefined' && Host.clearAccount);
   if (has) {
     try { if (Host.clearCookies) Host.clearCookies(); } catch (e) {}
@@ -1837,11 +1906,28 @@ document.getElementById('resync').onclick = () => {
     '2. 或把 schedule.json 放到：\n' + (path || '/sdcard/Android/data/com.xxmu.helper/files/schedule.json'));
 };
 
-function showTip(msg) {
-  document.getElementById('sh-name').textContent = '同步说明';
+/* 抽屉（Drawer）：装长内容。
+ * 标题不再写死「同步说明」——它被 20 多处当通用弹窗用，
+ * 标题写死等于每个场景都在说「同步说明」，其实同步只是其中一种。
+ * 规则：第一行短（≤ 14 字）就当标题，剩下的当正文；
+ * 否则统一叫「说明」。 */
+function showTip(msg, title) {
+  const lines = String(msg == null ? '' : msg).split('\n');
+  let t = title;
+  let bodyLines = lines;
+  if (!t) {
+    const first = (lines[0] || '').trim();
+    if (lines.length > 1 && first && first.length <= 14) {
+      t = first;
+      bodyLines = lines.slice(1);
+    } else {
+      t = '说明';
+    }
+  }
+  document.getElementById('sh-name').textContent = t;
   const body = document.getElementById('sh-body');
   body.innerHTML = '';
-  msg.split('\n').forEach(line => {
+  bodyLines.forEach(line => {
     const r = el('div', 'row');
     r.appendChild(el('span', 'v', line));
     body.appendChild(r);
@@ -2095,6 +2181,15 @@ document.querySelectorAll('#tabs button').forEach(b => {
   };
   const sback = document.getElementById('settingsBack');
   if (sback) sback.onclick = () => switchTab('me');
+
+  /* v1.1.56：外观轴 = 深浅（THEME）× 皮肤（SKIN）两条正交开关。
+   * 从「我的」直接点皮肤行也能进设置，进来后两组按钮都要重画。 */
+  const skinJump = document.getElementById('rowSkin');
+  if (skinJump) skinJump.onclick = () => {
+    switchTab('settings');
+    if (typeof THEME !== 'undefined' && THEME.paint) THEME.paint();
+    if (typeof SKIN !== 'undefined' && SKIN.paint) SKIN.paint();
+  };
 })();
 
 /* ===== 管理员 · 控制台（联网） =====
@@ -2292,13 +2387,14 @@ const AdminUI = (() => {
 
   /* ---------- 停用 / 解封 / 清设备（v1.1.1：开卡与发码已移除） ---------- */
 
-  function revoke() {
+  async function revoke() {
     const ids = idsFrom($('admIds') && $('admIds').value);
     const err = $('admErr');
     setMsg(err, '');
     if (!key()) return setMsg(err, '先在上面填管理员口令');
     if (!ids.length) return setMsg(err, '填一个学号');
-    if (!confirm('停用 ' + ids.length + ' 个学号？\n\n对方下次联网就会被拦下，且设备记录会被清空。')) return;
+    if (!await askConfirm('停用 ' + ids.length + ' 个学号？\n\n对方下次联网就会被拦下，且设备记录会被清空。',
+      { danger: true })) return;
 
     const btn = $('admRevoke');
     busy(btn, true, '停用中…');
@@ -2320,13 +2416,13 @@ const AdminUI = (() => {
 
   /** 解封时不会再有「没开卡」这种情况了（开卡概念已取消），
    *  只剩下 wasRevoked = false 这一种「本来就没停用过」的提示。 */
-  function unrevoke() {
+  async function unrevoke() {
     const ids = idsFrom($('admIds') && $('admIds').value);
     const err = $('admErr');
     setMsg(err, '');
     if (!key()) return setMsg(err, '先在上面填管理员口令');
     if (!ids.length) return setMsg(err, '填一个学号');
-    if (!confirm('解封 ' + ids.length + ' 个学号？\n\n只撤掉停用标记，设备记录不恢复，' +
+    if (!await askConfirm('解封 ' + ids.length + ' 个学号？\n\n只撤掉停用标记，设备记录不恢复，' +
       '对方需要重新进一次。')) return;
 
     const btn = $('admUnrevoke');
@@ -2353,10 +2449,11 @@ const AdminUI = (() => {
 
   /** 名单上每一行的快捷开关：已停用的显示「解封」，正常的显示「停用」。
    *  这样不用滚回「开卡」页再抄一遍学号——那是最容易抄错的一步。 */
-  function toggleRow(r) {
+  async function toggleRow(r) {
     const verb = r.revoked ? '解封' : '停用';
-    if (!confirm(verb + ' ' + r.id + '？' + (r.revoked ? '' :
-      '\n\n对方下次联网就会被拦下，已绑设备记录会被清空。'))) return;
+    if (!await askConfirm(verb + ' ' + r.id + '？' + (r.revoked ? '' :
+      '\n\n对方下次联网就会被拦下，已绑设备记录会被清空。'),
+      { danger: !r.revoked })) return;
     const fn = r.revoked ? AUTH.Admin.unRevoke : AUTH.Admin.revoke;
     fn.call(AUTH.Admin, [r.id]).then(res => {
       if (!res || !res.ok) { XXMU.toast((res && res.msg) || (verb + '失败')); return; }
@@ -2369,15 +2466,15 @@ const AdminUI = (() => {
 
   /** 「清空设备记录」：不再叫「收回开卡」。
    *  开卡概念取消后 ungrant 接口唯一还有用的副作用就是删 dev: —— 换手机时用。 */
-  function ungrant() {
+  async function ungrant() {
     const ids = idsFrom($('admIds') && $('admIds').value);
     const err = $('admErr');
     setMsg(err, '');
     if (!key()) return setMsg(err, '先在上面填管理员口令');
     if (!ids.length) return setMsg(err, '填一个学号');
-    if (!confirm('清空 ' + ids.length + ' 个学号的设备绑定？\n\n' +
+    if (!await askConfirm('清空 ' + ids.length + ' 个学号的设备绑定？\n\n' +
       '不影响停用状态，只是把已经绑过的手机记录清零，' +
-      '对方下次进入时可以重新绑满名额。')) return;
+      '对方下次进入时可以重新绑满名额。', { danger: true })) return;
 
     const btn = $('admUngrant');
     busy(btn, true, '清理中…');
@@ -2566,10 +2663,10 @@ const AdminUI = (() => {
            * 整人清空是上面「设备」页那个按钮，两者不混。 */
           if (d.fp) {
             const kick = el('button', 'adm-cp', '踢掉');
-            kick.onclick = () => {
-              if (!confirm('把这台设备从 ' + r.id + ' 名下解绑？\n\n' +
+            kick.onclick = async () => {
+              if (!await askConfirm('把这台设备从 ' + r.id + ' 名下解绑？\n\n' +
                 (d.tag || '未知机型') + '\n\n对方下次打开会被要求重新进一次，' +
-                '设备名额空出一个。')) return;
+                '设备名额空出一个。', { danger: true })) return;
               AUTH.Admin.revokeDevice(r.id, d.fp).then(res3 => {
                 if (!res3 || !res3.ok) { XXMU.toast((res3 && res3.msg) || '解绑失败'); return; }
                 XXMU.toast('已解绑，剩 ' + (res3.devCount || 0) + ' 台');
@@ -2586,9 +2683,9 @@ const AdminUI = (() => {
       /* 详情里也放一个进出口：看到状态不对时不用滚回上面。
        * 停用过的显示「解封」，正常的显示「停用」。 */
       const tg2 = el('button', 'btn soft', r.revoked ? '解封这个学号' : '停用这个学号');
-      tg2.onclick = () => {
+      tg2.onclick = async () => {
         const verb2 = r.revoked ? '解封' : '停用';
-        if (!confirm(verb2 + ' ' + r.id + '？')) return;
+        if (!await askConfirm(verb2 + ' ' + r.id + '？', { danger: !r.revoked })) return;
         const fn2 = r.revoked ? AUTH.Admin.unRevoke : AUTH.Admin.revoke;
         fn2.call(AUTH.Admin, [r.id]).then(res4 => {
           if (!res4 || !res4.ok) { XXMU.toast((res4 && res4.msg) || verb2 + '失败'); return; }
@@ -2601,8 +2698,8 @@ const AdminUI = (() => {
       body.appendChild(tg2);
 
       const clr = el('button', 'btn soft', '清空这个人的设备记录');
-      clr.onclick = () => {
-        if (!confirm('清空 ' + r.id + ' 的设备绑定？\n\n不影响停用状态。')) return;
+      clr.onclick = async () => {
+        if (!await askConfirm('清空 ' + r.id + ' 的设备绑定？\n\n不影响停用状态。', { danger: true })) return;
         AUTH.Admin.unbind([r.id]).then(res2 => {
           if (!res2 || !res2.ok) { XXMU.toast((res2 && res2.msg) || '清理失败'); return; }
           XXMU.toast('已清空');
@@ -2674,12 +2771,13 @@ const AdminUI = (() => {
     });
   }
 
-  function clearDevs() {
+  async function clearDevs() {
     const id = ($('admDevId') && $('admDevId').value.trim()) || '';
     devMsg('');
     if (!key()) return devMsg('先在上面填管理员口令');
     if (!/^\d{6,20}$/.test(id)) return devMsg('填正确的学号');
-    if (!confirm('清空 ' + id + ' 的全部设备记录？\n\n对方下次激活时就能绑上新手机。')) return;
+    if (!await askConfirm('清空 ' + id + ' 的全部设备记录？\n\n对方下次激活时就能绑上新手机。',
+      { danger: true })) return;
 
     const btn = $('admDevClear');
     busy(btn, true, '清空中…');
@@ -2778,7 +2876,7 @@ const AdminUI = (() => {
     });
   }
 
-  function saveCfg() {
+  async function saveCfg() {
     const msg = $('cfgMsg');
     setMsg(msg, '');
     if (!key()) return setMsg(msg, '先在上面填管理员口令');
@@ -2800,7 +2898,8 @@ const AdminUI = (() => {
     if (url && !/^https?:\/\//i.test(url)) return setMsg(msg, '下载链接要以 http:// 或 https:// 开头');
     if (maxDev < 1 || maxDev > 10) return setMsg(msg, '设备上限填 1-10 之间');
 
-    if (enforce && !confirm('确实要打开强制淘汰？\n\n低于 ' + (minCode.version || ('versionCode ' + minCode.code)) + ' 的所有人下次联网就打不开了。\n如果新版还没发布好，他们会被卡死。')) return;
+    if (enforce && !await askConfirm('确实要打开强制淘汰？\n\n低于 ' + (minCode.version || ('versionCode ' + minCode.code)) + ' 的所有人下次联网就打不开了。\n如果新版还没发布好，他们会被卡死。',
+      { danger: true })) return;
     if (minCode.code > code) return setMsg(msg, '最低版本代码不能大于最新版本代码');
 
     /* 前置拦截：开了强制淘汰但没有任何下载渠道 = 把人永久锁在门外。
@@ -2930,9 +3029,10 @@ const AdminUI = (() => {
   }
 
   /** 撤掉公告：正文清空 + noticeAt 归零，客户端就不会再弹 */
-  function clearNotice() {
+  async function clearNotice() {
     if (!key()) return;
-    if (!confirm('撤掉当前公告？\n\n已经看过的人不受影响，没看过的人以后也不会再看到这条。')) return;
+    if (!await askConfirm('撤掉当前公告？\n\n已经看过的人不受影响，没看过的人以后也不会再看到这条。',
+      { danger: true })) return;
     const btn = $('cfgNoticeClear');
     busy(btn, true, '撤回中…');
     AUTH.Admin.setConfig({
@@ -3049,7 +3149,7 @@ const AdminUI = (() => {
     APKDL.progress(got, total);
   };
 
-  function uploadApk(publish) {
+  async function uploadApk(publish) {
     const msg = $('apkMsg');
     setMsg(msg, '');
     if (!key()) return setMsg(msg, '先在上面填管理员口令');
@@ -3068,8 +3168,8 @@ const AdminUI = (() => {
     if (PICKED.size > 24 * 1048576) {
       return setMsg(msg, '这个包 ' + fmtSize(PICKED.size) + '，超过服务器单文件 24 MB 上限。');
     }
-    if (publish && !confirm('上传并发布 v' + ver + '（code ' + code + '）？\n\n'
-      + '所有联网用户下次打开 App 就会收到更新提示。')) return;
+    if (publish && !await askConfirm('上传并发布 v' + ver + '（code ' + code + '）？\n\n'
+      + '所有联网用户下次打开 App 就会收到更新提示。', { danger: true })) return;
 
     const btn = publish ? $('apkUpload') : $('apkUploadOnly');
     const btn2 = publish ? $('apkUploadOnly') : $('apkUpload');
@@ -3132,10 +3232,11 @@ const AdminUI = (() => {
     }
   }
 
-  function delHosted() {
+  async function delHosted() {
     if (!key()) return;
-    if (!confirm('删掉服务器上的安装包？\n\n线上配置里的下载链接不会自动改，'
-      + '如果它还指着 /v1/apk，学生点「去下载」会看到「服务器上还没有安装包」。')) return;
+    if (!await askConfirm('删掉服务器上的安装包？\n\n线上配置里的下载链接不会自动改，'
+      + '如果它还指着 /v1/apk，学生点「去下载」会看到「服务器上还没有安装包」。',
+      { danger: true })) return;
     const btn = $('apkDel');
     busy(btn, true, '删除中…');
     AUTH.Admin.delApk().then(res => {
@@ -3214,8 +3315,9 @@ const AdminUI = (() => {
         const row = el('div', 'adm-item');
         row.appendChild(el('span', 'adm-id', id));
         const del = el('button', 'adm-cp', '移除');
-        del.onclick = () => {
-          if (!confirm('把 ' + id + ' 从管理员名单里移除？\n他会掉回普通学生身份。')) return;
+        del.onclick = async () => {
+          if (!await askConfirm('把 ' + id + ' 从管理员名单里移除？\n他会掉回普通学生身份。',
+            { danger: true })) return;
           AUTH.Admin.admins('del', [id]).then(r2 => {
             admMsg(r2 && r2.ok ? '已移除 ' + id : ((r2 && r2.msg) || '移除失败'), r2 && r2.ok);
             loadAdmins();
@@ -3499,6 +3601,13 @@ const AdminUI = (() => {
    * 必须记下来以便 revoke —— 每张 1600px 的图在 WebView 里是几 MB 的位图，
    * 翻几次审核页不释放就是几百 MB。 */
   let REV_URLS = {};
+  /* v1.1.62 慢网优化：横滑一次只该看 1~2 张，绝不能首帧把 N 张待审图全打出去。
+   * img.loading="lazy" 对「JS 手动 fetch blob 再赋 src」无效（只管 src 直指 URL 的原生加载），
+   * 所以改成：可见卡 ±1 才入队、队列一次只飞一张、翻页补拉、刷新清单用代际丢弃过期结果。*/
+  let REV_QUEUE = [];
+  let REV_QUEUED = {};
+  let REV_FLYING = false;
+  let REV_GEN = 0;
 
   function loadRevPhotos() {
     const box = $('revPhotoList');
@@ -3507,6 +3616,7 @@ const AdminUI = (() => {
     box.innerHTML = '<p class="hint">拉取中…</p>';
     /* 重新拉清单之前先释放上一批的 blob URL，否则每刷一次多占一批位图 */
     revokeRevUrls();
+    revNavShow(0);
     AUTH.Admin.photos().then(res => {
       if (!res || !res.ok) {
         hintInto(box, (res && res.msg) || '拉取失败');
@@ -3522,20 +3632,66 @@ const AdminUI = (() => {
     });
   }
 
-  /* 把某个 k 的字节取回来变成 blob URL（已有就复用） */
+  /* v1.1.62：把某个 k 排进取字节队列（名字沿用，verify_apk 锁）。
+   * 已有 blob 直接复用；否则只入队，由 revPump 一次飞一张。 */
   function revPhotoSrc(k, img) {
     if (!k) return;
-    if (REV_URLS[k]) { img.src = REV_URLS[k]; return; }
-    img.alt = '加载中…';
-    AUTH.Admin.photoRaw(k).then(blob => {
-      if (!blob) return;
+    if (REV_URLS[k]) { img.src = REV_URLS[k]; img.alt = ''; return; }
+    if (REV_QUEUED[k]) return;
+    REV_QUEUED[k] = true;
+    img.alt = '等待加载…';
+    REV_QUEUE.push({ k: k, img: img, gen: REV_GEN });
+    revPump();
+  }
+
+  /* 串行泵：同一时刻只有一张大图在过 Host.httpFetchAsync 桥，
+   * 慢网下不会 N 张一起把主线程/桥挤死（3.00 KB/s 下整批 20s 超时）。 */
+  function revPump() {
+    if (REV_FLYING) return;
+    const job = REV_QUEUE.shift();
+    if (!job) return;
+    REV_FLYING = true;
+    const done = () => { REV_FLYING = false; revPump(); };
+    job.img.alt = '加载中…';
+    AUTH.Admin.photoRaw(job.k).then(blob => {
+      /* 清单刷新过 / 页面重建过 → 结果作废，别写进新 DOM */
+      if (job.gen !== REV_GEN || !blob) { delete REV_QUEUED[job.k]; done(); return; }
       const u = URL.createObjectURL(blob);
-      REV_URLS[k] = u;
-      img.src = u;
+      REV_URLS[job.k] = u;
+      job.img.src = u;
+      job.img.alt = '';
+      job.img.onclick = null;
+      delete REV_QUEUED[job.k];
+      done();
     }, e => {
-      img.alt = '取图失败';
-      img.title = errText(e);
+      if (job.gen !== REV_GEN) { delete REV_QUEUED[job.k]; done(); return; }
+      delete REV_QUEUED[job.k];
+      job.img.alt = '取图失败，点一下重试';
+      job.img.title = (typeof errText === 'function' ? errText(e) : String(e));
+      /* 给一个能点的重试入口：点图重新排回队列（REV_QUEUED 已删） */
+      job.img.onclick = () => revPhotoSrc(job.k, job.img);
+      done();
     });
+  }
+
+  /* 只把「当前可见那张 ±1」排进队列。img.loading='lazy' 对
+   * 「JS 手动 fetch blob 再赋 src」无效，必须用可见性自己控制。 */
+  function revLoadVisible() {
+    const box = $('revPhotoList');
+    if (!box) return;
+    const cards = box.querySelectorAll('.rev-item');
+    if (!cards.length) return;
+    const step = revStep();
+    let i = step > 0 ? Math.round(box.scrollLeft / step) : 0;
+    if (i < 0) i = 0;
+    const lo = Math.max(0, i - 1), hi = Math.min(cards.length - 1, i + 1);
+    for (let j = lo; j <= hi; j++) {
+      const img = cards[j].querySelector('img.rev-img');
+      if (!img) continue;
+      if (img.src && img.src.indexOf('blob:') === 0) continue;
+      const k = img.getAttribute('data-k');
+      if (k) revPhotoSrc(k, img);
+    }
   }
 
   function revokeRevUrls() {
@@ -3543,17 +3699,65 @@ const AdminUI = (() => {
       try { URL.revokeObjectURL(REV_URLS[k]); } catch (e) {}
     });
     REV_URLS = {};
+    /* 换一批清单：清掉没发的队列、去重表，代际 +1 让在飞的旧请求作废 */
+    REV_QUEUE = [];
+    REV_QUEUED = {};
+    REV_GEN++;
   }
 
-  function renderRevPhotos() {    const box = $('revPhotoList');
+  function normRot(v) {
+    let r = Number(v) || 0;
+    r = ((r % 360) + 360) % 360;
+    return (r === 90 || r === 180 || r === 270) ? r : 0;
+  }
+
+  function revStep() {
+    const box = $('revPhotoList');
+    if (!box) return 300;
+    return box.clientWidth || box.getBoundingClientRect().width || 300;
+  }
+
+  function revScroll(dir) {
+    const box = $('revPhotoList');
+    if (!box) return;
+    /* 用 scrollLeft 赋值，老 WebView 也认；snap 会在滚动停下时把边对齐。 */
+    box.scrollLeft = box.scrollLeft + dir * revStep();
+    revLoadVisible();
+  }
+
+  function revUpdatePos() {
+    const box = $('revPhotoList');
+    const pos = $('revPhotoPos');
+    if (!box || !pos) return;
+    const n = REV_PHOTOS.length || 1;
+    let i = Math.round(box.scrollLeft / revStep()) + 1;
+    if (i < 1) i = 1;
+    if (i > n) i = n;
+    pos.textContent = '第 ' + i + ' / ' + n + ' 张';
+    revLoadVisible();
+  }
+
+  function revNavShow(n) {
+    const nav = $('revPhotoNav');
+    if (!nav) return;
+    nav.style.display = n > 1 ? 'flex' : 'none';
+    const pos = $('revPhotoPos');
+    if (pos && n > 1) pos.textContent = '第 1 / ' + n + ' 张';
+  }
+
+  function renderRevPhotos() {
+    const box = $('revPhotoList');
     if (!box) return;
     box.innerHTML = '';
+    revNavShow(0);
     if (!REV_PHOTOS.length) {
       box.appendChild(el('p', 'hint', '没有待审的图片。'));
       return;
     }
     REV_PHOTOS.forEach(p => {
       const c = el('div', 'rev-item');
+      const frame = el('div', 'img-frame rev-frame');
+      frame.setAttribute('data-rot', String(normRot(p.rot)));
       const img = document.createElement('img');
       img.className = 'rev-img';
       img.loading = 'lazy';
@@ -3561,8 +3765,10 @@ const AdminUI = (() => {
       img.alt = p.cap || '待审图片';
       /* 关键：不能用 AUTH.Photos.url（只放已通过的图）。
        * 管理员要能看见待审的那张，否则「审核」就是盲签。 */
-      revPhotoSrc(p.k, img);
-      c.appendChild(img);
+      /* v1.1.62：不在这里直接拉图，挂 k 交给 revLoadVisible 按需取 */
+      img.setAttribute('data-k', String(p.k || ''));
+      frame.appendChild(img);
+      c.appendChild(frame);
 
       const meta = el('div', 'rev-meta');
       const st = el('span', 'rev-badge',
@@ -3578,6 +3784,27 @@ const AdminUI = (() => {
 
       if (p.cap) c.appendChild(el('div', 'rev-cap', p.cap));
 
+      /* 方向编辑：四个角度都是即时预览，只有「保存方向」落库。
+       * 保存成就地改 REV_PHOTOS 里这一项，不整表重载，
+       * 横滑停在第几张就还停在第几张。 */
+      const rotBar = el('div', 'rev-rot');
+      rotBar.appendChild(el('span', 'rev-rot-lab', '图片方向'));
+      let cur = normRot(p.rot);
+      const preview = v => { cur = normRot(v); frame.setAttribute('data-rot', String(cur)); };
+      const mkRot = (txt, fn) => {
+        const b = el('button', 'btn ghost btn-sm', txt);
+        b.onclick = fn;
+        rotBar.appendChild(b);
+      };
+      mkRot('↺ 左转', () => preview(cur - 90));
+      mkRot('↻ 右转', () => preview(cur + 90));
+      mkRot('⟳ 180°', () => preview(cur + 180));
+      mkRot('还原', () => preview(0));
+      const save = el('button', 'btn btn-sm', '保存方向');
+      save.onclick = () => photoRot(p.k, cur, save, frame, p);
+      rotBar.appendChild(save);
+      c.appendChild(rotBar);
+
       const acts = el('div', 'rev-acts');
       if (p.st !== 'a') {
         const ok = el('button', 'btn btn-sm', '通过');
@@ -3590,8 +3817,8 @@ const AdminUI = (() => {
          * 「会不会出现在全校面前」说清楚，并且给个二次确认 —— 原来这里
          * 没有 confirm，而服务端把 no 和 del 当同一条路径，手滑一次就
          * 物理删除不可恢复。 */
-        no.onclick = () => {
-          if (!confirm('从校园实景里撤下这张图？\n\n图片和说明都会保留，以后还能重新上架。')) return;
+        no.onclick = async () => {
+          if (!await askConfirm('从校园实景里撤下这张图？\n\n图片和说明都会保留，以后还能重新上架。')) return;
           photoAct('no', p.k, no);
         };
         acts.appendChild(no);
@@ -3610,13 +3837,42 @@ const AdminUI = (() => {
       };
       acts.appendChild(capBtn);
       const del = el('button', 'btn ghost btn-sm', '删除');
-      del.onclick = () => {
-        if (!confirm('彻底删掉这张图？文件也会一起删，找不回来。\n\n只是想从公开列表撤下来的话，用「下架」。')) return;
+      del.onclick = async () => {
+        if (!await askConfirm('彻底删掉这张图？文件也会一起删，找不回来。\n\n只是想从公开列表撤下来的话，用「下架」。',
+          { danger: true })) return;
         photoAct('del', p.k, del);
       };
       acts.appendChild(del);
       c.appendChild(acts);
       box.appendChild(c);
+    });
+    box.scrollLeft = 0;
+    revNavShow(REV_PHOTOS.length);
+    revLoadVisible();
+    const nav = $('revPhotoNav');
+    if (nav && !nav._bound) {
+      nav._bound = true;
+      const pv = $('revPrev'), nx = $('revNext');
+      if (pv) pv.onclick = () => revScroll(-1);
+      if (nx) nx.onclick = () => revScroll(1);
+    }
+    if (!box._revBound) {
+      box._revBound = true;
+      box.addEventListener('scroll', revUpdatePos);
+    }
+  }
+
+  function photoRot(k, rot, btn, frame, p) {
+    busy(btn, true, '保存中…');
+    AUTH.Admin.photoAct('rot', k, '', rot).then(res => {
+      busy(btn, false);
+      if (!res || !res.ok) { XXMU.toast((res && res.msg) || '没保存上'); return; }
+      p.rot = rot;
+      if (frame) frame.setAttribute('data-rot', String(rot));
+      XXMU.toast('方向已保存');
+    }, e => {
+      busy(btn, false);
+      XXMU.toast('连不上服务器：' + ((e && e.message) || e));
     });
   }
 
@@ -3721,8 +3977,8 @@ const AdminUI = (() => {
         acts.appendChild(rd);
       }
       const del = el('button', 'btn ghost btn-sm', '删除');
-      del.onclick = () => {
-        if (!confirm('删掉这条留言？')) return;
+      del.onclick = async () => {
+        if (!await askConfirm('删掉这条留言？', { danger: true })) return;
         AUTH.Admin.feedbackDel(f.k).then(res => {
           if (res && res.ok) { XXMU.toast('已删除'); loadRevFb(); }
           else XXMU.toast((res && res.msg) || '删除失败');
@@ -3778,15 +4034,15 @@ const CampusUI = (() => {
     renderDevs();
   }
 
-  /** 把「目标水量」那排按钮的高亮刷成当前值 */
+  /** 把「最长放水（防忘关）」那排按钮的高亮刷成当前值 */
   function paintTarget() {
-    const cur = WATER.targetMl();
+    const cur = WATER.guardSec();
     document.querySelectorAll('#waterTarget button').forEach(b => {
-      b.classList.toggle('on', Number(b.getAttribute('data-ml')) === cur);
+      b.classList.toggle('on', Number(b.getAttribute('data-sec')) === cur);
     });
   }
 
-  /** 清掉所有「已解锁」记忆（退出账号、切换目标水量时用）。 */
+  /** 清掉所有「已解锁」记忆（退出账号、切换最长放水（防忘关）时用）。 */
   function resetRunning() { RUNNING = {}; }
 
   function rebindDev(dev) {
@@ -3874,8 +4130,8 @@ const CampusUI = (() => {
       act.appendChild(re);
 
       const del = el('button', 'btn-sm gray', '移除');
-      del.onclick = () => {
-        if (!confirm('从列表里移除「' + (dev.name || dev.id) + '」？\n（只是本机不再显示，不影响你的账号）')) return;
+      del.onclick = async () => {
+        if (!await askConfirm('从列表里移除「' + (dev.name || dev.id) + '」？\n（只是本机不再显示，不影响你的账号）')) return;
         WATER.unbind(dev.id);
         renderDevs();
       };
@@ -3985,7 +4241,7 @@ const CampusUI = (() => {
     const line = el('p', 'hint', '正在把解锁命令发给饮水机…');
     document.getElementById('sh-body').appendChild(line);
 
-    const target = WATER.targetMl();
+    const guard = WATER.guardSec();
     let usedFn = fn;
 
     WATER.unlockWithRebind(dev, fn, (n, state) => {
@@ -4008,121 +4264,136 @@ const CampusUI = (() => {
 
       const box = document.getElementById('sh-body');
 
-      if (target > 0) {
-        /* 定量放水：盯 amount，到量自动发停止。
-         *
-         * v1.1.21：面板上不再写死「毫升」。
-         *
-         * 用户实机反馈：接了约 250ml，界面显示「已出 0」，结算后账单是 32。
-         * 三个数对不上，说明我们**并不真的知道 amount 的单位**——
-         * 官方 h5 里 amount 只被拿去做 `> 0` 判断，从来不显示，无从参照。
-         * 猜一个单位写死在界面上，比不写更糟：它会让人以为「到了 200ml」，
-         * 而实际停在哪里并不确定。
-         * 所以这里：①数字照常显示并驱动到量停止；②单位处写「单位以账单为准」；
-         * ③结束语里给出平台回报的原始数值，让用户能和账单对照。 */
-        const tgtLine = el('p', 'hint', '目标 ' + target + '，正在等出水…');
-        box.appendChild(tgtLine);
+      /* v1.1.60 诚实版：云端实锤放水途中平台不给实时用量、也没有
+       * 「出 N ml 就停」的入参，按 ml 精确自停不成立；计时换算又因流速
+       * 不固定被否。这里只做两件真事：接够了自己点「停止」，以及可选的
+       * 「最长放水」防忘关超时（与水量无关）。结算 amount 原样显示。 */
+      const guardLabel = guard > 0
+        ? (guard >= 60 ? (guard / 60) + ' 分钟' : guard + ' 秒') : '';
 
-        const stopBtn = el('button', 'btn', '停止');
-        stopBtn.onclick = () => { closeSheet(); stopWater(dev, usedFn); };
-        box.appendChild(stopBtn);
+      const stopBtn = el('button', 'btn', '停止');
+      stopBtn.onclick = () => { closeSheet(); stopWater(dev, usedFn); };
+      box.appendChild(stopBtn);
 
-        box.appendChild(el('p', 'hint',
-          '到 ' + target + ' 会自动发停止命令。注意三点：'
-          + '①这个数字是平台回报的用量，单位以胖乖账单为准（我们不在本地换算）；'
-          + '②到量到真正停阀有几秒延迟，实际会多流一点；'
-          + '③中途断网就盯不住了，机器会流到自己的上限才停。'));
+      const laterBtn = el('button', 'btn ghost', '先接着，等会儿再说');
+      laterBtn.onclick = closeSheet;
+      box.appendChild(laterBtn);
 
-        WATER.watchVolume(usedFn.id, target, {
-          machineId: dev.id,
-          onTick: (n, s, t) => {
-            tgtLine.className = 'hint';
-            tgtLine.textContent = s.amount > 0
-              ? ('已出 ' + s.amount + ' / ' + t)
-              : ('已出 0 / ' + t + '，正在等出水…（平台回报有延迟，按了之后稍等几秒）');
-          },
-          onZero: () => {
-            tgtLine.className = 'hint warn';
-            tgtLine.textContent = '还没检测到出水。记得去机器出水口按一下按钮 —— 手机这边只能解锁；'
-              + '按了之后平台要几秒才把用量报上来。';
-          },
-          onReached: (s) => {
-            tgtLine.className = 'hint ok';
-            tgtLine.textContent = '已到 ' + s.amount + '，正在发停止命令，等机器停阀…';
-          },
-          onStopError: (e) => {
-            tgtLine.className = 'hint warn';
-            tgtLine.textContent = '自动停止失败：' + WATER.human(e) + '。请到机器面板按停止。';
-          },
-        }).then(r => {
-          delete RUNNING[dev.id + ':' + usedFn.id];
-          renderDevs();
-          const done = el('p', 'hint ok');
-          if (r && r.done && !r.failed) {
-            done.textContent = '放水结束。平台最终回报用量 ' + (r.amount || 0)
-              + '（单位以胖乖账单为准）。';
-            /* 用量对不上时需要一个能自查的出口。
-             * 用户报过「界面说到 200 了，账单却是 32」——两者口径不同，
-             * 但界面上不给出原始值，他只能凭记忆描述，我没法判断是
-             * 单位不同、还是回报滞后取到了旧值。
-             * 这里把平台原始回报贴出来，复制给开发者就能一眼判断。 */
-            const raw = el('p', 'hint');
-            raw.style.opacity = '.75';
-            raw.textContent = '（原始回报：amount=' + (r.amount == null ? 'null' : r.amount)
-              + '，status=' + (r.status == null ? '?' : r.status)
-              + '，轮询 ' + (r.tries || 0) + ' 次，'
-              + (r.stoppedByUs ? '由本机发停止' : '未发停止') + '）';
-            const cp = el('button', 'btn ghost', '复制这次的数据');
-            cp.onclick = () => {
-              const txt = 'amount=' + (r.amount == null ? 'null' : r.amount)
-                + ' status=' + (r.status == null ? '?' : r.status)
-                + ' tries=' + (r.tries || 0)
-                + ' target=' + target
-                + ' stoppedByUs=' + (r.stoppedByUs ? 1 : 0)
-                + ' machine=' + (dev.name || dev.id)
-                + ' sku=' + usedFn.id;
-              copyText(txt, '已复制，发到群里就能定位');
-            };
-            box.appendChild(done);
-            box.appendChild(raw);
-            box.appendChild(cp);
-            const pay = el('p', 'hint');
-            pay.textContent = '费用记在胖乖生活账单里，去官方 App 付款。';
-            box.appendChild(pay);
-            return;
-          } else if (r && r.failed) {
-            done.className = 'hint warn';
-            done.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
-          } else if (r && r.pending) {
-            done.className = 'hint warn';
-            done.textContent = '还在出水（到量后 10 分钟仍未见停止）。请按机器面板上的停止键。';
-          } else if (r && r.netError) {
-            done.className = 'hint warn';
-            done.textContent = '网络断了，没法再盯着用量。机器会流到自己的上限才停，'
-              + '费用照样记在胖乖账单里。';
-          } else if (r && r.stopError) {
-            done.className = 'hint warn';
-            done.textContent = '停止命令没能发出去，请到机器面板按停止键。';
-          } else {
-            done.textContent = '放水结束。费用记在胖乖生活账单里。';
-          }
-          box.appendChild(done);
-        });
-      } else {
-        /* 不限量：只给「停止」。不写「机器到量会自己停」这种安慰话术，
-         * 因为那要看机型设置，我们并不知道。 */
-        const stopBtn = el('button', 'btn', '停止');
-        stopBtn.onclick = () => { closeSheet(); stopWater(dev, usedFn); };
-        box.appendChild(stopBtn);
+      const runLine = el('p', 'hint', guard > 0
+        ? '已设最长放水 ' + guardLabel + '（防忘关，与水量无关）。接够了自己点「停止」。'
+        : '接够了自己点「停止」。费用记在胖乖账单里。');
+      box.appendChild(runLine);
 
-        const ok2 = el('button', 'btn ghost', '先接着，等会儿再说');
-        ok2.onclick = closeSheet;
-        box.appendChild(ok2);
+      box.appendChild(el('p', 'hint',
+        '手机这边只能解锁，出水要在机器出水口按一下 —— 这是胖乖的设计。'
+        + '①平台放水时不给实时用量，结算值出来后原样显示，单位以胖乖账单为准，App 不换算毫升；'
+        + (guard > 0
+          ? '②最长时长只是防忘关的安全网，到点发一次停止，不是按水量停；'
+          : '②没设最长时长，就只靠你手动点「停止」；')
+        + '③机器停阀有几秒延迟，断网时会流到机器自己的上限才停。'));
 
-        box.appendChild(el('p', 'hint',
-          '接完回来在列表里点「停止」就行。费用记在胖乖生活的账单里，'
-          + '这个 App 不建订单、也不收钱。'));
+      /* 防忘关计时要有个起点。平台不一定上报「正在出水」，给手动起表按钮。 */
+      let startBtn = null;
+      if (guard > 0) {
+        startBtn = el('button', 'btn ghost', '我已按下出水键，开始计时');
+        box.appendChild(startBtn);
       }
+
+      const watchHooks = {
+        machineId: dev.id,
+        onTick: (n, s, elapsedMs, guardMs, guardLeftMs) => {
+          if (!elapsedMs) {
+            runLine.className = 'hint';
+            runLine.textContent = '已解锁，等你去机器上按出水键…';
+            return;
+          }
+          if (startBtn && !startBtn.disabled) {
+            startBtn.disabled = true;
+            startBtn.textContent = '已开始计时（防忘关）';
+          }
+          const spent = Math.round(elapsedMs / 1000);
+          const left = Math.max(0, Math.round(guardLeftMs / 1000));
+          runLine.className = 'hint';
+          runLine.textContent = guardMs > 0
+            ? '已放约 ' + spent + ' 秒 · 最长 ' + guardLabel + '，还剩约 ' + left + ' 秒（防忘关，不是按量停）'
+            : '已放约 ' + spent + ' 秒 · 接够了自己点「停止」';
+        },
+        onZero: () => {
+          runLine.className = 'hint warn';
+          runLine.textContent = '还没开始出水。请到机器出水口按一下按钮；'
+            + '若机器已经在出水但这里不动，点上面「我已按下出水键」手动开始计时。';
+        },
+        onReached: (s, byWhat) => {
+          runLine.className = 'hint ok';
+          runLine.textContent = (byWhat || '防忘关超时') + '，正在发停止命令，等机器停阀…';
+        },
+        onStopError: (e) => {
+          runLine.className = 'hint warn';
+          runLine.textContent = '自动停止失败：' + WATER.human(e) + '。请到机器面板按停止。';
+        },
+      };
+      const watchP = WATER.watchVolume(usedFn.id, guard, watchHooks);
+      if (startBtn) startBtn.onclick = () => {
+        if (watchHooks.startTimer) watchHooks.startTimer();
+        startBtn.disabled = true;
+        startBtn.textContent = '已开始计时（防忘关）';
+        XXMU.toast('开始计时，到最长时长会发一次防忘关停止');
+      };
+      watchP.then(r => {
+        delete RUNNING[dev.id + ':' + usedFn.id];
+        renderDevs();
+        const done = el('p', 'hint ok');
+        if (r && r.done && !r.failed) {
+          done.textContent = '放水结束。'
+            + (r.amount > 0
+              ? '平台结算回报 amount=' + r.amount + '（原样，单位以胖乖账单为准，App 不换算毫升）。'
+              : '（平台暂未给结算用量）');
+          /* 用量对不上时要一个能自查的出口：原始平台回报照旧贴出来，
+           * 复制给开发者就能对照胖乖账单，不需要任何本地换算系数。 */
+          const raw = el('p', 'hint');
+          raw.style.opacity = '.75';
+          raw.textContent = '（原始回报：amount=' + (r.amount == null ? 'null' : r.amount)
+            + '，status=' + (r.status == null ? '?' : r.status)
+            + '，轮询 ' + (r.tries || 0) + ' 次，'
+            + (r.stoppedByUs ? '由本机发停止' : '未发停止') + '）';
+          const cp = el('button', 'btn ghost', '复制这次的数据');
+          cp.onclick = () => {
+            const txt = 'amount=' + (r.amount == null ? 'null' : r.amount)
+              + ' status=' + (r.status == null ? '?' : r.status)
+              + ' tries=' + (r.tries || 0)
+              + ' guardSec=' + guard
+              + ' elapsedMs=' + (r.elapsedMs || 0)
+              + ' stoppedByUs=' + (r.stoppedByUs ? 1 : 0)
+              + ' machine=' + (dev.name || dev.id)
+              + ' sku=' + usedFn.id;
+            copyText(txt, '已复制，发到群里就能定位');
+          };
+          box.appendChild(done);
+          box.appendChild(raw);
+          box.appendChild(cp);
+          const pay = el('p', 'hint');
+          pay.textContent = '费用记在胖乖生活账单里，去官方 App 付款。';
+          box.appendChild(pay);
+          return;
+        } else if (r && r.failed) {
+          done.className = 'hint warn';
+          done.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
+        } else if ((r && r.pending)
+            || (r && r.done === false && !r.netError && !r.stopError)) {
+          done.className = 'hint warn';
+          done.textContent = '还在出水（到上限时长仍未见停止）。请按机器面板上的停止键。';
+        } else if (r && r.netError) {
+          done.className = 'hint warn';
+          done.textContent = '网络断了，没法再盯着状态。机器会流到自己的上限才停，'
+            + '费用照样记在胖乖账单里。';
+        } else if (r && r.stopError) {
+          done.className = 'hint warn';
+          done.textContent = '停止命令没能发出去，请到机器面板按停止键。';
+        } else {
+          done.textContent = '放水结束。费用记在胖乖生活账单里。';
+        }
+        box.appendChild(done);
+      });
 
       XXMU.toast('已解锁，去机器上按一下出水');
     }).catch(e => {
@@ -4143,6 +4414,55 @@ const CampusUI = (() => {
 
   let cdTimer = null;
 
+  /* ---------------- 表单提示（填中监测层） ----------------
+   * 原先只有点按钮之后才 toast「手机号填错了」，用户不知道到底要几位、
+   * 是不是 1 开头。这里边打边判，提示具体到差几位、错在哪一位。 */
+  const SEND_LABEL = '发送验证码';
+
+  function paintHint(id, text, cls) {
+    const box = document.getElementById(id);
+    if (!box) return;
+    box.textContent = text || '';
+    box.classList.toggle('bad', cls === 'bad');
+    box.classList.toggle('good', cls === 'good');
+    box.classList.toggle('show', !!text);
+  }
+
+  function checkPhone(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return { ok: false, empty: true, msg: '填你绑在胖乖生活上的手机号，11 位、1 开头。' };
+    if (/[^0-9]/.test(v)) {
+      return { ok: false, msg: '这里有个「' + v.match(/[^0-9]/)[0] + '」，手机号只有数字。' };
+    }
+    if (v.length < 11) {
+      return { ok: false, msg: '现在 ' + v.length + ' 位，再填 ' + (11 - v.length) + ' 位就够 11 位。' };
+    }
+    if (!/^1\d{10}$/.test(v)) {
+      return { ok: false, msg: '手机号要以 1 开头，这是平台发给终端号的那串。' };
+    }
+    return { ok: true, msg: '11 位，格式没问题，可以发验证码了。' };
+  }
+
+  function checkCode(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return { ok: false, empty: true, msg: '点右边发一条短信，收到后把 4 位或 6 位数字填进来。' };
+    if (/[^0-9]/.test(v)) {
+      return { ok: false, msg: '验证码只有数字，别把空格或字母也复制进来了。' };
+    }
+    /* 胖乖生活的短信码现在两种都发：4 位，或 6 位。两种都放行，
+     * 别再把「必须 6 位」写死，否则 4 位码的用户永远登不上。 */
+    if (v.length === 4 || v.length === 6) {
+      return { ok: true, msg: v.length + ' 位齐了，点下面的按钮登录。' };
+    }
+    if (v.length < 4) {
+      return { ok: false, msg: '现在 ' + v.length + ' 位，验证码是 4 位或 6 位。' };
+    }
+    if (v.length === 5) {
+      return { ok: false, msg: '5 位不对，胖乖只发 4 位或 6 位，再核对一下短信。' };
+    }
+    return { ok: false, msg: '现在 ' + v.length + ' 位，验证码只会是 4 位或 6 位。' };
+  }
+
   function countdown(btn, sec) {
     if (cdTimer) clearInterval(cdTimer);
     let n = sec;
@@ -4153,7 +4473,7 @@ const CampusUI = (() => {
       if (n <= 0) {
         clearInterval(cdTimer); cdTimer = null;
         btn.disabled = false;
-        btn.textContent = '获取';
+        btn.textContent = SEND_LABEL;
         return;
       }
       btn.textContent = n + 's';
@@ -4169,15 +4489,21 @@ const CampusUI = (() => {
     const send = document.getElementById('waterSendCode');
     if (send) send.onclick = () => {
       const phone = (document.getElementById('waterPhone').value || '').trim();
-      if (!/^1\d{10}$/.test(phone)) { XXMU.toast('手机号填错了'); return; }
+      const pr = checkPhone(phone);
+      if (!pr.ok) {
+        paintHint('waterPhoneHint', pr.msg, 'bad');
+        XXMU.toast(pr.msg);
+        return;
+      }
       send.disabled = true;
       send.textContent = '发送中';
       WATER.sendCode(phone).then(() => {
         XXMU.toast('验证码已发送');
+        paintHint('waterCodeHint', '短信到了，4 位或 6 位数字填在左边都行。', 'good');
         countdown(send, 60);
       }).catch(e => {
         send.disabled = false;
-        send.textContent = '获取';
+        send.textContent = SEND_LABEL;
         showTip('发送验证码失败\n\n' + WATER.human(e));
       });
     };
@@ -4186,21 +4512,79 @@ const CampusUI = (() => {
     if (lg) lg.onclick = () => {
       const phone = (document.getElementById('waterPhone').value || '').trim();
       const code = (document.getElementById('waterCode').value || '').trim();
+      const pr = checkPhone(phone);
+      const cr = checkCode(code);
+      if (!pr.ok) {
+        paintHint('waterPhoneHint', pr.msg, 'bad');
+        XXMU.toast(pr.msg);
+        return;
+      }
+      if (!cr.ok) {
+        paintHint('waterCodeHint', cr.msg, 'bad');
+        XXMU.toast(cr.msg);
+        return;
+      }
       lg.disabled = true; lg.classList.add('busy'); lg.textContent = '登录中…';
       WATER.login(phone, code).then(() => {
         XXMU.toast('登录成功');
         document.getElementById('waterCode').value = '';
+        paintHint('waterCodeHint', '', '');
         refresh();
       }).catch(e => {
         showTip('登录失败\n\n' + WATER.human(e));
       }).then(() => {
-        lg.disabled = false; lg.classList.remove('busy'); lg.textContent = '登录';
+        lg.disabled = false; lg.classList.remove('busy'); lg.textContent = '登录并记住这台手机';
       });
     };
 
+    /* ---- 填中监测：边打边判，不用等提交 ---- */
+    const ph = document.getElementById('waterPhone');
+    if (ph) {
+      ph.addEventListener('input', () => {
+        const r = checkPhone(ph.value);
+        paintHint('waterPhoneHint', ph.value.trim() ? r.msg : '', r.ok ? 'good' : (ph.value.trim() ? 'bad' : ''));
+        ph.classList.toggle('bad', !r.ok && !!ph.value.trim());
+        ph.classList.toggle('good', r.ok);
+      });
+      ph.addEventListener('blur', () => {
+        if (!ph.value.trim()) { paintHint('waterPhoneHint', '', ''); return; }
+        const r = checkPhone(ph.value);
+        paintHint('waterPhoneHint', r.msg, r.ok ? 'good' : 'bad');
+      });
+    }
+    const cd = document.getElementById('waterCode');
+    if (cd) {
+      cd.addEventListener('input', () => {
+        const r = checkCode(cd.value);
+        paintHint('waterCodeHint', cd.value.trim() ? r.msg : '', r.ok ? 'good' : (cd.value.trim() ? 'bad' : ''));
+        cd.classList.toggle('bad', !r.ok && !!cd.value.trim());
+        cd.classList.toggle('good', r.ok);
+      });
+      cd.addEventListener('blur', () => {
+        if (!cd.value.trim()) { paintHint('waterCodeHint', '', ''); return; }
+        const r = checkCode(cd.value);
+        paintHint('waterCodeHint', r.msg, r.ok ? 'good' : 'bad');
+      });
+    }
+    const paste = document.getElementById('waterPaste');
+    if (paste) {
+      paste.addEventListener('input', () => {
+        const v = (paste.value || '').trim();
+        if (!v) { paintHint('waterPasteHint', '', ''); return; }
+        const digits = v.replace(/\D/g, '');
+        if (digits.length >= 12) {
+          paintHint('waterPasteHint', '看着像完整二维码链接，机器码是 ' + digits.slice(0, 15) + '。', 'good');
+        } else if (digits.length >= 6) {
+          paintHint('waterPasteHint', '机器码是 ' + digits + '，' + digits.length + ' 位，对得上就绑。', 'good');
+        } else {
+          paintHint('waterPasteHint', '现在是 ' + digits.length + ' 位，SN 一般是 15 位数字。', 'bad');
+        }
+      });
+    }
+
     const lo = document.getElementById('waterLogout');
-    if (lo) lo.onclick = () => {
-      if (!confirm('退出胖乖生活账号？\n本机保存的饮水机列表会保留。')) return;
+    if (lo) lo.onclick = async () => {
+      if (!await askConfirm('退出胖乖生活账号？\n本机保存的饮水机列表会保留。', { danger: true })) return;
       WATER.logout();
       /* 退出账号必须把「这个出水口已解锁」的内存标记一起清掉。
        * RUNNING 记的是 goodsId:skuId → {at, name}，退出只清了 token，
@@ -4211,18 +4595,18 @@ const CampusUI = (() => {
       XXMU.toast('已退出');
     };
 
-    /* ---- 目标水量（v1.1.16 取代原来的「结算方式」两个键） ----
-     * 0 = 不限量，只靠手动「停止」。其他值是定量放水的目标（毫升）。
-     * 选它不该清 RUNNING：那只影响「点放水时要不要盯用量」，
+    /* ---- 最长放水（防忘关）：档位是秒，不是毫升。 ----
+     * 0 = 不自动停，只靠手动「停止」；其他值是最长放水时长上限。
+     * 选它不该清 RUNNING：那只影响「点放水时要不要起防忘关计时」，
      * 不影响机器当前是不是已经解锁。 */
     paintTarget();
     document.querySelectorAll('#waterTarget button').forEach(b => {
       b.onclick = () => {
-        const ml = WATER.setTargetMl(b.getAttribute('data-ml'));
+        const sec = WATER.setGuardSec(b.getAttribute('data-sec'));
         paintTarget();
-        XXMU.toast(ml > 0
-          ? ('已设置：点到 ' + ml + ' 自动停止')
-          : '已设置：不限量，接完自己点「停止」');
+        XXMU.toast(sec > 0
+          ? ('已设置：最长放水 ' + (sec >= 60 ? (sec / 60) + ' 分钟' : sec + ' 秒') + '，防忘关')
+          : '已设置：不自动停，接完自己点「停止」');
       };
     });
 
@@ -4595,9 +4979,11 @@ const UpdateUI = (() => {
         /* 管理员既没填下载链接、也没配群号——这是配置事故。
          * 千万不要 showTip：那是 #sheet（z-index 30），会被激活门（100）
          * 压住，用户点了按钮什么都看不到，以为 App 坏了。
-         * 直接把话写在按钮自己的弹层里，并带上开发者的联系方式兜底。 */
-        alert('管理员还没配置下载地址，也还没填 QQ 群号。\n\n'
-          + '请联系开发者 QQ 572833261 索取最新安装包。');
+         * 用 Pop.alert：固定在顶部、不受任何遮罩压住，
+         * 而且它就是「系统提醒」这一层该做的事。 */
+        Pop.alert('管理员还没配置下载地址，也还没填 QQ 群号。\n\n'
+          + '请联系开发者 QQ 692962849 索取最新安装包。',
+          { title: '下载不了', kind: 'danger' });
       }
       return;
     }
@@ -4611,8 +4997,9 @@ const UpdateUI = (() => {
     const isSelf = self && url.indexOf(self) === 0;
     if (isSelf && typeof APKDL !== 'undefined' && APKDL.canUse()) {
       if (!APKDL.ensurePermission()) {
-        alert('系统还没允许本应用安装软件。\n\n'
-          + '已经跳到设置页了，把「允许安装未知应用」打开，再回来点一次「去下载」。');
+        Pop.alert('系统还没允许本应用安装软件。\n\n'
+          + '已经跳到设置页了，把「允许安装未知应用」打开，再回来点一次「去下载」。',
+          { title: '还没允许安装', kind: 'warn' });
         return;
       }
       const btn = document.getElementById('updGo');
@@ -4621,8 +5008,9 @@ const UpdateUI = (() => {
       const r = APKDL.start(url, (ok, m) => {
         if (!ok) {
           if (btn) { btn.textContent = '重试下载'; btn.disabled = false; }
-          alert('下载没成功：' + (m || '未知原因') + '\n\n'
-            + '可以点「重试下载」再来一次，或者加 QQ 群 ' + qq() + ' 手动下载。');
+          Pop.alert('下载没成功：' + (m || '未知原因') + '\n\n'
+            + '可以点「重试下载」再来一次，或者加 QQ 群 ' + qq() + ' 手动下载。',
+            { title: '下载失败', kind: 'danger' });
           return;
         }
         /* 下载成功时安装器已经弹出来了。这个更新弹窗留着只会挡在前面，
@@ -4644,8 +5032,8 @@ const UpdateUI = (() => {
         /* busy：上一次下载还在跑。原来这里是静默 return —— 学生连点两下
          * 「去下载」，第二下什么都不发生、按钮还被复位成「去下载」，
          * 看起来像第一次点击被吞了。同文件另一处调用点是有文案的。 */
-        if (r === 'busy') { alert('上一次下载还没结束，等它跑完再试。'); return; }
-        if (r === 'noperm') { alert('系统还没允许本应用安装软件，去「设置 → 安装未知应用」里打开再回来。'); return; }
+        if (r === 'busy') { Pop.alert('上一次下载还没结束，等它跑完再试。', { title: '正在下载', kind: 'warn' }); return; }
+        if (r === 'noperm') { Pop.alert('系统还没允许本应用安装软件，去「设置 → 安装未知应用」里打开再回来。', { title: '还没允许安装', kind: 'warn' }); return; }
       }
       return;
     }
@@ -4726,7 +5114,15 @@ const UpdateUI = (() => {
     document.getElementById('ntcAt').textContent = at
       ? new Date(at * 1000).toLocaleString('zh-CN', { hour12: false })
       : '';
-    box.classList.add('on');
+    /* 公告是「系统提醒」，不是「要你做决定」——所以它该是顶部常驻条，
+     * 不是糊在脸上让人点「知道了」的模态框。
+     * 模态框留给真正非做不可的事（强制升级、用完即弃的声明）。
+     * #ntc 的 DOM 仍然照写（无障碍与降级路径都指着它），只是不再弹出来。 */
+    Pop.alert(String(cfg.notice || ''), {
+      title: ttl || '公告',
+      kind: 'info',
+      onClose: function () { closeNotice(); }
+    });
     return true;
   }
 
@@ -4739,6 +5135,8 @@ const UpdateUI = (() => {
     }
     const box = document.getElementById('ntc');
     if (box) box.classList.remove('on');
+    /* 顶部常驻条也收掉（用户手动点了 #ntcOk 或直接关了那条） */
+    Pop.hideAlert && Pop.hideAlert();
   }
 
   /** 纯更新提示的判定（公告已单独处理） */
@@ -4821,6 +5219,23 @@ window.__onUnlocked = function () {
     setTimeout(() => syncSchedule(false), 800);
   }
 };
+
+/* v1.1.55：糖梨借鉴的两个入口。用 typeof 守卫 + 元素存在检查，
+ * 防止旧 index.html 配新 app.js 时末尾初始化整段抛错（同 btnFree 的教训）。 */
+(function bindTangliEntries() {
+  const cmd = document.getElementById('kbCmdBtn');
+  if (cmd && typeof LessonCmd !== 'undefined') {
+    cmd.onclick = () => LessonCmd.open({
+      courses: DATA.courses || [],
+      ctx: {
+        start: iso(START), times: TIMES, totalWeeks: TOTAL_WEEKS, today: iso(new Date()),
+      },
+      reload: () => { load(); },
+    });
+  }
+  const gr = document.getElementById('gradeEntry');
+  if (gr && typeof GRADES !== 'undefined') gr.onclick = () => GRADES.open();
+})();
 
 /* 顶部「空教室」按钮：在课表页时直接开，其他页跳到课表再开。
  *

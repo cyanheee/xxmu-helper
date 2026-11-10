@@ -1,0 +1,237 @@
+/* ==========================================================================
+ * nova-ghibli.css —— 风格层 F：宫崎骏 / 温柔手绘
+ *
+ * 写域：本文件只允许改这一个文件（web/nova-ghibli.css）。
+ * 职责一（器官）：认领 `plate` 设备铭牌舱 —— 苔藓接缝 + 飞行石 + 暖光，注意力级 B。
+ * 职责二（本层特殊）：**全站物理规则守护者**。下面这份规则是全队可引用的规范，
+ *   其他风格层文件（nova-press / nova-brass / nova-pixel / nova-cyber / nova-anime）
+ *   都按这一份执行；本文件自身也不敢违反其中任何一条。
+ *
+ * 【全站物理规则 v3】
+ *   1. 光只从上往下：所有 box-shadow 的 y 必须 ≥ 0；不允许向上投影。
+ *   2. 高光只在上缘：inset 0 1px 0 rgba(255,255,255,α)。
+ *   3. 同一组尺度：圆角只用 8 / 12，内边距 ≥ 12px，4px 基准网格。
+ *   4. 同一组文字层级：字号 11/13/15/18/24，字重 400/500/700。
+ *   5. 材质色低饱和（S ≤ 45%）、小面积、形状稳定；注意力色高饱和但全页只一处。
+ *
+ * 宫崎骏不是画风，是「光」：一盏暖灯从上照下来，所有材料都被同一盏灯照到
+ * （高光在上缘、阴影在下缘、强度一致）。所以本层不新增形状、不加装饰线，
+ * 只做三件事：把铭牌舱的瓷换成温过的纸、在接缝边长一点苔、在舱顶放一颗石头。
+ *
+ * 咬合点 1b：`tape` 的黄铜轴心暖光由 nova-brass.css 负责
+ *   （radial-gradient(#D9B978 → #8A6A2C)）。本层不写 brass 的规则，
+ *   只保证 plate 这一侧的暖度落在同一组色调里 —— 两者同屏时像被同一盏灯照着，
+ *   不抢、不更亮、不更黄。
+ *
+ * 咬合点 2：`.nv-plate-id` 这里是「等宽设备编号」的样式位。
+ *   编号文字由 nova-organs.js（buildPlate）注入；
+ *   刷卡那张校园卡上的编号样式由 nova-campuscard.css 负责；
+ *   本文件只负责铭牌舱这一侧。
+ *
+ * 深色档：夜之苔藓（#608448~#526C46 混色后落在 #3E5A46 一带）+ 月光石
+ *   （#ADA2C9→#8E84B0→#6E6590，冷紫但压到「岩」的亮度）+ 暖紫夜外壳
+ *   （#3B3049→#352B43→#2F2639，R-B 收到 -14，与普通卡 -29 分开）。
+ *   深色档不用纯黑做底。
+ * 本层没有任何循环动效（v3 全站只允许 2 处循环，已在 motion 层）。
+ * ========================================================================== */
+
+/* ---------- 材质令牌：暖纸 / 苔藓 / 石 ----------
+ * 全部 S ≤ 45%：暖壳 #F2EEE4 = 35%、暖纸 #F7F4EC = 41%、苔藓 #6E8C5A = 22%、
+ * 石 #E6DAC0 = 43%（原定 #E8DCC0 实测 S = 47%，超材质上限，向暖灰降了一档，
+ * 观感仍是「米色岩」而不是白石头）。 */
+html[data-skin="nova"] .nv-plate{
+  margin:0 0 12px;
+  position:relative;
+  --g-paper:#F7F4EC;        /* 比卡片暖半档的纸面 */
+  --g-shell:#F2EEE4;        /* 暖中性外壳 */
+  --g-ink:rgba(48,38,28,.64);
+  --g-ink-strong:rgba(42,33,25,.92);
+  --g-line:rgba(60,48,36,.14);
+  --g-line-soft:rgba(60,48,36,.09);
+  --g-moss:#6E8C5A;
+  --g-stone:#E6DAC0;
+  --g-ease:cubic-bezier(.2,.7,.3,1)
+}
+
+/* ---------- ① 暖光外壳：温过的瓷，不是冷瓷 ----------
+ * 规则 1/2：暖灯只在顶部（radial-gradient 的 at 50% 0）→ 高光在上缘
+ * inset 0 1px 0，阴影 0 2px 0 落在下缘。阶数从 #F8F5EE 到 #F2EEE4，
+ * 只走明度不走色相，所以灰度下仍是一块「上面亮、下面沉」的纸。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-sheet{
+  position:relative;
+  padding:12px 12px 8px !important;
+  border-radius:var(--n-r-md) !important;
+  background:
+    radial-gradient(140% 46px at 50% 0,rgba(255,247,231,.90),rgba(255,247,231,0) 72%),
+    linear-gradient(180deg,#F8F5EE 0%,var(--g-shell) 68%,#EEE9DC 100%) !important;
+  border:1px solid var(--g-line) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92),0 2px 0 rgba(60,48,36,.10) !important}
+
+/* 仪器状态条：壳还是那只壳（B 级不该换壳），只把顶缘那道高光调成暖白 —— 
+ * 同一盏灯照到金属上，高光会带一点体温。
+ *
+ * v3 修复（V3-VERIFY P1-3）：浅色档这条一直只有 box-shadow、没有 background，
+ * 底色还是 organs 的 --o-ship #1C2F38（Y=45）。它下面紧接着就是暖纸面
+ * （#FCF7EA，Y=247），中间没有任何过渡 —— 实拍上读成「一块黑条漂在纸上方」，
+ * 明度断层 154/255。这里补一层深板岩（#3A4A54 → #2B3941，Y≈70→47），
+ * 仍属「冷墨树脂」同一族，但不再是黑块；青绿学号大字（Y≈226）在上面更立。
+ * 深色档见文件末尾 :182，那边已经补过底色。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-bar{
+  position:relative;
+  /* 第一层是那条暖白顶光（1px 高、两端淡出），直接画在 background 里 ——
+     不能用 ::before：那个位置已经被飞行石占了（见下面 :98），两者会互相顶掉。
+     投影同理不在这里写：nova-medium.css:329 的 box-shadow:var(--n-lift-shell)!important
+     会整条覆盖，本层写非 !important 的 box-shadow 是静默失效的。 */
+  background:
+    linear-gradient(90deg,rgba(255,238,206,0) 0%,rgba(255,238,206,.17) 22%,
+      rgba(255,238,206,.20) 62%,rgba(255,238,206,0) 100%) 0 0/100% 1px no-repeat,
+    linear-gradient(180deg,#3A4A54 0%,#31404A 46%,#2B3941 100%) !important}
+
+/* ---------- ② 飞行石：是岩，不是灯 ----------
+ * 直径 7px（6~8 区间内），落舱顶左缘；静态常亮，不呼吸、不闪、不发光晕。
+ * 形状不规则靠 clip-path 多边形（不用四值不等的圆角 —— 圆角只允许 0/50%/8/12），
+ * 再叠一点点 rotate，看上去是被随手搁在那儿的一块碎石。
+ * 明暗仍在规则内：亮面朝上（165deg 起），阴影 0 2px 0 垫在石根。 */
+html[data-skin="nova"] .nv-plate-bar::before{
+  content:'';
+  position:absolute;left:13px;top:-5px;
+  width:7px;height:7px;
+  border-radius:50%;
+  background:linear-gradient(165deg,#F2EEE2 0%,var(--g-stone) 52%,#C8B694 100%);
+  box-shadow:0 2px 0 rgba(60,48,36,.22);
+  clip-path:polygon(46% 2%,78% 13%,98% 45%,87% 83%,53% 98%,15% 85%,2% 47%,14% 15%);
+  transform:rotate(-13deg);
+  pointer-events:none}
+
+/* 石根的一点苔：石头脚下总比别处长东西 —— 这是「有人住的地方」的证据，
+ * 也是把苔藓限制在 plate 上的另一半理由。 */
+html[data-skin="nova"] .nv-plate-bar::after{
+  content:'';
+  position:absolute;left:8px;top:-3px;width:26px;height:8px;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 8px 3px at 26% 82%,rgba(110,140,90,.46),rgba(110,140,90,0) 74%),
+    radial-gradient(ellipse 5px 2px at 58% 66%,rgba(94,120,74,.34),rgba(94,120,74,0) 72%),
+    radial-gradient(ellipse 4px 2px at 12% 58%,rgba(126,152,104,.26),rgba(126,152,104,0) 72%)}
+
+/* ---------- ③ 苔藓接缝：只在边角，不铺面 ----------
+ * 5 个**不同大小**的不规则簇（21×7 / 14×4 / 9×5 / 7×3 / 5×5），全部挂在
+ * 铭牌舱与桌面相接的那条缝上（下缘左段，向外溢出 4px）。
+ * 为什么放外面：贴着文字铺苔藓会直接把规格表读糊；长在「壳与桌面之间」
+ * 才是真的接缝。留白段（右段 3/4）一颗都没有，面积 < 8%。
+ * 苔藓绿全站只许出现在 plate（像素舱不许有绿）。 */
+html[data-skin="nova"] .nv-plate::after{
+  content:'';
+  position:absolute;left:-2px;bottom:-4px;
+  width:104px;height:15px;
+  pointer-events:none;
+  background:
+    radial-gradient(ellipse 21px 7px at 14% 88%,rgba(110,140,90,.50),rgba(110,140,90,0) 72%),
+    radial-gradient(ellipse 9px 5px at 42% 100%,rgba(94,120,74,.40),rgba(94,120,74,0) 74%),
+    radial-gradient(ellipse 14px 4px at 68% 92%,rgba(126,152,104,.28),rgba(126,152,104,0) 74%),
+    radial-gradient(circle 5px at 4% 60%,rgba(110,140,90,.34),rgba(110,140,90,0) 72%),
+    radial-gradient(ellipse 7px 3px at 88% 100%,rgba(84,108,66,.20),rgba(84,108,66,0) 74%)}
+
+/* ---------- ④ 铭牌舱的读数：暖纸上的深墨 ----------
+ * 规则 4：字号收进 11/13/15 三档，字重只 400/500/700（organ 层那版是 800 9px）。
+ * 规则 5：这里的颜色全是「中性深墨 + 明度差」，不引入第二个色相；
+ * 全舱唯一的强调色是上面那行学号（accent），本文件不碰它。 */
+html[data-skin="nova"] .nv-plate-h{
+  font:500 11px var(--n-mono);
+  letter-spacing:1.6px;
+  color:var(--g-ink);
+  padding-bottom:8px;margin-bottom:2px;
+  border-bottom:1px solid var(--g-line)}
+
+html[data-skin="nova"] .nv-plate-row{border-bottom:1px solid var(--g-line-soft)}
+html[data-skin="nova"] .nv-plate-row span{font:400 11px var(--n-sans);color:var(--g-ink)}
+html[data-skin="nova"] .nv-plate-row b{
+  font:700 11px var(--n-mono);
+  color:var(--g-ink-strong);
+  font-variant-numeric:tabular-nums}
+
+/* ---------- ⑤ 等宽编号样式位（咬合点 2） ----------
+ * 编号文字由 nova-organs.js（buildPlate → .nv-plate-id > b）注入；
+ * 刷卡那张校园卡的编号样式由 nova-campuscard.css 负责；
+ * 本文件只负责铭牌舱这一侧：等宽族 + 字距 + 数字等宽，编号换一位也不跳位。 */
+html[data-skin="nova"] .nv-plate-id u{
+  font:400 11px var(--n-mono);
+  letter-spacing:2.2px;
+  color:rgba(255,238,214,.54)}
+html[data-skin="nova"] .nv-plate-id b{
+  font:700 15px var(--n-mono);
+  letter-spacing:.10em;
+  font-variant-numeric:tabular-nums}
+
+/* ---------- ⑥ 三枚状态灯：把 7px 的说明字收进 11px 档 ----------
+ * 只加间距不让字压在一起：灯径 16、间距 12 → 2 字标签 22px 落在 28px 的格子里。 */
+html[data-skin="nova"] .nv-plate-leds{gap:12px}
+html[data-skin="nova"] .nv-plate-led u{
+  font:400 11px var(--n-mono);
+  letter-spacing:0;
+  color:rgba(255,238,214,.42);
+  top:15px}
+
+/* ---------- ⑦ 深色档：夜之苔藓 + 月光石 ----------
+ * 紫夜舱里没有白天，所以石头不反暖光，改反月光。但「是岩不是灯」不因换档失效：
+ * 月光石峰值压到 Y≈150（浅色档石材对铭牌条是 5.4x，这里同量级），
+ * 不再用近白的 #DBD3ED —— 那在紫底上是 8.6x，会读成指示灯。
+ * 外壳不再跟普通卡同一个冷紫：整块往暖挪（R-B 由 -29 收到 -14），
+ * 与卡片 #271E44 拉开一个材质档，灰度下也有 12 级明度差，
+ * 否则深色档的铭牌板和大卡片在去色后是同一块。
+ * 苔藓砍掉蓝通道并抬 alpha（旧的 rgba 蓝太高，混合后 Gexcess 是负的，
+ * 等于没画绿）。高光仍只在顶缘，阴影仍只往下，不用纯黑。 */
+html[data-skin="nova"][data-theme="dark"] .nv-plate-sheet{
+  background:
+    radial-gradient(140% 46px at 50% 0,rgba(226,214,238,.12),rgba(226,214,238,0) 74%),
+    linear-gradient(180deg,#3B3049 0%,#352B43 68%,#2F2639 100%) !important;
+  border-color:rgba(212,199,232,.20) !important;
+  box-shadow:inset 0 1px 0 rgba(226,214,238,.20),0 2px 0 rgba(0,0,0,.42) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-h{
+  color:rgba(207,196,232,.62);
+  border-bottom-color:rgba(207,196,232,.16)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row{border-bottom-color:rgba(207,196,232,.10)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row span{color:rgba(231,224,248,.64)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-row b{color:rgba(240,235,255,.92)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-bar{
+  background:linear-gradient(180deg,#231C3C 0%,#1B1533 100%) !important;
+  box-shadow:inset 0 1px 0 rgba(212,199,232,.14),0 2px 0 rgba(0,0,0,.42) !important}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-bar::before{
+  background:linear-gradient(165deg,#ADA2C9 0%,#8E84B0 54%,#6E6590 100%);
+  box-shadow:0 2px 0 rgba(0,0,0,.42)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-bar::after{
+  background:
+    radial-gradient(ellipse 8px 3px at 26% 82%,rgba(96,132,72,.80),rgba(96,132,72,0) 88%),
+    radial-gradient(ellipse 5px 2px at 58% 66%,rgba(84,118,64,.70),rgba(84,118,64,0) 86%),
+    radial-gradient(ellipse 4px 2px at 12% 58%,rgba(110,148,86,.58),rgba(110,148,86,0) 86%)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate::after{
+  background:
+    radial-gradient(ellipse 21px 7px at 14% 88%,rgba(96,132,72,.78),rgba(96,132,72,0) 86%),
+    radial-gradient(ellipse 9px 5px at 42% 100%,rgba(84,118,64,.66),rgba(84,118,64,0) 86%),
+    radial-gradient(ellipse 14px 4px at 68% 92%,rgba(110,148,86,.54),rgba(110,148,86,0) 86%),
+    radial-gradient(circle 5px at 4% 60%,rgba(72,102,56,.52),rgba(72,102,56,0) 86%),
+    radial-gradient(ellipse 7px 3px at 88% 100%,rgba(78,104,70,.44),rgba(78,104,70,0) 86%)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-id u{color:rgba(207,196,232,.52)}
+html[data-skin="nova"][data-theme="dark"] .nv-plate-led u{color:rgba(207,196,232,.42)}
+
+/* ---------- ⑧ 交互反馈：只给 180ms 的「接缝变热」---------- 
+ * plate 是 B 级配角，不做入场、不做 hover 抬升；只让皮肤在按下的瞬间
+ * 暖一点点（明度差 1 档），松手回原样。曲线统一用 进/出 那条。 */
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-sheet{
+  transition:background .18s var(--g-ease),box-shadow .18s var(--g-ease)}
+html[data-skin="nova"]:not([data-theme="dark"]) .nv-plate-sheet:active{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92),0 1px 0 rgba(60,48,36,.14) !important}
+
+/* ---------- ⑨ 减少动效：本层本来没有循环，这里只关掉那 180ms ----------
+ * 关动效不等于关信息：石头、苔藓、暖光是静态终态，必须照原样可见。 */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"] .nv-plate-sheet,
+  html[data-skin="nova"] .nv-plate-bar,
+  html[data-skin="nova"] .nv-plate::after,
+  html[data-skin="nova"] .nv-plate-bar::before,
+  html[data-skin="nova"] .nv-plate-bar::after{
+    transition:none !important;
+    opacity:1 !important;
+    transform:none !important}
+  html[data-skin="nova"] .nv-plate-bar::before{transform:rotate(-13deg) !important}
+}

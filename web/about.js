@@ -11,10 +11,10 @@
  * 两者都通过才放行；服务器不可达时按本地码放行，联网后自动补验。
  */
 
-const APP_VERSION = '1.1.54';
+const APP_VERSION = '1.1.62';
 const DEV_NAME = '孤汩';
-const DEV_QQ = '572833261';
-const DEV_MAIL = '572833261@qq.com';
+const DEV_QQ = '692962849';
+const DEV_MAIL = '692962849@qq.com';
 
 const Gate = (() => {
   const $ = (id) => document.getElementById(id);
@@ -36,6 +36,49 @@ const Gate = (() => {
     if (msg && /更新|新版/.test(msg) && typeof UpdateUI !== 'undefined') {
       UpdateUI.check(true);
     }
+  }
+
+  /* ---------------- 学号实时校验（填中监测层） ----------------
+   * 原先只有点「进入」之后才告诉你「学号格式不对」，
+   * 用户不知道要填几位、是不是纯数字，只能一次次试。
+   * 这里边打边判，提示具体到「还差几位」「这里不是数字」。
+   * 判据与 submit() 里那道正则保持同一套，两处不能各写各的。 */
+  const ID_RE = /^\d{6,20}$/;
+
+  /** 纯提示文案：告诉用户这一栏该长什么样 */
+  function idHint() {
+    return '填你教务系统里的学号，6 到 20 位数字，不带字母。';
+  }
+
+  /** 实时判一次。返回 {ok, msg} */
+  function checkId(raw) {
+    const v = String(raw || '').trim();
+    if (!v) return { ok: false, empty: true, msg: idHint() };
+    if (/[^0-9]/.test(v)) {
+      const bad = v.match(/[^0-9]/)[0];
+      return { ok: false, msg: '这里出现了「' + bad + '」，学号只有数字。' };
+    }
+    if (v.length < 6) {
+      return { ok: false, msg: '现在 ' + v.length + ' 位，再填 ' + (6 - v.length) + ' 位就够 6 位。' };
+    }
+    if (v.length > 20) {
+      return { ok: false, msg: '已经 ' + v.length + ' 位了，学号最多 20 位，检查一下多打了几个。' };
+    }
+    return { ok: true, msg: '格式没问题，' + v.length + ' 位。点下面的按钮就能进。' };
+  }
+
+  /** 把判定结果画到输入框下面那一行 */
+  function paintIdLive(raw) {
+    const box = $('gateLive');
+    const inp = $('gateId');
+    if (!box || !inp) return;
+    const r = checkId(raw);
+    inp.classList.toggle('bad', !r.ok && !r.empty && inp.value.trim() !== '');
+    inp.classList.toggle('good', r.ok);
+    box.textContent = r.msg || '';
+    box.classList.add('show');
+    box.classList.toggle('bad', !r.ok && !r.empty);
+    box.classList.toggle('good', r.ok);
   }
 
   /** 已激活过就直接放行，然后后台静默联网复核 */
@@ -87,7 +130,11 @@ const Gate = (() => {
     err('');
 
     if (!id) { err('请填写学号'); return; }
-    if (!/^\d{6,20}$/.test(id)) { err('学号格式不对（应为 6-20 位数字）'); return; }
+    if (!ID_RE.test(id)) {
+      const r = checkId(id);
+      err(r.msg || '学号格式不对（应为 6-20 位数字）');
+      return;
+    }
 
     const btn = $('gateBtn');
     const old = btn.textContent;
@@ -185,6 +232,14 @@ const Gate = (() => {
         else submit();
       }
     });
+    /* 边打边判：填中监测层。这一条让「学号格式不对」不再只在提交后出现。 */
+    const gid = $('gateId');
+    if (gid) {
+      gid.addEventListener('input', () => paintIdLive(gid.value));
+      gid.addEventListener('blur', () => {
+        if (gid.value.trim() !== '') paintIdLive(gid.value);
+      });
+    }
     boot();
   }
 
@@ -369,7 +424,7 @@ const About = (() => {
   function copy(text, okMsg) {
     const done = () => {
       if (typeof Host !== 'undefined' && Host.toast) Host.toast(okMsg || '已复制');
-      else alert(okMsg || '已复制');
+      else Pop.toast(okMsg || '已复制');
     };
     try {
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -392,7 +447,10 @@ const About = (() => {
       document.body.removeChild(ta);
       done();
     } catch (e) {
-      alert(text);
+      /* 复制这条路整个失败了，那就只剩「让你自己看着抄」。
+       * 用 Pop.alert 而不是 alert：alert 是浏览器原生弹窗，
+       * 手机上会顶掉整个界面，和这个 App 的长相完全不搭。 */
+      Pop.alert(text, { title: '没能自动复制', kind: 'warn' });
     }
   }
 
@@ -422,8 +480,9 @@ const About = (() => {
       openExternal('mailto:' + DEV_MAIL + '?subject=' + subject + '&body=' + body);
     };
 
-    $('btnReauth').onclick = () => {
-      if (confirm('重新填学号？当前的登记会被清除，填完要重新登录一次教务。')) {
+    $('btnReauth').onclick = async () => {
+      if (await askConfirm('重新填学号？当前的登记会被清除，填完要重新登录一次教务。',
+        { danger: true })) {
         LICENSE.deactivate();
         AUTH.clearTicket();
         refresh();
@@ -442,10 +501,10 @@ const About = (() => {
      * 而在那之前「未核对」本来就是正常状态，不该因为清了一下就白屏等同步。 */
     const cc = $('btnClearCheck');
     if (cc) {
-      cc.onclick = () => {
-        if (!confirm('清除学号核对记录？\n\n'
+      cc.onclick = async () => {
+        if (!await askConfirm('清除学号核对记录？\n\n'
           + '只清「教务读到的账号」这条判定，课表、作业、登录状态都不动。\n'
-          + '下次登录教务会重新核对一次。')) return;
+          + '下次登录教务会重新核对一次。', { danger: true })) return;
         LICENSE.clearCheck();
         refresh();
         XXMU.toast('已清除，下次登录教务会重新核对');
@@ -538,13 +597,14 @@ const About = (() => {
      */
     const ex = $('btnExit');
     if (ex) {
-      ex.onclick = () => {
+      ex.onclick = async () => {
         if (typeof window.__XXMU_EXIT_ACCOUNT === 'function') {
           window.__XXMU_EXIT_ACCOUNT();
           return;
         }
         // 兜底：app.js 没加载（几乎不会发生，但不留白屏）
-        if (!confirm('退出这台手机上的账号？退出后需要重新激活。')) return;
+        if (!await askConfirm('退出这台手机上的账号？退出后需要重新激活。',
+          { danger: true })) return;
         try { if (typeof Host !== 'undefined' && Host.clearCookies) Host.clearCookies(); } catch (e) {}
         try { if (typeof Host !== 'undefined' && Host.clearAccount) Host.clearAccount(); } catch (e) {}
         LICENSE.deactivate();
@@ -568,7 +628,8 @@ const About = (() => {
             refresh();
           } else {
             refresh();
-            alert('授权已失效：' + (r.msg || r.reason) + '\n请重新激活。');
+            Pop.alert('授权已失效：' + (r.msg || r.reason) + '\n请重新激活。',
+              { title: '授权过期', kind: 'danger' });
             Gate.show();
           }
         }, e => {

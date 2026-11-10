@@ -156,7 +156,10 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public boolean saveCachedSchedule(String json) {
             if (json == null || json.length() < 20) return false;
-            return writeFile(cacheFile(K_KB), json);
+            boolean ok = writeFile(cacheFile(K_KB), json);
+            /* v1.1.55：课表一变就重画桌面小组件，别等 30 分钟系统轮询。 */
+            if (ok) ClassWidget.refresh(MainActivity.this);
+            return ok;
         }
 
         @JavascriptInterface

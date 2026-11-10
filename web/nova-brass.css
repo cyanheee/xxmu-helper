@@ -1,0 +1,384 @@
+/* NOVA 风格层 B —— 蒸汽朋克 / 西部（黄铜 · 皮革 · 磁带塑料）
+ * 写域：本文件（web/nova-brass.css）。宪法：design/sketch/NOVA-SIGNATURE.md §3.5 / §3.5.2 咬合点。
+ * 加载位：web/index.html —— nova-organs.css 之后、nova-pixel.css 之前。
+ *   所以这一层可以整块替换器官层给的「冷墨机壳」；而同特异性的后续层（pixel / cyber / …）
+ *   会压我，因此凡是要压住 organs 的规则都保持与 organs 同特异性
+ *   （html[data-skin="nova"] .x），只靠「后加载」取胜，不堆 !important。
+ *
+ * ── 认领（§3.5.1 第 8、9 行） ─────────────────────────────────────────────
+ *   belt 周次传送带 → 皮革带身 + 压边缝线 + 铆钉 + 两端黄铜棘轮
+ *   tape 磁带门     → 磁带塑料壳 + 黄铜卷轴（辐条 + 轴心一点暖光）
+ *
+ * ── 为什么是这些颜色（算过，不是估的） ───────────────────────────────────
+ *   材质色必须 S ≤ 45%（tools/test_nova_material.js 第 5 项）。本文件全部色值实算：
+ *     黄铜  #8C7038 S=43 · #6F592C S=43 · #5C4A28 S=39 · 上缘 #B99C63 S=38
+ *     皮革  #4A3B2A S=28 · #3A2E22 S=26
+ *     皮槽  #14100D S=21（比皮革暗 —— 凹槽必须读成「洞」，不能读成「又一块皮」）
+ *     周格  #3A322A S=16 · #201B16 S=19
+ *     塑料  #2B2521 S=13 · #191512 S=16 · 窗 #191512
+ *     轴心  #D4C09C S=39
+ *   色相全部落在 H≈36–42°，同一支橙金，没有第二个色相 → 不会变成第二主色。
+ *   皮革反过来「压饱和」（不用西部片里的高饱和红棕），才读成「做旧的棕皮」，
+ *   而不是「脏」。这是本层最关键的一次取舍。
+ *
+ * ── 对比度（WCAG 2.1 相对亮度实算，非估算） ──────────────────────────────
+ *   ⚠ 器官层给的壳内刻度是 .34 白。它在原始冷墨 #1C2F38 上只有 2.81，本来就不达标；
+ *     皮革比冷墨亮，这档会掉到 2.56–2.75（彻底糊掉）。本层把它抬到 .56：
+ *       浅色 #EAF6FA@.56 on 皮革 #4A3B2A = 4.30 · on #3A2E22 = 4.89 · on 塑料 #2B2521 = 5.32
+ *       深色 #EFE9FF@.56 on #382C2E = 4.68 · on #2A2226 = 5.09
+ *   ⚠ 轨道凹槽改色前先算了「周格描边 vs 凹槽」：直接用皮革色做凹槽，描边只剩 1.49
+ *     （原器官层的 .34 白描边是 2.95）—— 等于描边消失，是实打实的降级。
+ *     所以凹槽取比皮革暗两档的 #14100D，描边改用亮黄铜 @.60：
+ *       描边 #B99C63@.60 on 皮槽 #14100D = 3.32（比原来的 2.95 更清楚）
+ *     周格体在槽里 1.50（原器官层 1.15）—— 格子重新浮起来了。
+ *   齿轮 #8C7038 on 皮槽 = 4.05（原器官层 opacity .32 的轮廓约 1.5）。
+ *   齿的亮面 #B99C63 on 皮槽 = 6.77 → 棘轮轮廓在槽里一眼可见。
+ *   轴心暖光：浅色 #D4C09C on #191512 = 11.7 · 深色 #C4AC84 on #292129 = 7.4
+ *   黄铜上缘 #B99C63 on 齿轮 #8C7038 = 1.78 —— 这是同色相的两个明度，用途是
+ *   勾出圆形零件的上缘（1px），不承载文字，所以按描边算、不按正文算。
+ *
+ * ── 咬合点 ───────────────────────────────────────────────────────────────
+ *   咬合点 1（传送带 = 皮革压边 · 黄铜齿轮 · 赛博扫描高光）：
+ *     本文件用 .nv-pulley::before 造棘轮齿；.nv-pulley 的 ::after 刻意留空 ——
+ *     「赛博扫描高光由 nova-cyber.css 用 .nv-pulley::after 追加，本文件只留位」。
+ *     本文件不画扫描线、不做扫描动画。
+ *   咬合点 1b（磁带门 = 黄铜轴 · 冷墨树脂舱 · 轴心暖光）：
+ *     舱体的塑料冷感留给器官/赛博层，本文件只把轴做成「有暖光的黄铜心」
+ *     （.nv-reel / .nv-reel::after），9px 面积，不发光、不成球。
+ *
+ * ── 动效 ─────────────────────────────────────────────────────────────────
+ *   本文件不新增任何 animation / @keyframes（v3 全站只允许 2 处循环，已给
+ *   .nv-belt-next 与 .nv-reel::after 所在的器官层）。.nv-reel 的转动来自器官层，
+ *   本层不接管；reduced-motion 里把它停掉，且保持终态可见（圈、辐条、轴心都还在）。
+ */
+
+/* ── 0. 私有令牌 ────────────────────────────────────────────────────────────
+ * 不覆盖 --n-brass / --n-brass-2 / --n-tape / --n-tape-2 / --n-tape-ink：
+ * 这 8 个根令牌被 tools/check_web.js 的 NOVA_PAIRS 与官网 site-style.css 逐字锁定，
+ * 改根值会打断同步（那是 Lead 的活，不是我的写域）。 */
+html[data-skin="nova"]{
+  --br-1:#8C7038;                              /* 黄铜主体（S=43） */
+  --br-2:#6F592C;                              /* 黄铜暗部（S=43） */
+  --br-3:#5C4A28;                              /* 齿根 / 凹槽（S=39） */
+  --br-hi:#B99C63;                             /* 上缘高光 / 齿亮面（S=38） */
+  --br-heart:#D4C09C;                          /* 轴心暖光（S=39） */
+
+  --lth-1:#4A3B2A;                             /* 皮革亮面（S=28） */
+  --lth-2:#3A2E22;                             /* 皮革暗面（S=26） */
+  --lth-line:rgba(214,196,160,.26);            /* 压边缝线：低对比，只做「走线」 */
+
+  --pit:#14100D;                               /* 皮带绕进辊子的凹槽（S=21，比皮革暗） */
+  --cell-1:#3A322A;                            /* 带面周格亮面（S=16） */
+  --cell-2:#201B16;                            /* 带面周格暗面（S=19） */
+
+  --plast-1:#2B2521;                           /* 磁带塑料亮面（S=13） */
+  --plast-2:#191512;                           /* 磁带塑料暗面（S=16） */
+  --plast-win:#191512;                         /* 磁带窗底色（S=16） */
+
+  --br-ink-3:rgba(234,246,250,.56);            /* 壳内刻度字（实算 4.30–5.32） */
+  --br-cell-edge:rgba(185,156,99,.60);         /* 周格黄铜压边（实算 3.32 on 皮槽） */
+  --br-win-edge:rgba(185,156,99,.44);          /* 磁带窗黄铜内框（实算 2.32 on 窗） */
+}
+
+html[data-skin="nova"][data-theme="dark"]{
+  --br-1:#7E6338;                              /* 暗金主体（S=38；on 深皮槽 3.45，比 #6E5630 的 2.81 更立得住） */
+  --br-2:#6E5630;                              /* 暗金暗部（S=39） */
+  --br-3:#463A1E;                              /* S=40 */
+  --br-hi:#9A7F4C;                             /* S=34 */
+  --br-heart:#C4AC84;                          /* 深色档轴心暖光（S=35） */
+
+  --lth-1:#382C2E;                             /* 紫夜舱里的深棕（S=12） */
+  --lth-2:#2A2226;                             /* S=11 */
+  --lth-line:rgba(196,172,132,.24);
+
+  --pit:#100C0F;                               /* 深皮槽（S=14） */
+  --cell-1:#322933;                            /* S=11 */
+  --cell-2:#292129;                            /* S=11 */
+
+  --plast-1:#231D26;                           /* S=13 */
+  --plast-2:#15111A;                           /* S=21 */
+  --plast-win:#1A1420;                         /* S=23 */
+
+  --br-ink-3:rgba(239,233,255,.56);
+  --br-cell-edge:rgba(154,127,76,.80);         /* 实算 3.64 on 深皮槽 */
+  --br-win-edge:rgba(154,127,76,.60);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ① belt 周次传送带 = 一条皮革带，绕在两端两颗黄铜棘轮上
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* 带身：皮革。三层背景叠起来 ——
+ *   118° 细斜纹（1px 线 / 3px 间距，alpha .045）
+ *   62° 交叉斜纹（1px 线 / 4px 间距，alpha .05）
+ *   从上往下的主光（--lth-1 → --lth-2）
+ * 两遍微纹成交叉菱形 = 「皮革的粒面」，间距 3/4px、alpha .045/.05，都落在
+ * 规格的 .04~.08 里。
+ * ⚠ 角度为什么不是 90°/0°：实拍（_belt-light-4x.png）里 96° + 16° 那一版读成了
+ *   「竖条灯芯绒」—— 近垂直的等距细线在皮革色上就是织物方向，不是粒面。
+ *   两根斜纹交叉 56° 才读成「压花皮」，这是改了之后重拍的结论，不是猜的。
+ * 皮革只铺这一块（约 356×86），是小面积材质，不做页面底。 */
+html[data-skin="nova"] .nv-belt{
+  background:
+    repeating-linear-gradient(118deg,rgba(255,255,255,.045) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(62deg,rgba(0,0,0,.05) 0 1px,transparent 1px 4px),
+    linear-gradient(180deg,var(--lth-1),var(--lth-2));
+  border:1px solid rgba(92,74,40,.55);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 2px 0 rgba(16,24,40,.10);
+}
+
+/* 压边缝线：一圈虚线走在 4px 内缩的环上。padding 是 9/10/8，所以缝线落在留白里，
+ * 不压字。dashed 的段长由 1px 线宽决定（约 2px 段 / 2px 隙），正好是手工走线的密度；
+ * 颜色用 --lth-line（.26 暖白），只做「走线」不抢字。 */
+html[data-skin="nova"] .nv-belt::before{
+  content:'';position:absolute;inset:4px;pointer-events:none;z-index:0;
+  border:1px dashed var(--lth-line);border-radius:8px;
+}
+
+/* 铆钉 ×4：压在缝线四角。用 4 个 radial-gradient 而不是 4 个伪元素 —— 铆钉是
+ * 「工艺细节」不是「零件」，不需要各自的 DOM 位置。
+ * 每颗 = 1.4px 亮心（--br-hi）+ 到 2.6px 收成 --br-2 的边，外圈透明，
+ * 所以虚线会从铆钉旁边走过去，不会断。
+ * 上缘 1px 皮革高光也挂在这里（refs 下条注释）：medium 层用
+ * `box-shadow:var(--n-lift-shell) !important` 整条替换 .nv-belt 的 box-shadow，
+ * 皮革「被光擦过」的那一道会跟着消失 —— 皮革失去上缘高光就变回一块平色，
+ * 这是材质身份问题。伪元素的 box-shadow 不在 medium 的覆盖范围内。 */
+html[data-skin="nova"] .nv-belt::after{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10);
+  background-image:
+    radial-gradient(circle,var(--br-hi) 0 1.4px,var(--br-2) 1.4px 2.6px,transparent 2.6px),
+    radial-gradient(circle,var(--br-hi) 0 1.4px,var(--br-2) 1.4px 2.6px,transparent 2.6px),
+    radial-gradient(circle,var(--br-hi) 0 1.4px,var(--br-2) 1.4px 2.6px,transparent 2.6px),
+    radial-gradient(circle,var(--br-hi) 0 1.4px,var(--br-2) 1.4px 2.6px,transparent 2.6px);
+  background-repeat:no-repeat;
+  background-size:8px 8px;
+  background-position:left 4px top 4px,right 4px top 4px,
+                      left 4px bottom 4px,right 4px bottom 4px;
+}
+
+/* 凹槽：皮带在这里绕进辊子，所以是「洞」而不是「又一块皮」。
+ * 底取 --pit（比皮革暗两档），上沿吃光、下沿露一线反光 —— 这是「绕进轮子」的
+ * 物理证据。内描边用 inset 0 0 0 1px 而不是 border：加 1px 边框会把 44px 的
+ * 轨道顶高，引发整排周格位移。 */
+html[data-skin="nova"] .nv-belt-rail{
+  background:linear-gradient(180deg,var(--pit) 0%,#0C0906 52%,var(--pit) 100%);
+  box-shadow:inset 0 3px 6px rgba(0,0,0,.62),inset 0 0 0 1px rgba(92,74,40,.55);
+}
+
+/* 周次格：深皮革上的「黄铜压边小铭牌」。
+ * 只改底、描边、内上缘高光 —— 字色/字号/tabular-nums 全部沿用器官层。
+ * ⚠ 刻意不碰 .nv-wk.on：那块「白瓷实心 + 主色 1px 边」是这一页唯一的高对比焦点
+ *   （A 级主角的辨识度），黄铜不能加到它身上。 */
+html[data-skin="nova"] .nv-wk{
+  background:linear-gradient(180deg,var(--cell-1),var(--cell-2));
+  border-color:var(--br-cell-edge);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10);
+}
+
+/* ── 黄铜棘轮（咬合点 1 的机器端） ────────────────────────────────────────
+ * 器官层为「不抢主角」把这对齿轮降成 opacity .32 的中性轮廓。本层把它认回来，
+ * 但只回到 .92、颜色压到 S=43 —— 它是一颗 22px 的小零件，不是第二个主色。
+ *
+ * 盘面：轴孔（--pit 0–2.4px → --br-2 到 3.4px）+ 主体 radial
+ *       光在 38% 处（偏上），所以是「从上方照下来」而不是「自发光」。
+ * 齿  ：repeating-conic-gradient 每 20deg 一齿（共 18 齿），再用 mask 只保留
+ *       7.5px–11px 这一圈（外环 3.5px）—— 齿只出现在圆周，圆心仍是完整盘面。
+ *       规格：不许用 border-radius 造齿（那是圆角，不是棘轮）。
+ *       repeating-conic-gradient 进不了 box-shadow，所以走 background + mask。
+ * ::after 留空：赛博扫描高光由 nova-cyber.css 追加，本文件只留位。 */
+html[data-skin="nova"] .nv-pulley{
+  opacity:.92;
+  border:0;
+  background:
+    radial-gradient(circle at 50% 50%,var(--pit) 0 2.4px,var(--br-2) 2.5px 3.4px,transparent 3.5px),
+    radial-gradient(circle at 50% 38%,var(--br-hi),var(--br-1) 52%,var(--br-2) 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),0 2px 0 rgba(0,0,0,.34);
+}
+
+html[data-skin="nova"] .nv-pulley::before{
+  content:'';position:absolute;inset:0;border-radius:50%;pointer-events:none;
+  background:repeating-conic-gradient(from -90deg at 50% 50%,
+    var(--br-hi) 0 9deg,var(--br-3) 9deg 20deg);
+  -webkit-mask:radial-gradient(circle at 50% 50%,transparent 0 7.5px,#000 7.5px 11px);
+  mask:radial-gradient(circle at 50% 50%,transparent 0 7.5px,#000 7.5px 11px);
+  opacity:.92;
+}
+
+/* 中缝指针：器官层已压成 1px 哑光发丝（而且明确说「不发光」）。本层只把它换成
+ * 黄铜色，让它与皮革带不是同一种材料 —— 宽度、位置、无发光全部不动。
+ * #B99C63 on 皮槽 #14100D = 6.77，1px 细线也站得住。 */
+html[data-skin="nova"] .nv-needle{
+  background:linear-gradient(180deg,rgba(185,156,99,.66),rgba(185,156,99,.12));
+}
+
+/* 壳内刻度字：器官层用 --o-ship-ink-3（.34 白）。在冷墨上只有 2.81，在皮革上
+ * 掉到 2.56–2.75 —— 皮革更亮，这档字会糊成背景。抬到 .56 → 4.30 / 4.89。
+ * 这是本层必须负责的修正，不是审美偏好。 */
+html[data-skin="nova"] .nv-belt-head,
+html[data-skin="nova"] .nv-belt-head u,
+html[data-skin="nova"] .nv-belt-foot{
+  color:var(--br-ink-3);
+}
+
+/* .nv-belt-name 不动：器官层已改成壳内次要中性（.62 白），在皮革上 6.15:1。 */
+/* .nv-belt-next 不动：它是「唯一因为有信息在变所以它在动」的一行，动效归器官层。 */
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ② tape 磁带门 = 磁带塑料壳 + 黄铜卷轴
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+/* 磁带塑料：比皮革冷、比冷墨暖。表面没有皮革那种绒纹（塑料是成型件不是织物），
+ * 只靠 165° 主光 + 一圈黄铜收边说「这是一块模压出来的壳」。
+ * 内描边用 inset 0 0 0 1px 而不是 border —— 器官层的 .nv-tape-shell 是 border:0。 */
+html[data-skin="nova"] .nv-tape-shell{
+  position:relative;
+  background:linear-gradient(165deg,var(--plast-1),var(--plast-2));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),
+             0 3px 0 rgba(0,0,0,.34);
+}
+
+/* 黄铜收边 + 上缘高光为什么走 ::before 而不是 box-shadow 的内描边：
+ * 后加载的 medium 层用 `box-shadow:var(--n-lift-shell) !important` 把这条
+ * box-shadow **整条**换掉（它只统一「光」，不知道材质层在里面藏了一圈黄铜）。
+ * 内描边一旦被整条覆盖就永久消失，而这圈黄铜正是磁带门读成「模压金属件」
+ * 的唯一证据。所以把「金属收边 + 上缘 1px 高光」搬到 overlay 伪元素上 ——
+ * medium 不碰 border，这两样就走不掉了。::after 已被 cyber 占用（树脂斜纹），
+ * ::before 是空的。
+ * 高光仍是 inset 0 1px 0 rgba(255,255,255,.28)：光只在上缘，且只 1px。 */
+html[data-skin="nova"] .nv-tape-shell::before{
+  content:'';position:absolute;inset:0;pointer-events:none;
+  border:1px solid rgba(140,112,56,.40);border-radius:var(--n-r-md);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+}
+
+html[data-skin="nova"] .nv-tape-shell:active{
+  transform:scale(.985);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28),
+             0 1px 0 rgba(0,0,0,.34);
+}
+
+/* 磁带窗：仍是凹槽（上沿吃光），只把内膜换成磁带底，并加一圈黄铜内框。
+ * 「窗框是金属、窗里是黑色磁带」—— 这一圈金属是磁带门读成「门」的关键细节。 */
+html[data-skin="nova"] .nv-tape-win{
+  background:linear-gradient(180deg,var(--plast-win),#100D0B);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.58),inset 0 0 0 1px var(--br-win-edge);
+}
+
+/* ── 黄铜卷轴（咬合点 1b） ────────────────────────────────────────────────
+ * 器官层这枚是「白线辐条 + 白圈 + 白心」的中性件。本层换成黄铜：
+ *   外圈 2px --br-2（金属圈）
+ *   辐条 conic-gradient 4 根（from -90deg，每 90deg 一根）用 --br-1
+ *   盘面 --plast-win（磁带底色，24px 面积，不是深色块）
+ * 转动来自器官层的 n-gear，本层不改它。 */
+html[data-skin="nova"] .nv-reel{
+  border:2px solid var(--br-2);
+  background:
+    conic-gradient(from -90deg at 50% 50%,
+      transparent 0 4%,var(--br-1) 4% 10%,transparent 10% 25%,
+      transparent 25% 29%,var(--br-1) 29% 35%,transparent 35% 50%,
+      transparent 50% 54%,var(--br-1) 54% 60%,transparent 60% 75%,
+      transparent 75% 79%,var(--br-1) 79% 85%,transparent 85% 100%),
+    var(--plast-win);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),0 1px 0 rgba(0,0,0,.34);
+}
+
+/* 轴心：一小圈「有暖光的黄铜心」。radial 从 --br-heart 中心走到 --br-2 边缘，
+ * 直径 9px（卷轴 24px），只让人看出「这里有个轴、轴是热的」。
+ * 刻意不加任何 `0 0 Npx` 的外发光 —— 那不是蒸汽朋克，是霓虹；
+ * 而且会让它变成第二个发光焦点（主色与珊瑚才是发光的那两个）。
+ * 实算：#D4C09C on #191512 = 11.7（浅）· #C4AC84 on #292129 = 7.4（深）。 */
+html[data-skin="nova"] .nv-reel::after{
+  content:'';position:absolute;left:50%;top:50%;
+  width:9px;height:9px;margin:-4.5px 0 0 -4.5px;border-radius:50%;
+  background:radial-gradient(circle at 50% 40%,var(--br-heart) 0 2px,var(--br-1) 2px 3.4px,var(--br-2) 3.4px);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.28);
+  border:0;
+}
+
+/* 磁带上下沿的字：器官层 .34 白在塑料上 2.88、在原冷墨上 2.81，都不达标 → 同 .56。 */
+html[data-skin="nova"] .nv-tape-top u,
+html[data-skin="nova"] .nv-tape-bot u{
+  color:var(--br-ink-3);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ③ 深色档：紫夜舱里的同一套零件
+ *   皮革 → 带紫调的深棕（不是纯黑、不是纯棕）；黄铜 → 暗金但保留暖；
+ *   轴心 #C4AC84 是这一层唯一的暖点。
+ * ══════════════════════════════════════════════════════════════════════════ */
+
+html[data-skin="nova"][data-theme="dark"] .nv-belt{
+  background:
+    repeating-linear-gradient(118deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(62deg,rgba(0,0,0,.06) 0 1px,transparent 1px 4px),
+    linear-gradient(180deg,var(--lth-1),var(--lth-2));
+  border-color:rgba(107,90,60,.55);
+  box-shadow:inset 0 1px 0 rgba(239,233,255,.08),0 2px 0 rgba(0,0,0,.34);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-belt-rail{
+  background:linear-gradient(180deg,var(--pit) 0%,#0A070A 52%,var(--pit) 100%);
+  box-shadow:inset 0 3px 6px rgba(0,0,0,.68),inset 0 0 0 1px rgba(107,90,60,.55);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-wk{
+  background:linear-gradient(180deg,var(--cell-1),var(--cell-2));
+  border-color:var(--br-cell-edge);
+  box-shadow:inset 0 1px 0 rgba(239,233,255,.08);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-pulley{
+  background:
+    radial-gradient(circle at 50% 50%,var(--pit) 0 2.4px,var(--br-2) 2.5px 3.4px,transparent 3.5px),
+    radial-gradient(circle at 50% 38%,var(--br-hi),var(--br-1) 52%,var(--br-2) 100%);
+  box-shadow:inset 0 1px 0 rgba(239,233,255,.22),0 2px 0 rgba(0,0,0,.45);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-needle{
+  background:linear-gradient(180deg,rgba(196,172,132,.60),rgba(196,172,132,.10));
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell{
+  background:linear-gradient(165deg,var(--plast-1),var(--plast-2));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),
+             0 3px 0 rgba(0,0,0,.45);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell::before{
+  border-color:rgba(154,127,76,.40);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-tape-shell:active{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.22),
+             0 1px 0 rgba(0,0,0,.45);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-tape-win{
+  background:linear-gradient(180deg,var(--plast-win),#120E16);
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.66),inset 0 0 0 1px var(--br-win-edge);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-reel{
+  background:
+    conic-gradient(from -90deg at 50% 50%,
+      transparent 0 4%,var(--br-1) 4% 10%,transparent 10% 25%,
+      transparent 25% 29%,var(--br-1) 29% 35%,transparent 35% 50%,
+      transparent 50% 54%,var(--br-1) 54% 60%,transparent 60% 75%,
+      transparent 75% 79%,var(--br-1) 79% 85%,transparent 85% 100%),
+    var(--plast-win);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.16),0 1px 0 rgba(0,0,0,.45);
+}
+
+html[data-skin="nova"][data-theme="dark"] .nv-reel::after{
+  background:radial-gradient(circle at 50% 40%,var(--br-heart) 0 2px,var(--br-1) 2px 3.4px,var(--br-2) 3.4px);
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+ * ④ reduced-motion：本层不产生新动效；把器官层那颗卷轴的循环停掉，
+ *    并保持终态（圈、辐条、轴心全都还看得见，不是「消失」）。
+ * ══════════════════════════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce){
+  html[data-skin="nova"] .nv-reel{animation:none}
+  html[data-skin="nova"] .nv-pulley::before{opacity:1}
+}

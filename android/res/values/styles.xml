@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 小组件一行课：NOVA 舱体语言，等宽字 + 浅紫读数 -->
+    <style name="WidgetRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:textSize">12.5sp</item>
+        <item name="android:textColor">#EFE9FF</item>
+        <item name="android:fontFamily">monospace</item>
+        <item name="android:letterSpacing">0.03</item>
+        <item name="android:paddingTop">3dp</item>
+        <item name="android:paddingBottom">3dp</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+</resources>

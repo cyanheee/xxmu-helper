@@ -83,11 +83,23 @@
  *   这一点必须写在界面上，否则用户会以为这个功能把水费免了。
  *   `createOrder` 函数体保留（协议记录），但没有任何界面入口。
  *
- * 【三】新增「定量放水」
- *   平台没有「出 500ml 就停」的接口，但「停」可以远程下发。所以定量放水 =
- *   解锁 → 人去按 → 客户端盯 goods/shower/sync 的 amount → 到量发 endWater。
- *   局限（界面必须写清）：不按物理键就永远不出水；到量到停机有几秒延迟，
- *   实际会多流一点；断网时 watch 失效，机器会流到自己的上限才停。
+ * 【三】「定量放水」v1.1.60 收敛为诚实版（不再假装能按 ml 自动停）
+ *   把胖乖生产代码（8 个 chunk + sourcemap / 522 个源文件）翻到底后坐实：
+ *     · 放水途中用户侧 HTTP 只轮询 status，amount 全程为 0、只在结算后出现；
+ *     · 真实流量 flow 由设备霍尔流量计经 BLE/2G 私有加密通道
+ *       （machine/bluetooth/report cmdCode:'0701'，orderNo-flow 串）
+ *       在设备结束时上报一次结算值，用户侧 hook 不到；
+ *     · goods/water/unlock、machine/water/unlock、goods/endWater 全无
+ *       volume/quota/ml 入参，stateCmd 回的 quantity 只存进 privateData.params
+ *       再没被读过 —— 平台没有「出 N ml 就停」；
+ *     · 全库无 WebSocket/SSE/MQTT 长连接。连官方 H5 也只在完成态
+ *       if (res.amount>0 && res.identify) handleStop()。
+ *   因此「App 按 ml 精确自停」在 WebView+HTTP 桥下不成立；计时法（v1.1.59）
+ *   被「流速不固定」否定，不再换皮保留。
+ *   v1.1.60 = 解锁 → 人在机器上按 → 接够了自己点「停止」（endWater）
+ *     → 结算 amount 原样显示，标「单位以胖乖账单为准」，绝不换算成毫升。
+ *   另留「防跑水」超时兜底（最长时长自动发一次 endWater），明说是防忘关的
+ *   安全网、不是按量停。400↔1600 的换算无公开 API 可坐实，不再拍系数。
  * 
  * ============================ 空教室 ============================
  *
@@ -201,7 +213,7 @@ const WATER = (() => {
    */
   function login(phone, code) {
     if (!/^1\d{10}$/.test(phone || '')) return Promise.reject(new Error('手机号格式不对'));
-    if (!/^\d{4,8}$/.test(code || '')) return Promise.reject(new Error('验证码格式不对'));
+    if (!/^(?:\d{4}|\d{6})$/.test(code || '')) return Promise.reject(new Error('验证码格式不对（应为 4 位或 6 位数字）'));
     return call('user/reg', {
       channel: 'h5', phone: phone, code: code, verify: code,
     }).then(d => {
@@ -252,17 +264,36 @@ const WATER = (() => {
     } catch (e) {}
   }
 
-  /* 定量放水的默认目标（毫升）。0 = 不限制（点「停止」才停）。 */
-  const K_TARGET = 'xxmu_water_target';
+  /* ================================================================
+   * v1.1.60 诚实版：不再假装能「按 ml 自动停」。
+   *
+   * 2026-11-09 把胖乖生产代码（8 个 chunk + sourcemap / 522 个源文件）翻到底：
+   *   · 放水途中用户侧 HTTP 每秒只轮询 status（1/2/4 继续、3/5 完成态才吐
+   *     amount），amount 全程为 0、只在结算后出现 —— 实机「接时显示 0，
+   *     点结算才冒出来」；
+   *   · 真实流量 flow 由设备霍尔流量计经 BLE/2G 私有加密通道
+   *     （machine/bluetooth/report cmdCode:'0701'，orderNo-flow 串）在设备
+   *     结束时上报一次结算值，用户侧 HTTP 桥 hook 不到；全库无长连接；
+   *   · goods/water/unlock、machine/water/unlock、goods/endWater 全无
+   *     volume/quota/ml 入参；stateCmd 回的 quantity 只存进 privateData.params
+   *     再没被读过 —— 平台没有「出 N ml 就停」。
+   * 所以 v1.1.58 盯 amount、v1.1.59 按标定流速计时换算 ml 两条路都不成立
+   * （流速每次不固定），400↔1600 的换算无公开 API 可坐实，不再拍系数。
+   *
+   * 现在只剩一个诚实的功能：「最长放水」= 防忘关超时兜底，与水量无关。
+   * 解锁 → 人在机器上按 → 接够了自己点「停止」(endWater) → 结算 amount
+   * 原样显示，标「单位以胖乖账单为准」，绝不换算成毫升。
+   * ================================================================ */
+  const K_GUARD = 'xxmu_water_guard';
 
-  function targetMl() {
-    const n = parseInt(XXMU.pref(K_TARGET) || '0', 10) || 0;
+  /* 最长放水（秒）。0 = 不自动停，只靠手动「停止」。 */
+  function guardSec() {
+    const n = parseInt(XXMU.pref(K_GUARD) || '0', 10) || 0;
     return n >= 0 ? n : 0;
   }
-
-  function setTargetMl(n) {
+  function setGuardSec(n) {
     const v = Math.max(0, parseInt(n, 10) || 0);
-    XXMU.pref(K_TARGET, String(v));
+    XXMU.pref(K_GUARD, String(v));
     return v;
   }
 
@@ -633,124 +664,115 @@ const WATER = (() => {
     return endWater(goodsId);
   }
 
-  /* ---------------- 定量放水（v1.1.16 新增） ----------------
+  /* ---------------- 放水守护（v1.1.60 诚实版） ----------------
    *
-   * 这是「放水」这个需求真正能落地的部分。
+   * 云端实锤（8 chunk + sourcemap / 522 源文件）：放水途中用户侧 HTTP 只轮询
+   * status，amount 全程为 0、只在结算后出现；真实 flow 走设备 BLE/2G 私有
+   * 加密通道且只在结束时上报一次，用户侧 hook 不到；goods/endWater 等接口
+   * 全无 volume/quota/ml 入参。所以「按 N ml 精确自停」在 WebView+HTTP 桥
+   * 下不成立，计时换算（流速不固定）也不成立。
    *
-   * 为什么要靠客户端轮询而不是给平台传一个「放 500ml」：
-   *   `goods/water/unlock` 只是把机器解锁，**出水动作在机器上由人按**，
-   *   官方没有任何「出多少就停」的接口（接口已穷举，见文件头）。
-   *   但「停」是可以远程下发的（goods/endWater）。所以定量放水 =
-   *   解锁 → 人去按 → 客户端盯着 goods/shower/sync 的 amount → 到量发 endWater。
-   *
-   * 必须承认的局限（也是为什么要把它明确写在界面文案里）：
-   *   ① 用户不按物理键，amount 一直是 0，就永远不会触发 —— 这是对的，
-   *      没出水不该有「已停止」的假象。所以要有「一直在 0」的超时提示。
-   *   ② 到量到停机之间有几秒延迟（串口/2G 通道），实际会多流出一点。
-   *      所以界面写「大约」，不要承诺精确到毫升。
-   *   ③ 断网时 watch 会失败，机器会继续出水到它自己的上限才停。
-   *      这是平台硬件保护，不是我们能改的 —— 界面必须提前说清楚。
+   * 这里只保留两件真东西：
+   *   ① 轮询状态 + 结算 amount 原样回传（绝不换算成毫升）；
+   *   ② 可选「最长放水」超时兜底，到点发一次 endWater —— 防的是忘关，
+   *      与水量无关。guardSec=0 时完全不自动停，只靠手动点「停止」。
    */
-  function watchVolume(skuId, targetMl, hooks) {
+  function watchVolume(skuId, guardSec, hooks) {
     const h = hooks || {};
-    const tgt = Math.max(20, parseInt(targetMl, 10) || 0);
-    /* 上限：按 0.8 秒一次算，900 次 ≈ 12 分钟。
-     * 饮水机接满一桶也用不了这么久，主要是防「用户走开了、机器还在流」
-     * 时这个循环永远转下去耗电耗流量。 */
+    const secs = Math.max(0, parseInt(guardSec, 10) || 0);
+    /* 防忘关超时（毫秒）。离线行为测试可用 h.guardMs 快进注入。 */
+    const guardMs = h.guardMs != null ? h.guardMs : (secs > 0 ? secs * 1000 : 0);
+    /* 上限：按 0.8 秒一次算，900 次 ≈ 12 分钟，防「人走开了还在流」时空转。 */
     const MAX = 900;
-    /* 轮询间隔（v1.1.21 从 1000ms 收紧到 800ms）。
-     *
-     * 用户实测：接热水放了 250ml，界面还停在「已出 0」。原因不是取不到数，
-     * 是**平台侧的 amount 回报本身滞后**（机器走串口/2G，用量要攒一批才上报），
-     * 1 秒一次在流速快的时候只能采到几次样，中间大段是同一个旧值。
-     * 收紧到 800ms 只是减少漏采，真正的修法见下面「到量后继续盯」。 */
-    const GAP = 800;
-    /* 到量发出停止后，还要再盯这么久才收工。
-     *
-     * 为什么必须有：endWater 只是把命令下发出去，机器停阀要几秒，
-     * 而**最终用量是停阀之后才结算出来的**。原来发完停止就等 status 3/5，
-     * 一旦 3/5 先到就立刻 resolve，`r.amount` 还是停止前那个旧值
-     * —— 界面报「本次 250」，账单却是另一个数，用户对不上。
-     * 现在多盯 5 秒，把停阀后刷新的 amount 取回来。 */
+    const GAP = h.gap || 800;
+    const FIRST_GAP = h.firstGap || 600;
     const SETTLE_GAP = 5000;
-    /* 前 25 秒 amount 一直是 0 就提醒一次「是不是没在机器上按」。
-     * 不直接判失败：有人就是先解锁、过一会儿才走过去按。 */
-    const ZERO_WARN_AT = 25;
+    const settleGap = h.settleGap || SETTLE_GAP;
+    const ZERO_WARN_AT = h.zeroWarnAt || 25;
     let n = 0;
     let stopSent = false;
     let zeroWarned = false;
-    let settleUntil = 0;      // 发停止后的观察截止时间戳
+    let settleUntil = 0;
     let lastAmount = 0;
+    let startedAt = 0;      // 计时起点：见到「正在出水」的时间戳
+    let stopAt = 0;         // 发出停止命令的时间戳
+
+    /* 起表（幂等）。三种来源谁先来算谁：
+     *   ① 平台报 status===2（正在出水）；② 平台报 amount>0；
+     *   ③ 用户在界面点「我已按下出水键」。 */
+    function startClock() { if (!startedAt) startedAt = Date.now(); }
+    if (h) h.startTimer = startClock;
 
     return new Promise((resolve) => {
-      const tick = () => {
+      function finish(s, tries, pending) {
+        resolve({ done: !pending, status: s.status, amount: s.amount, tries: tries,
+                  stoppedByUs: stopSent, elapsedMs: startedAt ? (Date.now() - startedAt) : 0 });
+      }
+      /* 发一次停止，并继续轮询等结算。byWhat 只用于界面文案。 */
+      function fireStop(s, byWhat) {
+        stopSent = true;
+        stopAt = Date.now();
+        settleUntil = stopAt + settleGap;
+        if (h.onReached) h.onReached(s, byWhat);
+        endWaterTarget(skuId, h.machineId).then(() => {
+          if (n < MAX) setTimeout(tick, GAP);
+          else finish(s, n, true);
+        }).catch(e => {
+          if (h.onStopError) h.onStopError(e);
+          resolve({ done: false, stopError: e, amount: s.amount, tries: n, stoppedByUs: false });
+        });
+      }
+      function tick() {
         n++;
         syncWater(skuId).then(s => {
-          /* 用量只会涨不会跌；平台偶尔回一个旧的 0，不要让它把界面打回去。 */
+          /* 用量只涨不跌；平台偶尔回旧的 0，不要让它把结算值打回去。 */
           if (s.amount > lastAmount) lastAmount = s.amount;
           s.amount = lastAmount;
-          if (h.onTick) h.onTick(n, s, tgt);
 
-          if (!zeroWarned && s.amount === 0 && n >= ZERO_WARN_AT && !stopSent) {
+          if (s.status === 2 || s.amount > 0) startClock();
+          const elapsedMs = startedAt ? (Date.now() - startedAt) : 0;
+          const guardLeftMs = guardMs > 0 ? Math.max(0, guardMs - elapsedMs) : 0;
+          if (h.onTick) h.onTick(n, s, elapsedMs, guardMs, guardLeftMs);
+
+          if (!zeroWarned && elapsedMs === 0 && s.amount === 0
+              && n >= ZERO_WARN_AT && !stopSent) {
             zeroWarned = true;
             if (h.onZero) h.onZero();
           }
 
-          /* 机器已停（3/5 完成、6 故障）。
-           * 若我们发过停止、且还在观察窗口内，继续盯到窗口结束，
-           * 把停阀后结算出来的最终用量取回来再收工。 */
+          /* 机器已停（3/5 完成、6 故障）。发过停止且还在观察窗内时继续盯，
+           * 把停阀后才结算出来的最终 amount 取回来再收工。 */
           const finished = (s.status === 3 || s.status === 5);
           const settlePending = stopSent && settleUntil && Date.now() < settleUntil;
 
-          if (finished && !settlePending) {
-            resolve({ done: true, status: s.status, amount: s.amount, tries: n, stoppedByUs: stopSent });
-            return;
-          }
+          if (finished && !settlePending) { finish(s, n); return; }
           if (s.status === 6 && !settlePending) {
             resolve({ done: true, failed: true, status: 6, amount: s.amount, tries: n });
             return;
           }
+          if (stopSent && settleUntil && !settlePending) { finish(s, n); return; }
 
-          /* 到量 → 发一次停止。stopSent 锁住，绝不重复发：
-           * 重复 endWater 平台会报错，也可能被当成两次消费。 */
-          if (!stopSent && s.amount > 0 && s.amount >= tgt) {
-            stopSent = true;
-            settleUntil = Date.now() + SETTLE_GAP;
-            if (h.onReached) h.onReached(s);
-            endWaterTarget(skuId, h.machineId).then(() => {
-              /* 发完继续轮询等它真的停，不在这里 resolve —— 否则界面会
-               * 显示「已停止」但机器还在流水。 */
-              if (n < MAX) setTimeout(tick, GAP);
-              else resolve({ pending: true, amount: s.amount, tries: n, stoppedByUs: true });
-            }).catch(e => {
-              if (h.onStopError) h.onStopError(e);
-              resolve({ done: false, stopError: e, amount: s.amount, tries: n, stoppedByUs: false });
-            });
+          /* v1.1.60 唯一自动停止：防忘关超时兜底，与水量无关。 */
+          if (!stopSent && startedAt && guardMs > 0 && elapsedMs >= guardMs) {
+            fireStop(s, '防忘关超时');
             return;
           }
 
-          if (n >= MAX) {
-            resolve({ pending: true, amount: s.amount, tries: n, stoppedByUs: stopSent });
-            return;
-          }
+          if (n >= MAX) { finish(s, n, true); return; }
           setTimeout(tick, GAP);
         }).catch(e => {
-          /* 单次网络抖动继续等；连续到上限才放弃。中途不把错误抛上去，
-           * 因为一次 timeout 不代表机器没在出水。 */
+          /* 单次网络抖动继续等；连续到上限才放弃。 */
           if (n >= MAX) { resolve({ done: false, netError: e, tries: n, stoppedByUs: stopSent }); return; }
           setTimeout(tick, 1500);
         });
-      };
-      setTimeout(tick, 600);
+      }
+      setTimeout(tick, FIRST_GAP);
     });
   }
 
-  /** 定量放水用的停止：官方 endWater 只要 goodsId；没有就退回按 skuId 探。 */
+  /** 放水守护用的停止：官方 endWater 只要 goodsId；没有就如实失败。 */
   function endWaterTarget(skuId, goodsId) {
     if (goodsId) return endWater(goodsId);
-    /* 调用方没给 goodsId 时，用 skuId 去 endWater 大概率不对（官方只认 goodsId），
-     * 但直接失败会让整个定量功能在缺参时彻底不可用。这里如实失败，
-     * 由上层提示「请重新绑定这台机器」—— 猜一个参数只会得到另一条更怪的错。 */
     return Promise.reject(new Error('缺少机器编号，没法发送停止命令，请重新绑定这台机器'));
   }
 
@@ -851,9 +873,9 @@ const WATER = (() => {
     /* createOrder 保留但**界面不再调用**（结算已整块移除，见文件头）。
      * 留着是因为它是这条协议唯一的可执行记录，删了以后想恢复就得重挖源码。 */
     createOrder,
-    targetMl, setTargetMl, clearLegacyMode,
+    guardSec, setGuardSec, clearLegacyMode,
     human, decodeQr,
-    K_TOKEN, K_PHONE, K_DEVS, K_MODE, K_TARGET, PAY_PAGE,
+    K_TOKEN, K_PHONE, K_DEVS, K_MODE, K_GUARD, PAY_PAGE,
   };
 })();
 

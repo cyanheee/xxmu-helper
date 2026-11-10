@@ -1,0 +1,199 @@
+/* ============================================================
+   混搭皮肤 · 融合版 v4 定稿（样张专用覆盖层，不写入 web/app.css）
+
+   迭代：v1 按 Tab 分区=拼盘 → v2 七种全铺=推过头 → v3 共线但均匀戴满=首饰堆
+        → v4 「手账密度」：焦点区贴满，其余区干净。
+
+   总隐喻：一本西部牛皮纸手账，被缝成一台老机器。
+   一根线：所有虚线 = 6px 实 / 3px 空、同色 var(--mx-edge)。
+   一个色板：现有 7 色 + 雾紫；沙金=黄铜、赤陶=旧铜，不引新色相。
+   一个发光色：只有雾紫能亮，其余哑光。
+
+   七种风格在同一屏共存，但每个位置只有一个主角：
+     背景  西部皮绳方格 + 怀旧 sepia 褪角 + 复古颗粒   （纸）
+     卡片  拼贴剪字胶带 + 复古凸版内双线 + 微旋       （印刷，所有卡统一）
+     课表  像素 GBA 台阶 / 像素条 / 方角               （唯一的网格）
+     空调  蒸汽压力表+铆钉星+铜管 与 赛博扫描线+准星+HUD
+           两种风格在同一块「机器心脏」上叠合 —— 机械是外壳，电子是读数
+     作业  复古 HUD 方括号徽章                        （微）
+     Wiki  复古档案双线框 + 打字机字距                （档案）
+     全页  左侧一根贯穿针脚竖线，把不同区块缝起来      （统一锚点）
+
+   生效条件 html[data-skin="mashup"]；classic 一条不命中；颜色全走 var()，明暗自动跟随。
+   正文 / 按钮 / 输入框零影响；零新增 DOM、零新增请求、零字体。
+   ============================================================ */
+html[data-skin="mashup"]{
+  --mx-mist:var(--mist);
+  --mx-edge:var(--edge);
+  --mx-brass:var(--yellow);      /* 沙金 = 黄铜 */
+  --mx-copper:var(--purple);     /* 赤陶 = 旧铜 */
+  --mx-line:var(--line);
+}
+
+/* ---------- 全页：左侧一根针脚竖线，把七个区块缝在一台机器上 ---------- */
+html[data-skin="mashup"] .pv{position:relative}
+html[data-skin="mashup"] .pv::before{
+  content:'';position:absolute;left:5px;top:0;bottom:0;width:1px;
+  background:repeating-linear-gradient(0deg,var(--mx-edge) 0 6px,transparent 6px 9px);
+  opacity:.30;pointer-events:none;
+}
+
+/* ---------- ① 纸：西部 + 怀旧 sepia + 复古方格 ---------- */
+html[data-skin="mashup"] body{
+  background-image:
+    radial-gradient(ellipse at 0% 0%,   rgba(138,106,60,.10), transparent 40%),
+    radial-gradient(ellipse at 100% 100%,rgba(138,106,60,.10), transparent 40%),
+    linear-gradient(90deg,transparent 0 22px,rgba(178,59,38,.45) 22px 23.5px,
+      transparent 23.5px 27px,rgba(178,59,38,.45) 27px 28px,transparent 28px),
+    repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 24px),
+    repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 24px);
+  background-position:0 0,0 0,0 0,-1px -1px,-1px -1px;
+}
+
+/* ---------- ② 印刷：所有卡统一三件，别的一律不戴 ---------- */
+html[data-skin="mashup"] .card{
+  box-shadow:inset 0 0 0 1px var(--mx-edge),2px 2px 0 rgba(140,122,94,.40);
+}
+html[data-skin="mashup"] .card::before{          /* 拼贴剪字胶带 */
+  width:52px;height:15px;left:12px;top:-8px;
+  transform:rotate(-3.5deg);
+  border-left:1px dashed rgba(255,255,255,.5);
+  border-right:1px dashed rgba(255,255,255,.5);
+  box-shadow:3px 3px 0 rgba(140,122,94,.28);
+  background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.22) 0 6px,transparent 6px 9px);
+}
+html[data-skin="mashup"] .card:nth-of-type(even){transform:rotate(.4deg)}
+html[data-skin="mashup"] .card:nth-of-type(4n+3){transform:rotate(-.55deg)}
+html[data-skin="mashup"] .card-title{letter-spacing:1.6px}
+/* 密度节奏：蹄铁星不收死，也不铺满 —— 每 4 张卡露一次，像手账偶尔贴一枚。
+   空调强调卡（下面单独一段）永远是贴得最满的那一页。 */
+html[data-skin="mashup"] .card::after{opacity:.45}
+html[data-skin="mashup"] .card:nth-of-type(4n+1)::after{opacity:.9}
+html[data-skin="mashup"] .card:nth-of-type(4n+2)::after,
+html[data-skin="mashup"] .card:nth-of-type(4n+3)::after{opacity:.22}
+html[data-skin="mashup"] .card-title::before{display:none}
+
+/* 分区标题：只在文字左侧留一小段针脚，不整行划线 */
+html[data-skin="mashup"] .pv-h{padding-top:6px}
+html[data-skin="mashup"] .pv-h::before{
+  content:'';display:inline-block;width:18px;height:0;margin-right:7px;
+  border-top:1.5px dashed var(--mx-edge);vertical-align:3px;opacity:.7;
+}
+html[data-skin="mashup"] .hwsec::after,
+html[data-skin="mashup"] .grp-head::after,
+html[data-skin="mashup"] .wiki-cat::after{
+  background:repeating-linear-gradient(90deg,var(--mx-edge) 0 6px,transparent 6px 9px);
+  height:2px;opacity:.45;
+}
+
+/* ---------- ③ 唯一的机器心脏：空调强调卡 = 蒸汽外壳 ---------- */
+html[data-skin="mashup"] .card.elec-entry{
+  box-shadow:
+    inset 0 0 0 1px var(--mx-edge),
+    inset 0 -3px 0 rgba(217,163,43,.60),        /* 黄铜铜管压边 */
+    2px 2px 0 rgba(140,122,94,.40);
+}
+/* 铆钉星：蹄铁星 + 四枚旧铜铆钉，全页只这一枚 */
+html[data-skin="mashup"] .card.elec-entry::after{
+  display:block;color:var(--mx-brass);border-radius:50%;
+  box-shadow:-7px -4px 0 -3px var(--mx-copper), 7px -4px 0 -3px var(--mx-copper),
+             -7px  4px 0 -3px var(--mx-copper), 7px  4px 0 -3px var(--mx-copper);
+}
+/* 压力表：conic 刻度，全页只这一枚 */
+html[data-skin="mashup"] .card.elec-entry .card-title::before,
+html[data-skin="mashup"] .elec-entry-title::before{
+  content:'';display:inline-block;width:9px;height:9px;margin-right:7px;
+  border-radius:50%;border:1.5px solid var(--mx-copper);
+  background:conic-gradient(from 0deg,var(--mx-brass) 0 12%,transparent 12% 25%,
+    var(--mx-brass) 25% 37%,transparent 37% 50%,var(--mx-brass) 50% 62%,
+    transparent 62% 75%,var(--mx-brass) 75% 87%,transparent 87% 100%);
+  box-shadow:inset 0 0 0 2px var(--surface);vertical-align:0;
+}
+
+/* ---------- ④ 同一块心脏里的电子读数：赛博 ---------- */
+html[data-skin="mashup"] .elec-face{position:relative;overflow:hidden}
+html[data-skin="mashup"] .elec-face::before{     /* 扫描线 + 极淡六边网格 */
+  content:'';position:absolute;inset:0;pointer-events:none;opacity:.17;
+  background:
+    repeating-linear-gradient(0deg,var(--mx-mist) 0 1px,transparent 1px 5px),
+    radial-gradient(circle at 12px 12px,var(--mx-edge) 0 .7px,transparent .7px);
+  background-size:auto,24px 24px;
+}
+html[data-skin="mashup"] .elec-face::after{      /* 四角准星 */
+  content:'';position:absolute;inset:8px;pointer-events:none;
+  border:1px solid var(--mx-mist);opacity:.42;
+  clip-path:polygon(0 0,16px 0,16px 2px,2px 2px,2px 16px,0 16px,
+    0 100%,16px 100%,16px calc(100% - 2px),2px calc(100% - 2px),2px calc(100% - 16px),0 calc(100% - 16px),
+    100% 0,calc(100% - 16px) 0,calc(100% - 16px) 2px,calc(100% - 2px) 2px,calc(100% - 2px) 16px,100% 16px,
+    100% 100%,calc(100% - 16px) 100%,calc(100% - 16px) calc(100% - 2px),calc(100% - 2px) calc(100% - 2px),calc(100% - 2px) calc(100% - 16px),100% calc(100% - 16px));
+}
+/* HUD 分段条：纯图形，压在「10:24 更新」上方，不新增文字 */
+html[data-skin="mashup"] .elec-meta.elec-time{position:relative;padding-top:10px}
+html[data-skin="mashup"] .elec-meta.elec-time::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:38px;height:3px;opacity:.8;
+  background:linear-gradient(90deg,
+    var(--mx-mist) 0 8px,transparent 8px 10px,
+    var(--mx-edge) 10px 17px,transparent 17px 19px,
+    var(--mx-edge) 19px 26px,transparent 26px 28px,
+    var(--mx-edge) 28px 35px,transparent 35px 38px);
+}
+html[data-skin="mashup"] .elec-big,
+html[data-skin="mashup"] .elec-entry-odd{
+  font-variant-numeric:tabular-nums;text-shadow:0 0 10px rgba(142,123,196,.32);
+}
+/* 状态徽章：HUD 方括号，文字标签保留 */
+html[data-skin="mashup"] .hwbadge{border-radius:2px;letter-spacing:.6px}
+html[data-skin="mashup"] .hwbadge::before{content:'[';opacity:.55;margin-right:2px}
+html[data-skin="mashup"] .hwbadge::after{content:']';opacity:.55;margin-left:2px}
+
+/* ---------- ⑤ 像素 GBA：只落在网格与分段 ---------- */
+html[data-skin="mashup"] .grid,
+html[data-skin="mashup"] .gh,
+html[data-skin="mashup"] .cell{image-rendering:pixelated}
+html[data-skin="mashup"] .gh.today::after{
+  height:4px;border-radius:0;
+  background:repeating-linear-gradient(90deg,var(--mx-mist) 0 6px,transparent 6px 9px);
+}
+html[data-skin="mashup"] .grid .c::after{
+  content:'';position:absolute;top:4px;right:4px;width:3px;height:3px;
+  background:var(--mx-mist);opacity:.8;
+  box-shadow:-4px 0 0 var(--mx-mist),-8px 4px 0 var(--mx-mist),
+             -4px 4px 0 var(--mx-mist),0 4px 0 var(--mx-mist);
+}
+html[data-skin="mashup"] .seg button.on{border-radius:2px;box-shadow:inset 0 -3px 0 rgba(142,123,196,.55)}
+html[data-skin="mashup"] .chips button.on{border-radius:2px}
+
+/* ---------- ⑥ 复古档案：Wiki / 留言 ---------- */
+html[data-skin="mashup"] .wiki-card,
+html[data-skin="mashup"] .fb-card{
+  box-shadow:inset 0 0 0 1px var(--mx-edge),2px 2px 0 rgba(140,122,94,.40);
+}
+html[data-skin="mashup"] .wiki-tag,
+html[data-skin="mashup"] .wiki-src{letter-spacing:1.4px;text-transform:uppercase}
+
+html[data-skin="mashup"] .sheet-only::before,
+html[data-skin="mashup"] .sheet-only::after{display:none}
+
+/* ---------- 深浅自动跟随 ---------- */
+html[data-skin="mashup"][data-theme="dark"] .elec-face::before{opacity:.10}
+html[data-skin="mashup"][data-theme="dark"] .elec-face::after{opacity:.26}
+html[data-skin="mashup"][data-theme="dark"] .elec-big,
+html[data-skin="mashup"][data-theme="dark"] .elec-entry-odd{text-shadow:0 0 8px rgba(185,166,230,.26)}
+html[data-skin="mashup"][data-theme="dark"] .grid .c::after{opacity:.55}
+html[data-skin="mashup"][data-theme="dark"] .card.elec-entry::after{opacity:.65}
+html[data-skin="mashup"][data-theme="dark"] .pv::before{opacity:.22}
+html[data-skin="mashup"][data-theme="dark"] body{
+  background-image:
+    radial-gradient(ellipse at 0% 0%,   rgba(185,166,230,.06), transparent 40%),
+    radial-gradient(ellipse at 100% 100%,rgba(185,166,230,.06), transparent 40%),
+    linear-gradient(90deg,transparent 0 22px,rgba(178,59,38,.38) 22px 23.5px,
+      transparent 23.5px 27px,rgba(178,59,38,.38) 27px 28px,transparent 28px),
+    repeating-linear-gradient(0deg,var(--grid) 0 1px,transparent 1px 24px),
+    repeating-linear-gradient(90deg,var(--grid) 0 1px,transparent 1px 24px);
+  background-position:0 0,0 0,0 0,-1px -1px,-1px -1px;
+}
+
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="mashup"] .card{transform:none}
+}

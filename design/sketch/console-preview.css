@@ -1,0 +1,456 @@
+/* ============================================================
+   独立主题 CONSOLE · v2「机身框架」
+   样张专用，不写入 web/app.css。
+
+   v1 的错：只换了配色，主体仍是「牛皮纸手账 + 贴上去的纸片」
+            （胶带/微旋贴歪/皮绳/方格纸/硬投影全在）= 还是涂鸦本。
+   v2 换的是【结构】，五条旧骨架全部删掉：
+     ✗ 纸纹/方格/皮绳/褪角 → ✓ 机箱拉丝 + 散热栅 + 导轨
+     ✗ 胶带 + 微旋贴歪     → ✓ 嵌入式槽位，标题栏 + 四角螺丝
+     ✗ 硬偏移投影          → ✓ inset 凹陷阴影（模块是嵌进去的，不是贴上去的）
+     ✗ 散卡片竖摞          → ✓ 一整块机身，内部槽位由连续导轨串起
+     ✗ 圆角贴纸按钮        → ✓ 物理按键（斜面 + 按下位移）
+
+   总物件：一台用了很多年的便携终端机（Analogue Pocket / 老示波器 / GBA 机身）。
+   七个热门风格 = 这台机器的不同部件，不是七张贴纸：
+     机身  西部皮革压边 + 蒸汽黄铜铆钉/散热栅/铜管 + 怀旧褪色
+     屏幕  CRT 扫描线(赛博) + 数字雨竖列(黑客帝国) + 4色点阵(GBA)
+           + 雾紫琥珀落日(蒸汽波) + 问号砖方块(马里奥)
+     按键  GBA 十字键 / A-B 圆键 / 街机方形键 + 三角箭头(三角力量)
+     槽位  Win95 窗口标题栏(Y2K) + 复古凸版字距 + 一张贴歪标签(拼贴，唯一人味)
+     铭牌  精灵球式半球电源灯 + 型号编号
+
+   四基本形（搜到的母题归约）：圆=电源灯/按键/压力表，方=问号砖/槽位，
+   三角=方向箭头，竖列=数字雨/刻度/散热栅。每个形只在一处当主角。
+
+   落地说明：正式工程 DOM 不用改 —— #app 天然就是这层机身，
+   .tab/section 是槽位，.card 用 ::before 变标题栏，.btn 变按键。
+   ============================================================ */
+
+html[data-skin="console"]{
+  --c-shell:#C9BCA6;          /* 机身塑料/皮革压边 */
+  --c-shell2:#B8AA93;
+  --c-panel:#E4DDCD;          /* 槽位面板（浅态纸，但不是纸片） */
+  --c-panel2:#EFEADF;
+  --c-glass:#101E24;          /* 屏幕玻璃 */
+  --c-glass2:#1A2E36;
+  --c-brass:#C79A4B;
+  --c-copper:#8E623F;
+  --c-amber:#F0B95C;          /* 主发光 = 琥珀 */
+  --c-mist:#9A8CD8;           /* 唯一冷发光 */
+  --c-ink:#28333A;
+  --c-ink2:#5C686C;
+  --c-on-glass:#D8E8E4;
+  --c-on-glass2:#87A6A4;
+  --radius:3px;
+  --radius-sm:2px;
+  --edge:var(--c-brass);
+  --shadow:inset 0 1px 0 rgba(255,255,255,.45), inset 0 -2px 0 rgba(90,70,45,.28);
+  --shadow-lift:inset 0 1px 0 rgba(255,255,255,.5), inset 0 -2px 0 rgba(90,70,45,.32);
+  color-scheme:light;
+}
+
+/* ---------- 机身：整页是一块壳，不是散纸 ---------- */
+html[data-skin="console"] body{
+  color:var(--c-ink);
+  background-color:#A89A82;
+  /* 拉丝金属 + 散热栅，绝无方格纸/皮绳/褪角 */
+  background-image:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(90deg,rgba(60,45,30,.05) 0 1px,transparent 1px 6px),
+    linear-gradient(180deg,#B6A88F,#9E9078);
+  font-family:ui-monospace,"Cascadia Mono",Menlo,Consolas,"Microsoft YaHei",monospace;
+  letter-spacing:.3px;
+}
+
+html[data-skin="console"] .pv{
+  position:relative;
+  margin:10px 8px 18px;
+  padding:0 10px 16px;
+  background:linear-gradient(180deg,var(--c-shell),var(--c-shell2));
+  border:2px solid #7C6B52;
+  border-radius:14px 14px 18px 18px / 14px 14px 22px 22px;
+  box-shadow:
+    inset 0 0 0 2px rgba(255,255,255,.22),
+    inset 0 0 0 5px rgba(120,100,72,.28),
+    0 6px 0 rgba(70,58,42,.35),
+    0 12px 24px rgba(50,40,28,.28);
+}
+/* 左右两条导轨槽：把所有槽位串成一台机器 */
+html[data-skin="console"] .pv::before,
+html[data-skin="console"] .pv::after{
+  content:'';position:absolute;top:16px;bottom:16px;width:5px;
+  background:linear-gradient(90deg,rgba(70,56,38,.45),rgba(255,255,255,.28),rgba(70,56,38,.30));
+  border-radius:3px;pointer-events:none;
+}
+html[data-skin="console"] .pv::before{left:5px}
+html[data-skin="console"] .pv::after{right:5px}
+
+/* 四角螺丝（圆母题之一） */
+html[data-skin="console"] header{position:relative}
+html[data-skin="console"] header::before,
+html[data-skin="console"] .pv-h::after{
+  content:'';display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#E8D9B8,#8E623F 70%);
+  border:1px solid #6B4A30;
+  box-shadow:inset 0 0 0 1px rgba(255,255,255,.25);
+  vertical-align:2px;
+}
+html[data-skin="console"] header::before{
+  position:absolute;left:-2px;top:-2px;
+}
+
+/* ---------- 顶栏 = 机身铭牌条 ---------- */
+html[data-skin="console"] header{
+  margin:0 -10px 12px;
+  padding:10px 14px 9px 20px;
+  background:linear-gradient(180deg,#8E623F,#755034);
+  border-bottom:2px solid var(--c-brass);
+  border-radius:12px 12px 0 0;
+  color:#F6ECD8;
+  /* 散热栅 */
+  background-image:
+    repeating-linear-gradient(90deg,transparent 0 5px,rgba(30,20,12,.22) 5px 6px),
+    linear-gradient(180deg,#8E623F,#755034);
+  background-size:auto 9px,auto;
+  background-position:0 0,0 0;
+  background-repeat:no-repeat,repeat;
+}
+html[data-skin="console"] header::after{display:none}
+html[data-skin="console"] .brand{position:relative;padding-left:14px}
+html[data-skin="console"] .brand-name{color:#F6ECD8 !important;letter-spacing:2.4px;font-size:15px;font-weight:700}
+html[data-skin="console"] .brand-sub{color:rgba(246,236,216,.80) !important;letter-spacing:1.6px;font-size:10px}
+/* 精灵球 / 压力表 / 电源灯 三合一的半球圆徽 */
+html[data-skin="console"] .brand-mark{
+  position:absolute;left:0;top:50%;transform:translateY(-50%);
+  width:26px;height:26px;border-radius:50% !important;
+  background:linear-gradient(180deg,var(--c-amber) 0 46%,#F3EADA 46% 54%,var(--c-glass) 54% 100%);
+  border:2px solid #6B4A30;color:transparent;font-size:0;
+  box-shadow:0 0 0 2px rgba(240,185,92,.35),0 0 10px rgba(240,185,92,.45);
+}
+html[data-skin="console"] .brand-mark::after{
+  content:'';position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+  width:8px;height:8px;border-radius:50%;background:#F3EADA;border:2px solid #6B4A30;
+}
+html[data-skin="console"] .top-acts .pill{
+  background:var(--c-glass);color:var(--c-amber);border:1px solid var(--c-amber);
+  border-radius:2px;font-family:inherit;letter-spacing:1px;
+  box-shadow:inset 0 0 6px rgba(240,185,92,.25);
+}
+
+/* ---------- 槽位：嵌入式模块 + Win95 标题栏 ---------- */
+html[data-skin="console"] .card{
+  position:relative;
+  background:var(--c-panel) !important;
+  border:1px solid #8E7C60;
+  border-radius:2px;
+  /* inset 凹陷：模块是嵌进机身的，不是贴上去的纸片 */
+  box-shadow:
+    inset 0 2px 4px rgba(70,56,38,.22),
+    inset 0 -1px 0 rgba(255,255,255,.45),
+    0 1px 0 rgba(255,255,255,.30);
+  padding:26px 12px 14px;
+  margin:0 0 12px;
+  transform:none !important;
+  clip-path:none !important;
+}
+/* 标题栏：三个窗口按钮 + 下划线，替代胶带 */
+html[data-skin="console"] .card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:18px;
+  background:linear-gradient(180deg,#3C5860,#243A42);
+  border-bottom:1px solid #12242B;
+  border-radius:2px 2px 0 0;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.14);
+  transform:none !important;opacity:1;
+}
+/* 右上三枚窗口按钮（方母题） */
+html[data-skin="console"] .card::after{
+  content:'▮ ▮ ▮';
+  position:absolute;top:2px;right:6px;
+  font:9px/14px ui-monospace,monospace;letter-spacing:1px;
+  color:var(--c-amber);
+  width:auto;height:14px;background:transparent;border-radius:0;
+  box-shadow:none;opacity:.85;
+}
+html[data-skin="console"] .card-title{
+  /* 标题文字坐进 18px 的 Win95 标题栏：负 margin 上提 + 高于 ::before 背景条 */
+  position:relative;z-index:2;
+  margin:-18px -6px 10px;padding:3px 6px 2px;
+  color:#E9F2EE !important;
+  font-size:10px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase;
+  border:0;line-height:13px;
+}
+html[data-skin="console"] .card-title::before{
+  content:'◆';color:var(--c-amber);font-size:8px;margin-right:6px;
+  -webkit-text-fill-color:var(--c-amber);transform:none;
+}
+html[data-skin="console"] .card-title::after{content:''}
+html[data-skin="console"] .card-title .dot{display:none}
+html[data-skin="console"] .row{
+  border-top:1px solid rgba(110,92,66,.28);
+  background:transparent !important;color:var(--c-ink2);font-size:13px;
+}
+html[data-skin="console"] .row>span:first-child{color:var(--c-ink);font-weight:600}
+html[data-skin="console"] .row .v{color:var(--c-ink2)}
+
+/* ---------- 物理按键：斜面 + 按下位移 ---------- */
+html[data-skin="console"] .btn{
+  position:relative;
+  border:1px solid #6B4A30;border-radius:3px;
+  background:linear-gradient(180deg,#F8CE7E,#DDA747);
+  color:#2A1C0A;
+  font-family:inherit;font-weight:800;letter-spacing:1.2px;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.65),
+    inset 0 -3px 0 rgba(120,80,30,.45),
+    0 3px 0 #7A5738,
+    0 4px 4px rgba(60,44,26,.30);
+  clip-path:none;
+}
+html[data-skin="console"] .btn:active{transform:translateY(2px);box-shadow:inset 0 2px 4px rgba(120,80,30,.5)}
+html[data-skin="console"] .btn.ghost{
+  background:linear-gradient(180deg,#EDE6D7,#D3C9B4);color:var(--c-ink);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.7),inset 0 -3px 0 rgba(110,92,66,.35),0 3px 0 #8E7C60;
+}
+html[data-skin="console"] .btn.soft{
+  background:transparent;color:var(--c-copper);border:1px dashed var(--c-brass);
+  box-shadow:none;
+}
+html[data-skin="console"] .pill,
+html[data-skin="console"] .btn-sm{
+  border:1px solid #8E7C60;border-radius:2px;
+  background:linear-gradient(180deg,#F1EADA,#DCD2BF);color:var(--c-ink);
+  font-family:inherit;box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 2px 0 #9A886C;
+}
+
+/* ---------- 屏幕：CRT + 数字雨 + GBA 4色点阵 + 蒸汽波落日 ---------- */
+html[data-skin="console"] .grid,
+html[data-skin="console"] .elec-face{
+  --c-ink:var(--c-on-glass);
+  background-color:var(--c-glass) !important;
+  color:var(--c-on-glass);
+  border:3px solid #2A3B42;
+  border-radius:6px;
+  position:relative;overflow:hidden;
+  box-shadow:
+    inset 0 0 0 2px rgba(240,185,92,.20),
+    inset 0 0 26px rgba(0,0,0,.65),
+    0 2px 0 rgba(255,255,255,.28);
+  image-rendering:pixelated;
+}
+/* 屏幕内三层：落日渐变(蒸汽波) + 扫描线(CRT) + 4px 像素网格(GBA) */
+html[data-skin="console"] .grid::before,
+html[data-skin="console"] .elec-face::before{
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:1;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% 100%,rgba(240,185,92,.16),transparent 70%),
+    radial-gradient(ellipse 50% 30% at 50% 0%,rgba(154,140,216,.13),transparent 70%),
+    repeating-linear-gradient(0deg,rgba(0,0,0,.28) 0 1px,transparent 1px 4px),
+    repeating-linear-gradient(90deg,rgba(143,168,168,.055) 0 1px,transparent 1px 4px),
+    repeating-linear-gradient(0deg,rgba(143,168,168,.055) 0 1px,transparent 1px 4px);
+}
+/* 数字雨：黑客帝国竖列字符，静态一列，只有屏幕里有 */
+html[data-skin="console"] .grid::after{
+  content:'0 1 1 0 1 0 · ア カ サ 0 1 · 0 1 1 0';
+  position:absolute;right:3px;top:6px;z-index:2;
+  writing-mode:vertical-rl;
+  font:8px/11px ui-monospace,monospace;letter-spacing:2px;
+  color:rgba(240,185,92,.30);
+  text-shadow:0 0 6px rgba(240,185,92,.35);
+  pointer-events:none;
+}
+/* 课表：4 色点阵，课程块是屏幕里的「像素窗口」，不是彩铅涂块 */
+html[data-skin="console"] .gh{color:var(--c-on-glass2);font-size:10px;letter-spacing:1px}
+html[data-skin="console"] .gp{color:var(--c-on-glass2);font-size:10px}
+html[data-skin="console"] .gh.today::after{
+  height:3px;border-radius:0;
+  background:repeating-linear-gradient(90deg,var(--c-amber) 0 6px,transparent 6px 9px);
+}
+html[data-skin="console"] .cell{border-color:rgba(143,168,168,.13) !important}
+html[data-skin="console"] .grid .c{
+  border:1px solid rgba(240,185,92,.42) !important;
+  border-radius:0 !important;
+  background:var(--c-glass2) !important;
+  color:var(--c-on-glass);box-shadow:none;
+}
+/* 问号砖母题：每块右上角一个 4px 方点 = 像素化的「？」砖 */
+html[data-skin="console"] .grid .c::after{
+  content:'?';position:absolute;top:2px;right:3px;
+  width:8px;height:8px;
+  font:7px/8px ui-monospace,monospace;text-align:center;
+  color:#23180C;background:var(--c-amber);
+  box-shadow:none;opacity:.9;
+}
+html[data-skin="console"] .grid .c .room,
+html[data-skin="console"] .grid .c .pr,
+html[data-skin="console"] .grid .c .pr2{color:var(--c-on-glass2)}
+
+/* 空调读数：琥珀数码管 + 压力表环 + HUD 分段条 */
+html[data-skin="console"] .elec-label,
+html[data-skin="console"] .elec-unit,
+html[data-skin="console"] .elec-meta{color:var(--c-on-glass2);letter-spacing:1.6px}
+html[data-skin="console"] .elec-face::after{
+  content:'';position:absolute;inset:22% 30%;z-index:1;pointer-events:none;
+  border:1px solid var(--c-mist);border-radius:50%;opacity:.16;clip-path:none;
+}
+html[data-skin="console"] .elec-big,
+html[data-skin="console"] .elec-entry-odd{
+  position:relative;z-index:2;
+  color:var(--c-amber);
+  font-family:ui-monospace,Menlo,Consolas,monospace;
+  font-variant-numeric:tabular-nums;letter-spacing:-1px;
+  text-shadow:0 0 12px rgba(240,185,92,.55);
+}
+html[data-skin="console"] .elec-meta.elec-time{position:relative;z-index:2;padding-top:11px}
+html[data-skin="console"] .elec-meta.elec-time::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:42px;height:3px;
+  background:linear-gradient(90deg,
+    var(--c-mist) 0 8px,transparent 8px 10px,
+    var(--c-amber) 10px 18px,transparent 18px 20px,
+    var(--c-amber) 20px 28px,transparent 28px 30px,
+    rgba(216,232,228,.4) 30px 38px,transparent 38px 42px);
+}
+/* 空调强调卡 = 屏幕上方的黄铜铭牌条 */
+html[data-skin="console"] .card.elec-entry{
+  padding:0;background:var(--c-glass) !important;
+  border:2px solid var(--c-brass);border-radius:4px;
+  box-shadow:inset 0 0 20px rgba(0,0,0,.6),0 2px 0 rgba(255,255,255,.25);
+}
+html[data-skin="console"] .card.elec-entry::before{
+  height:20px;
+  background:linear-gradient(180deg,#8E623F,#6B4A30);
+}
+html[data-skin="console"] .card.elec-entry::after{
+  content:'● ●';color:var(--c-amber);letter-spacing:3px;font-size:9px;
+  width:auto;background:transparent;box-shadow:none;
+}
+html[data-skin="console"] .elec-entry-box{color:var(--c-on-glass);padding:14px}
+html[data-skin="console"] .elec-entry-title{color:var(--c-amber);letter-spacing:1.6px;font-size:15px;font-weight:700}
+html[data-skin="console"] .elec-entry-sub{color:var(--c-on-glass2)}
+html[data-skin="console"] .elec-entry-refresh{
+  background:rgba(240,185,92,.16);color:var(--c-amber);
+  border:1px solid var(--c-brass);border-radius:2px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.2),0 2px 0 #6B4A30;
+}
+
+/* ---------- 拨杆 / 档位开关 ---------- */
+html[data-skin="console"] .seg{
+  background:#26383F;border:2px solid #6B5438;border-radius:3px;padding:3px;
+  box-shadow:inset 0 2px 5px rgba(0,0,0,.5);
+}
+html[data-skin="console"] .seg button{
+  border-radius:1px;color:var(--c-on-glass2);font-family:inherit;letter-spacing:1.2px;
+}
+html[data-skin="console"] .seg button.on{
+  background:linear-gradient(180deg,#F8CE7E,#DDA747);color:#23180C;font-weight:800;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 2px 0 rgba(0,0,0,.4);
+}
+html[data-skin="console"] .chips button{
+  border:1px solid #8E7C60;border-radius:2px;background:var(--c-panel2);
+  color:var(--c-ink);font-family:inherit;
+  box-shadow:0 2px 0 #9A886C;
+}
+html[data-skin="console"] .chips button.on{
+  background:var(--c-mist);color:#F6F2FF;border-color:var(--c-mist);
+  box-shadow:0 2px 0 #5B4E86;
+}
+html[data-skin="console"] .pick-row.on{
+  background:rgba(154,140,216,.12) !important;
+  border-left:3px solid var(--c-mist);border-radius:0;
+}
+
+/* ---------- 档案槽：作业 / Wiki / 留言 ---------- */
+html[data-skin="console"] .hw,
+html[data-skin="console"] .wiki-card,
+html[data-skin="console"] .fb-card{
+  background:var(--c-panel2) !important;
+  border:1px solid #8E7C60;border-radius:2px;
+  box-shadow:inset 0 1px 3px rgba(70,56,38,.18);
+  color:var(--c-ink);
+}
+html[data-skin="console"] .hwmain b{color:var(--c-ink)}
+html[data-skin="console"] .hwcourse,
+html[data-skin="console"] .hwdate,
+html[data-skin="console"] .wiki-src,
+html[data-skin="console"] .fb-reply{
+  color:var(--c-ink2);letter-spacing:1px;background:transparent !important;
+}
+html[data-skin="console"] .wiki-tag{color:var(--c-copper);letter-spacing:1.6px;text-transform:uppercase;font-size:10px}
+html[data-skin="console"] .hwbadge{
+  border-radius:0;border-left:2px solid var(--c-mist);border-right:2px solid var(--c-mist);
+  font-family:inherit;letter-spacing:1px;font-size:10.5px;
+}
+html[data-skin="console"] .hwsec::after,
+html[data-skin="console"] .grp-head::after,
+html[data-skin="console"] .wiki-cat::after{
+  background:repeating-linear-gradient(90deg,var(--c-brass) 0 6px,transparent 6px 9px);
+  height:2px;opacity:.5;
+}
+/* 分区标题 = 机身丝印，右侧一枚螺丝（圆母题收口） */
+html[data-skin="console"] .pv-h{
+  color:var(--c-amber);letter-spacing:2px;text-transform:uppercase;font-size:10px;
+  background:#243A42;border:1px solid #12242B;border-radius:2px;
+  padding:5px 9px;margin:14px 2px 8px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.10);
+}
+html[data-skin="console"] .pv-h::before{content:'▮▮';color:var(--c-amber);margin-right:7px;letter-spacing:0}
+html[data-skin="console"] .pv-h::after{float:right;margin-top:1px}
+html[data-skin="console"] .hint{color:var(--c-ink2);font-family:inherit}
+
+/* 周切换 = 机身旋钮 */
+html[data-skin="console"] .wk-main{color:var(--c-ink);letter-spacing:2px;font-weight:700}
+html[data-skin="console"] .wk-sub{color:var(--c-ink2);letter-spacing:1px}
+html[data-skin="console"] .wkbtn{
+  border:2px solid #8E7C60;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#F1EADA,#C3B69C);
+  color:var(--c-ink);box-shadow:0 2px 0 #7A6A50,inset 0 1px 0 rgba(255,255,255,.6);
+}
+
+/* ---------- 收口：清残留内联色 + 只留一张贴歪标签（拼贴的唯一人味） ---------- */
+html[data-skin="console"] main .card:not(.elec-entry){background:var(--c-panel) !important}
+html[data-skin="console"] .grid .cell.today{background:transparent !important}
+html[data-skin="console"] .wiki-card.mine{background:var(--c-panel2) !important}
+html[data-skin="console"] .kb-bar{background:transparent !important}
+html[data-skin="console"] .card:nth-of-type(4n+2) .card-title{
+  /* 拼贴：唯一一张贴歪的丝印标签，不再整卡旋转 */
+  display:inline-block;transform:rotate(-1.2deg);
+  background:rgba(240,185,92,.18);padding:1px 5px;border-radius:1px;
+}
+
+/* ---------- 深色态：机身变深青金属，屏幕不变黑 ---------- */
+html[data-skin="console"][data-theme="dark"]{
+  --c-shell:#26363C;
+  --c-shell2:#1B2A30;
+  --c-panel:#1E2E34;
+  --c-panel2:#25373E;
+  --c-ink:#DCE8E6;
+  --c-ink2:#8FA8A8;
+  --c-glass:#0C181D;
+  --c-glass2:#15262C;
+  color-scheme:dark;
+}
+html[data-skin="console"][data-theme="dark"] body{
+  background-image:
+    repeating-linear-gradient(0deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
+    repeating-linear-gradient(90deg,rgba(0,0,0,.10) 0 1px,transparent 1px 6px),
+    linear-gradient(180deg,#1C2A30,#142026);
+}
+html[data-skin="console"][data-theme="dark"] .pv{
+  border-color:#0E1A1F;
+  box-shadow:inset 0 0 0 2px rgba(240,185,92,.14),inset 0 0 0 5px rgba(0,0,0,.30),0 6px 0 rgba(0,0,0,.40);
+}
+html[data-skin="console"][data-theme="dark"] .card,
+html[data-skin="console"][data-theme="dark"] .hw,
+html[data-skin="console"][data-theme="dark"] .wiki-card,
+html[data-skin="console"][data-theme="dark"] .fb-card,
+html[data-skin="console"][data-theme="dark"] .pick-row{background:var(--c-panel) !important}
+html[data-skin="console"][data-theme="dark"] .btn.ghost,
+html[data-skin="console"][data-theme="dark"] .chips button{color:var(--c-ink)}
+html[data-skin="console"][data-theme="dark"] .grid::before,
+html[data-skin="console"][data-theme="dark"] .elec-face::before{opacity:.75}
+
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="console"] .card,
+  html[data-skin="console"] .card-title{transform:none}
+}

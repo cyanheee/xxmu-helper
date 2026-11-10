@@ -99,7 +99,9 @@ ok(/x-apk-range/.test(pages), '段范围另存 x-apk-range，命中时还原');
 ok(/hit\.body, \{ status: 206/.test(pages), 'Range 命中还原成 206');
 ok(/x-pages-cache/.test(pages), '响应带 x-pages-cache: hit|miss，线上可验');
 ok(/const backup = r\.clone\(\)/.test(pages), '消费 body 前先 clone 备份（异常不丢响应）');
-ok(/HOME_TTL = 300/.test(pages) && /IMG_TTL = 86400/.test(pages), '首页/图片短 TTL');
+/* v1.1.54c：首页 TTL 300→86400 + BUILD 缓存键整批失效（官网卡顿优化）。 */
+ok(/HOME_TTL = 86400/.test(pages) && /IMG_TTL = 86400/.test(pages), '首页/图片长 TTL（86400）');
+ok(/const BUILD =/.test(pages) && /\?b=' \+ BUILD/.test(pages), '缓存键带 BUILD，改一次整批失效');
 ok(/x-pages-cache = 'hit'|'x-pages-cache', 'hit'/.test(pages), '静态分支有命中标记');
 /* 反向：不带 ?v= 的绝不能进这个分支 */
 ok(/qv\.length >= 8 && \/\^\[0-9a-f\]\+\$\/i\.test\(qv\) && rvAll !== ''/.test(pages),
@@ -111,9 +113,9 @@ console.log('\n4. 官网静态缓存文件');
   const hp = path.join(root, 'server', 'pages', 'dist', '_headers');
   ok(fs.existsSync(hp), 'dist/_headers 存在');
   const h = fs.existsSync(hp) ? fs.readFileSync(hp, 'utf8') : '';
-  ok(/max-age=300/.test(h), '首页 300 秒');
+  ok(/max-age=86400/.test(h), '首页 86400 秒（改 BUILD 即整批失效）');
   ok(/\/img\/\*/.test(h) && /max-age=86400/.test(h), '图片 1 天');
-  ok(!/immutable/.test(h), '官网没用 immutable（改文案最迟 5 分钟生效）');
+  ok(!/immutable/.test(h), '官网没用 immutable（改 BUILD 即失效）');
 }
 
 console.log('\n5. 发版链路：cfg.latest.url 必须带 ?v=');

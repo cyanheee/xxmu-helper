@@ -274,15 +274,15 @@ def shot_water():
     s.append('<text x="%d" y="%d" font-size="11" font-weight="600" fill="%s" '
              'text-anchor="end">2 台</text>' % (W - 26, y + 56, FG2))
 
-    # 目标水量
+    # 最长放水（防忘关）
     y = 240
     s.append('<rect x="14" y="%d" width="%d" height="96" rx="12" fill="%s" filter="url(#sh)"/>'
              % (y, W - 28, SURFACE))
-    s.append('<text x="26" y="%d" font-size="11" font-weight="600" fill="%s">目标水量</text>'
+    s.append('<text x="26" y="%d" font-size="11" font-weight="600" fill="%s">最长放水（防忘关）</text>'
              % (y + 24, FG))
     s.append('<text x="26" y="%d" font-size="9.5" fill="%s">选了数字，到量自动帮你停</text>'
              % (y + 40, MUTE))
-    chips = ['不限量', '200', '350', '500']
+    chips = ['不限', '1分钟', '2分钟', '5分钟']
     for i, c in enumerate(chips):
         cx = 26 + i * 84
         on = (i == 3)

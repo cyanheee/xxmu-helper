@@ -1,4 +1,4 @@
-﻿/* ============================================================
+/* ============================================================
    河医大助手 · 样式表
    设计基调（v1.1.53 西部涂鸦本）：牛皮纸做底、墨线描边、硬投影。
    圆角收小且四角不等，模拟手绘的不规整；强调色收敛为墨黑，
@@ -179,11 +179,15 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .tab.active{display:block}
 
 /* ---------------- 课表格 ---------------- */
-.grid{display:grid;grid-template-columns:20px repeat(7,1fr);
-  grid-auto-rows:46px;gap:2px;align-items:stretch;
+/* v3（TYPE-AUDIT §1）：节次列 20px→34px，行高 46px→56px。
+   原因：钟点「08:00」在 11px 等宽下要 30.3px（Consolas .55em）/32.2px（Roboto Mono .60em），
+   20px 的列必然裁字，原来只能压到 5.5px（实际渲染 5.2px）。列放宽 + 行加高是唯一不解字的路。
+   34px = 32.2 + 左右各 0.9 余量；行高 56 = 4 行 11px/1.1 正文（48.4）+ 上下内边距 6 + 余量。 */
+.grid{display:grid;grid-template-columns:34px repeat(7,1fr);
+  grid-auto-rows:56px;gap:2px;align-items:stretch;
   background:var(--surface);border-radius:var(--radius);padding:8px 6px 10px;
   box-shadow:var(--shadow);overflow:hidden}
-.gh{font-size:10px;color:var(--mute);text-align:center;
+.gh{font-size:11px;color:var(--mute);text-align:center;
   display:flex;align-items:flex-end;justify-content:center;height:24px;
   font-weight:500}
 .gh.today{color:var(--accent);font-weight:700;position:relative}
@@ -191,29 +195,37 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   height:2.5px;background:var(--accent);border-radius:2px}
 .gp{position:relative;display:flex;flex-direction:column;align-items:center;
   justify-content:flex-start;padding-top:4px;line-height:1.1;color:var(--mute)}
-.gp>div:first-child{font-size:9.5px;font-weight:650;color:var(--mute)}
-.gp .gt{font-size:5.5px;transform:scale(.95);transform-origin:top center;
-  opacity:.72;white-space:nowrap;letter-spacing:-.2px}
+.gp>div:first-child{font-size:11px;font-weight:650;color:var(--mute)}
+/* v3（TYPE-AUDIT §1 首要项）：钟点副标 5.5px + scale(.95) = 实际 5.2px，怎么也读不清。
+   改成 11px 后「08:00」需 30.3~32.2px 宽，配合 .grid 的 34px 节次列正好一行放下，
+   于是 scale(.95) 与 letter-spacing:-.2px 两个「挤字」手段可以一起撤掉。 */
+.gp .gt{font-size:11px;transform:none;transform-origin:top center;
+  opacity:.72;white-space:nowrap;letter-spacing:0}
 .gp.gfirst::before{content:'';position:absolute;left:-2px;right:-2px;top:-1px;
   height:1px;background:var(--line)}
 .cell{background:var(--surface2);border-radius:7px}
 .cell.gfirst{box-shadow:inset 0 1.5px 0 var(--line)}
 .cell.today{background:var(--today-bg)}
 
+/* v3（TYPE-AUDIT §1）：课卡里原有 8.5/9/7.5/7px 四级字号，全部提到 11px 下限。
+   390px 下一天一列只剩 (390-34-12-14)/7 ≈ 47px，11px 汉字一行约 4 字，
+   课名靠换行解决；层级不再靠「缩小字号」表达，改由字重 + 不透明度承担
+   （§1.1 三级可读性：颜色/字重分级，字号只有一档）。
+   行高 1.09 = 56px 行高扣 8px 内边距后正好 4 行（47.9），不用再猜。 */
 .c{position:relative;background:var(--c,#e8f0fe);border-radius:8px;
   padding:4px 4px 4px 6px;display:flex;flex-direction:column;gap:1px;
-  overflow:hidden;color:#16233a;font-size:8.5px;line-height:1.22;
+  overflow:hidden;color:#16233a;font-size:11px;line-height:1.09;
   cursor:pointer;border:1px solid rgba(15,23,42,.045);
   box-shadow:0 1px 3px -1px rgba(15,23,42,.12)}
 .c::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2.5px;
   background:var(--cb,#2563eb);opacity:.72}
 .c:active{filter:brightness(.97);transform:scale(.99)}
-.c b{font-size:9px;font-weight:650;line-height:1.22;word-break:break-all;
-  letter-spacing:-.2px;padding-left:1px}
-.c .room{color:#4a5666;font-size:7.5px;word-break:break-all;padding-left:1px}
-.c .pr{margin-top:auto;color:#5b6884;font-size:7px;opacity:.9;
+.c b{font-size:11px;font-weight:700;line-height:1.09;word-break:break-all;
+  letter-spacing:0;padding-left:1px}
+.c .room{color:#4a5666;font-size:11px;opacity:.86;word-break:break-all;padding-left:1px}
+.c .pr{margin-top:auto;color:#5b6884;font-size:11px;opacity:.92;
   white-space:nowrap;padding-left:1px}
-.c .pr2{margin-top:0;color:#5b6884;font-size:7px;opacity:.9;
+.c .pr2{margin-top:0;color:#5b6884;font-size:11px;opacity:.92;
   white-space:nowrap;padding-left:1px}
 
 .hint{font-size:11.5px;color:var(--mute);text-align:center;margin:12px 4px;
@@ -325,6 +337,9 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   display:flex;align-items:center;gap:12px}
 .elec-entry-title{font-size:17px;font-weight:700;letter-spacing:.3px}
 .elec-entry-sub{font-size:12.5px;opacity:.88;margin-top:3px}
+/* v1.1.62：当前绑定哪间房直接印在卡上（绑错校区一眼可见），长名收成一行 */
+.elec-entry-room{font-size:11px;opacity:.82;margin-top:5px;line-height:1.3;
+  max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* v1.1.37：度数直接印在入口卡上，右边一块（数字 + 手动刷新） */
 .elec-entry-main{flex:1;min-width:0}
 .elec-entry-right{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:5px}
@@ -375,6 +390,12 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer;
   font-variant-numeric:tabular-nums}
 .pick-cell:active{transform:scale(.97);opacity:.8}
+/* v1.1.62：套间 AB 房（22514B / 22214A 之类）单独高亮，别再被埋在末尾 */
+.pick-cell.suite{background:rgba(37,99,235,.12);
+  box-shadow:inset 0 0 0 1.5px rgba(37,99,235,.42);
+  color:var(--fg);font-weight:700}
+html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
+  box-shadow:inset 0 0 0 1.5px rgba(96,165,250,.48);color:var(--fg)}
 .pick-grid.c4 .pick-cell{padding:11px 2px;font-size:13px}
 .hwsec{font-size:12px;color:var(--mute);margin:16px 4px 7px;font-weight:650;
   letter-spacing:.3px}
@@ -540,7 +561,8 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .ph-head{display:flex;align-items:center;justify-content:space-between;
   margin:16px 4px 9px}
 .ph-title{font-size:12px;font-weight:650;color:var(--mute);
-  letter-spacing:.6px}
+  letter-spacing:.6px;margin-right:auto}
+.ph-head .pill{margin-left:6px;flex:0 0 auto}
 .ph-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .ph-card{position:relative;border-radius:13px;overflow:hidden;
   background:var(--surface2);box-shadow:var(--shadow);
@@ -582,8 +604,40 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
   transition:border-color .14s,background .14s;color:var(--fg)}
 .fr-input:focus{border-color:var(--focus-line);background:var(--surface)}
 .fr-row{display:flex;gap:8px;align-items:center}
-.fr-row .fr-input{flex:1}
+/* min-width:0 是必须的：日期输入框有固有最小宽度（不缩），会把同一行
+   的数字输入框挤成一条空白窄条。 */
+.fr-row .fr-input{flex:1 1 0;min-width:0}
 .fr-row .pill{flex:0 0 auto;padding:11px 16px;border-radius:12px}
+
+/* ---------------- 表单反馈：三层容错 ----------------
+ * AI 做的表单最大的问题不是不好看，是「填错只告诉你填错了」。
+ * 这里把反馈拆成三层：
+ *   填前 —— .fr-hint 默认给一句人话提示（要填什么、填成什么样）
+ *   填中 —— input 事件实时监测，边打边判，不等提交
+ *   填错 —— 具体到「还差几位」「以 1 开头」，不说「格式不对」
+ * 经典档与 NOVA 共用这一套底座，NOVA 只换介质（见 nova-skin.css）。 */
+.fr-hint{display:none;margin:7px 0 0;font-size:11.5px;line-height:1.55;
+  color:var(--mute);transition:color .14s}
+.fr-hint.show{display:block}
+.fr-hint.bad{color:var(--danger)}
+.fr-hint.good{color:var(--ok)}
+.fr-input.bad,.gate-input.bad{border-color:var(--danger);background:var(--danger-bg)}
+.fr-input.good,.gate-input.good{border-color:var(--ok-line)}
+.fr-hint.gate-hint{margin-top:7px;text-align:left}
+/* 经典档的读数行：纸质便签边上的一枚小刻度，别抢输入框的戏 */
+.fr-hint,.gate-live{padding-left:11px;position:relative}
+.fr-hint::before,.gate-live::before{content:'';position:absolute;left:0;top:2px;
+  bottom:2px;width:2px;border-radius:2px;background:var(--line)}
+.fr-hint.bad::before,.gate-live.bad::before{background:var(--danger)}
+.fr-hint.good::before,.gate-live.good::before{background:var(--ok-line)}
+
+/* 一键套用常见学期：五个小便签，做得比普通 chips 更轻 */
+.chips.set-quick{margin:11px 0 0;gap:6px}
+.chips.set-quick button{font-size:11.5px;padding:6px 11px;border-radius:8px;
+  border-color:var(--line);background:var(--surface2);color:var(--fg2);
+  box-shadow:0 1px 0 rgba(15,23,42,.05)}
+.chips.set-quick button.on{background:linear-gradient(160deg,#3b82f6,#2563eb);
+  border-color:transparent;color:#fff;font-weight:600}
 
 .dev{display:flex;align-items:center;gap:10px;padding:13px 0;
   border-top:1px solid var(--line)}
@@ -639,6 +693,12 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .gate-more span:active{background:var(--surface2);color:var(--fg2)}
 .gate-err{color:var(--danger);font-size:12.5px;min-height:18px;margin-top:9px;
   text-align:center;white-space:pre-wrap;line-height:1.6}
+/* 激活门的实时校验行：边打边判，提示具体到「还差几位」 */
+.gate-live{display:none;margin:8px 0 0;font-size:11.5px;line-height:1.55;
+  color:var(--mute);text-align:left;transition:color .14s}
+.gate-live.show{display:block}
+.gate-live.bad{color:var(--danger)}
+.gate-live.good{color:var(--ok)}
 /* 强制升级时激活门上多出来的第二出口。
  * 它和上面的「激活」按钮只隔 6px 会显得像连在一起，所以单独给间距。 */
 .gate-upd{margin-top:10px}
@@ -987,6 +1047,13 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
 .card .btn-sm { margin-top: 10px; width: 100%; }
 .card .btn-sm + .btn-sm { margin-top: 8px; }
+/* 但 .fr-row 里的小按钮是并排的（验证码「获取」/ 设置页「保存」），
+   不能继承上面的 width:100%，否则它会吃掉整行宽度、把输入框挤扁。 */
+.fr-row .btn-sm{flex:0 0 auto;width:auto;margin-top:0}
+/* 设置页「开学日 / 总周数 / 保存」一行：日期框要更宽（原生 date 控件
+   在窄格里会把 2026/08/31 截掉尾巴），周数框固定窄一点。 */
+.fr-row #setStart{flex:1.45 1 0;min-width:0}
+.fr-row #setWeeks{flex:0 0 84px}
 
 /* 结算过程回显：一行一项，和 .apk-hosted 同款视觉语言 */
 .settle-box {
@@ -1031,6 +1098,44 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
 .rev-text{font-size:12.5px;line-height:1.75;color:var(--fg2);
   white-space:pre-wrap;word-break:break-word}
 .rev-acts{display:flex;gap:7px;flex-wrap:wrap}
+/* 待审图片改成左右滑动：一次一张，snap 对齐，手指横划 / 按钮都能翻。
+ * 只作用于 .rev-photos，留言板那条 .rev-list 仍是原来的纵向堆叠。 */
+.rev-photos{flex-direction:row;gap:0;overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch;
+  scrollbar-width:none}
+.rev-photos::-webkit-scrollbar{display:none}
+.rev-photos > .rev-item{flex:0 0 100%;width:100%;box-sizing:border-box;
+  scroll-snap-align:start;scroll-snap-stop:always}
+.rev-photos > .hint{flex:0 0 100%}
+.rev-nav{display:none;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px}
+/* 导航在 .card 里，会被 .card .btn-sm{width:100%} 撑成竖排；
+ * 用 id 抬权重把三个按钮压回一行，中间张数占满剩余宽度。 */
+#revPhotoNav .btn{flex:0 0 auto;width:auto;min-width:0;margin-top:0;padding:8px 12px}
+#revPhotoNav .rev-pos{flex:1 1 auto;text-align:center;white-space:nowrap}
+.rev-pos{font-size:12px;color:var(--mute);font-variant-numeric:tabular-nums}
+/* 方向编辑 / 审核动作也别一张按钮占一整行，收成紧凑的行内胶囊 */
+#revPhotoList .rev-rot .btn,
+#revPhotoList .rev-acts .btn{flex:1 1 auto;width:auto;min-width:0;margin-top:0;padding:9px 8px}
+#revPhotoList .rev-rot .btn + .btn,
+#revPhotoList .rev-acts .btn + .btn{margin-top:0}
+#revPhotoList .rev-rot-lab{flex:0 0 auto;margin:0 2px 0 0}
+/* 方向框：固定 4:3，图片绝对居中后按 data-rot 旋转。
+ * 90/270 会横竖互换，把 img 收成 75% 宽 / 133.33% 高，
+ * 转 90 度正好铺满 4:3 的框，不溢出也不留白。 */
+.img-frame{position:relative;width:100%;aspect-ratio:4 / 3;overflow:hidden;
+  background:var(--img-bg, var(--surface2));border-radius:10px}
+.img-frame > img{position:absolute;top:50%;left:50%;
+  width:100%;height:100%;aspect-ratio:auto;object-fit:cover;
+  border-radius:0;transform:translate(-50%,-50%) rotate(0deg)}
+.img-frame[data-rot="90"] > img,
+.img-frame[data-rot="270"] > img{width:75%;height:133.333%}
+.img-frame[data-rot="90"] > img{transform:translate(-50%,-50%) rotate(90deg)}
+.img-frame[data-rot="180"] > img{transform:translate(-50%,-50%) rotate(180deg)}
+.img-frame[data-rot="270"] > img{transform:translate(-50%,-50%) rotate(270deg)}
+.img-frame-full{border-radius:13px}
+.img-frame-full > img{object-fit:contain}
+.rev-rot{display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.rev-rot-lab{font-size:10.5px;color:var(--mute);margin-right:2px}
 .rev-reply{padding:8px 10px;border-left:3px solid var(--accent);
   background:var(--accent-soft);border-radius:0 9px 9px 0}
 .rev-reply-t{font-size:10px;font-weight:650;color:var(--accent);margin-bottom:3px}
@@ -1495,7 +1600,10 @@ main{background:transparent}
   border:1.5px solid var(--edge);
   border-radius:9px 3px 10px 4px / 4px 10px 3px 9px;
   box-shadow:2px 2px 0 rgba(140,122,94,.40);font-weight:800}
-.ntc-badge{background:var(--yellow);color:var(--oncolor)}
+/* v3：徽标是必读信息（"!"= 有新公告），米黄底 + 奶白字只有 2.11:1，
+   读不出来就等于没有。改成墨字（--ink）在 --yellow 上是 5.53:1。
+   底色仍留 --yellow，它承担"警示"语义，不承担"文字"语义。 */
+.ntc-badge{background:var(--yellow);color:var(--ink)}
 .tut-icon{background:var(--green)}
 .upd-ico{background:var(--purple)}
 .upd-notes,.ntc-body{background:var(--surface2);border:2px dashed var(--line);
@@ -1621,6 +1729,9 @@ main{background:transparent}
   border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   color:var(--ink);font-weight:700}
 .pick-cell:active{background:var(--yellow);border-color:var(--edge)}
+/* v1.1.62：套间 AB 房在牛仔布告牌下也用西部黄高亮，别跟普通格混一起 */
+.pick-cell.suite{background:var(--yellow);border-color:var(--edge);
+  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);color:var(--ink);font-weight:800}
 
 /* ---------------- 宿舍空调：牛仔布告牌 ---------------- */
 .card.elec-entry{background:var(--blue);color:var(--oncolor);
@@ -1631,6 +1742,8 @@ main{background:transparent}
 .elec-entry-box{color:var(--oncolor);padding:15px 14px 14px}
 .elec-entry-title{font-size:16px;font-weight:800;letter-spacing:.5px}
 .elec-entry-sub{color:var(--oncolor-dim);font-weight:600}
+/* v1.1.62：牛仔布告牌下当前绑定房名保持高对比、不溢出 */
+.card.elec-entry .elec-entry-room{color:var(--oncolor);opacity:.92;font-weight:700}
 .elec-entry-odd{font-size:32px;font-weight:800;letter-spacing:-1.2px}
 .elec-entry-unit{color:var(--oncolor-dim)}
 .elec-entry-refresh{background:var(--yellow);color:var(--ink);
@@ -1758,6 +1871,47 @@ html[data-theme="dark"] .btn{box-shadow:var(--shadow)}
 details summary::after{color:var(--mist)}
 .rm-mode-tick{color:var(--mist)}
 .adm-code{color:var(--mist)}
+
+/* ---------------- v1.1.55 糖梨借鉴：AI 改课表 / 成绩页 ---------------- */
+.kb-tools{margin-top:10px}
+.cmd-step{margin:12px 0 6px;font-weight:800;color:var(--ink)}
+.cmd-ta{display:block;width:100%;min-height:118px;box-sizing:border-box;
+  margin:8px 0;padding:10px;border:1.5px solid var(--edge);border-radius:5px;
+  background:var(--paper2);color:var(--ink);font:13px/1.6 ui-monospace,Consolas,monospace;
+  resize:vertical}
+.cmd-step .btn{margin:4px 6px 4px 0;font-size:12.5px;padding:8px 12px;width:auto}
+.cmd-result{margin:10px 0}
+.cmd-pre{white-space:pre-wrap;word-break:break-word;margin:0;padding:10px;
+  border:1.5px solid var(--edge);border-radius:5px;background:var(--surface2);
+  color:var(--ink);font:12.5px/1.6 ui-monospace,Consolas,monospace}
+.cmd-pre.bad{color:var(--danger);border-color:var(--danger);background:var(--danger-bg)}
+.btn:disabled{opacity:.45;filter:grayscale(.4)}
+
+.grade-stat{display:flex;flex-direction:column;gap:2px;margin:10px 0;
+  padding:10px;border:1.5px solid var(--edge);border-radius:5px;
+  background:var(--surface2);box-shadow:var(--shadow)}
+.grade-stat b{font-size:20px;color:var(--ink)}
+.grade-stat span{font-size:12px;color:var(--ink2)}
+.grade-acts{display:flex;gap:8px;margin-bottom:10px}
+.grade-acts .btn{flex:1;width:auto;padding:8px 10px;font-size:12.5px;margin:0}
+.grade-box{margin:6px 0}
+.grade-row{display:flex;align-items:center;gap:8px;padding:10px 8px;
+  border-bottom:1.5px dashed var(--line)}
+.grade-row b{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;color:var(--ink)}
+.grade-credit{font-size:11.5px;color:var(--mute);flex:0 0 auto}
+.grade-score{font-weight:800;color:var(--ink);font-variant-numeric:tabular-nums;
+  flex:0 0 auto;min-width:74px;text-align:right}
+.grade-score.red{color:var(--danger)}
+.grade-score.muted{color:var(--mute);font-weight:600}
+.grade-row.covered{cursor:pointer;background:var(--mist-soft);border-radius:4px}
+.grade-row.covered .grade-score{color:var(--mist);font-weight:700;font-size:12px}
+.grade-point{font-size:11px;color:var(--mute);flex:0 0 auto}
+.grade-empty{padding:16px 8px;color:var(--mute);text-align:center}
+.grade-imp{margin-top:14px;border-top:1.5px dashed var(--line);padding-top:8px}
+.grade-imp summary{cursor:pointer;color:var(--blue);font-weight:700;font-size:13px}
+.grade-imp .btn{width:auto;font-size:12.5px;padding:8px 12px}
+html[data-theme="dark"] .grade-row.covered{background:rgba(142,123,196,.16)}
 
 /* ---------------- 滚动条 ---------------- */
 ::-webkit-scrollbar{width:0;height:0}

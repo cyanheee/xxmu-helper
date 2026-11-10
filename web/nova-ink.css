@@ -1,0 +1,106 @@
+/* ==========================================================================
+   河医大助手 · NOVA 浅色「水墨云图」配色层   v1.1.61
+   --------------------------------------------------------------------------
+   参考：三角洲行动 / 麦晓雯「水墨云图」。YG（m00477）：「浅色模式的颜色风格
+   可以参考三角洲行动里的麦晓雯的水墨云图配色」；三套预览(花青云水/朱印云图/
+   留白淡墨)里 YG 授权自选（m00591），最终选 A「花青云水」——花青/青绿山水最贴
+   水墨云图、冷调延续 NOVA 既有青绿主色、墨蓝石板顶栏不压黑、三层晕染即「云图」。
+
+   写域：仅本文件。**只覆盖 App 浅色档**——
+     · 作用域一律 html[data-skin="nova"]:not([data-theme="dark"])[lang]
+       （特异性 0,3,1，稳稳压过 nova-skin.css / nova-medium.css 的 0,1,1 /
+        0,2,1 令牌块；[lang] 只是无害抬权重，index.html 恒有 lang="zh-CN"）。
+     · 深色档（紫夜舱）、经典档、官网配色一律 0 命中、0 副作用：
+       :not([data-theme="dark"]) 把深色整档排除，data-skin="nova" 把经典排除。
+     · 绝不改 nova-skin.css:8-20 根令牌（--n-shell/--n-cyan/... 与官网
+       design/sketch/site-style.css 逐字同源，check_web.js 的 NOVA_PAIRS 锁死）。
+       这里只覆写「派生层」令牌，根令牌原封不动。
+
+   手法：宣纸米白／青灰留白底 + 三层 radial-gradient 水墨晕染（花青 / 淡墨 /
+   远山），一道极淡纸纤维；墨蓝石板顶栏（不纯黑，呼应「不要那么多黑」）；
+   主色收到花青单轴 #2E6E76，朱砂红只留给威胁/今日强调这一语义位。
+   所有 UI 仍读令牌，去掉本文件即回到原冷瓷白，回滚零成本。
+   ========================================================================== */
+
+/* ---- ① 派生调色板 + 介质明度（浅色档专属复写）-------------------------- */
+html[data-skin="nova"]:not([data-theme="dark"])[lang]{
+  /* 墨色文字：去纯黑，带一点青灰墨韵；三级递减仍保证对比 */
+  --n-ink:#1C2B30;   --n-ink-2:#4C6068;   --n-ink-3:#5B6E76;
+
+  /* 顶栏 / 底栏：墨蓝石板，明度分层，非纯黑 */
+  --n-graphite:#33474D;  --n-graphite-2:#26363C;  --n-graphite-3:#40565C;
+
+  /* 主色单轴：花青（青绿山水的那一支） */
+  --n-accent:#2E6E76;        --n-accent-hi:#3E8891;  --n-accent-lo:#20545B;
+  --n-accent-ink:#245A61;    --n-accent-weak:rgba(46,110,118,.09);
+  --n-accent-line:rgba(46,110,118,.30);
+  --n-danger:#B23A2E;        /* 朱砂印章红：只给逾期/危险语义位 */
+
+  /* 纸：控制坐的那张宣纸，冷中带一点暖白 */
+  --n-paper:#E7E6DC;   --n-paper-2:#DFDED2;
+  /* 瓷白三档：带极淡青，不像冷玻璃那样发灰 */
+  --n-surface:#FCFDFC; --n-surface-2:#F4F7F5; --n-surface-3:#EAF0EE;
+
+  /* 中性描边：墨色低透明，不抢戏 */
+  --n-line-weak:rgba(28,43,48,.07);
+  --n-line:rgba(28,43,48,.12);
+  --n-line-strong:rgba(28,43,48,.20);
+
+  /* 介质明度阶梯（复写 nova-medium.css 的浅色四档，保持「灰阶定结构」）：
+     卡片 .98 → 纸位 → 页面底 → 玻璃槽，去色后仍分得开。 */
+  --n-m-card:#FCFDFC;        /* 瓷白卡片 */
+  --n-m-paper:#ECE7DA;       /* 纸质载体 */
+  --n-m-glass:#CBDAD7;       /* 青灰凹槽 */
+  --n-m-grid-cell:#DCE7E3;   /* 空格子（槽） */
+  --n-edge:rgba(28,43,48,.11);
+  --n-edge-strong:rgba(28,43,48,.18);
+  --n-lift:var(--n-light-top),var(--n-shadow-1),var(--n-shadow-2);
+
+  /* 课表时间基准线（nova-polish.css 读它）：墨青，压得上白瓷 */
+  --eg-clock:#3A5560;                   --eg-clock-line:rgba(28,43,48,.20);
+
+  /* 像素彩蛋气泡（nova-easter.css 读它）：宣纸半透 + 墨字，融入水墨底 */
+  --eg-bg:rgba(247,249,246,.94);
+  --eg-fg:#243842;
+  --eg-bd:rgba(28,43,48,.20);
+  --eg-shadow:0 3px 12px -4px rgba(28,43,48,.34),0 1px 0 rgba(28,43,48,.06);
+}
+
+/* ---- ② 台面：三层水墨晕染 + 极淡纸纤维 + 竖向留白渐层 --------------------
+   nova-skin.css:85-96 用 !important 钉死了 html 的底色/底图，这里以更高
+   特异性 (0,3,1) + !important 覆盖。radial 三层 = 花青主晕 / 淡墨远山 /
+   底部积墨；repeating 一道纸纤维只在极淡 alpha 下出现，不吃字、不掉帧。 */
+html[data-skin="nova"]:not([data-theme="dark"])[lang]{
+  background-color:#EDF0EC !important;
+  background-image:
+    radial-gradient(120% 58% at 14% 6%,rgba(46,110,118,.11),transparent 60%),
+    radial-gradient(95% 50% at 90% 28%,rgba(46,110,118,.07),transparent 56%),
+    radial-gradient(150% 80% at 50% 100%,rgba(38,54,60,.07),transparent 60%),
+    repeating-linear-gradient(96deg,rgba(28,43,48,.012) 0 1px,transparent 1px 5px),
+    linear-gradient(180deg,#F3F1EA 0%,#EAEDE9 55%,#E1E7E4 100%) !important;
+  background-attachment:fixed !important;
+}
+
+/* ---- ③ 「今日」强调：花青描边收口，朱砂只点一下表头 ---------------------- */
+html[data-skin="nova"]:not([data-theme="dark"])[lang] #grid .c.today{
+  box-shadow:var(--n-light-top),inset 0 0 0 1px rgba(46,110,118,.42),var(--n-shadow-1) !important;
+}
+html[data-skin="nova"]:not([data-theme="dark"])[lang] #grid .gh.today{
+  color:var(--n-accent) !important;
+}
+
+/* ---- ④ 墨蓝顶栏：把硬黑压边换成一层花青上缘天光（细腻的一点呼应） --------
+   只加一层 inset 高光，不改它的渐变真源，深色档/弹层都不受影响。 */
+html[data-skin="nova"]:not([data-theme="dark"])[lang] #top{
+  box-shadow:inset 0 1px 0 rgba(120,168,173,.14),
+             0 1px 0 rgba(0,0,0,.22),
+             0 12px 22px -18px rgba(28,43,48,.60) !important;
+}
+
+/* ---- ⑤ 减少动态效果兜底：本层只有静态渐变，无需动效；显式声明一次，
+   与全站 §6 总闸保持一致，避免后续有人误加循环动画。 ---------------------- */
+@media (prefers-reduced-motion:reduce){
+  html[data-skin="nova"]:not([data-theme="dark"])[lang]{
+    background-attachment:scroll !important;
+  }
+}

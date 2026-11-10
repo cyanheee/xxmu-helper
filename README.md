@@ -11,9 +11,9 @@
 Timetable · Assignment countdown · Free classrooms · Water dispenser · Campus info
 
 [![Platform](https://img.shields.io/badge/platform-Android%207.0%2B-3ddc84?logo=android&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/version-1.1.50-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
+[![Version](https://img.shields.io/badge/version-1.1.62-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
-[![QQ](https://img.shields.io/badge/QQ-572833261-12b7f5?logo=tencentqq&logoColor=white)](https://wpa.qq.com/msgrd?v=3&uin=572833261&site=qq&menu=yes)
+[![QQ](https://img.shields.io/badge/QQ-692962849-12b7f5?logo=tencentqq&logoColor=white)](https://wpa.qq.com/msgrd?v=3&uin=692962849&site=qq&menu=yes)
 
 **[简体中文](#简体中文) · [English](#english)**
 
@@ -23,7 +23,7 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 <img src="docs/shots/shot-learn.svg" width="24%" alt="学习">
 <img src="docs/shots/shot-water.svg" width="24%" alt="饮水机">
 
-<sub>界面示意图（按 App 真实结构绘制，非真机截图）</sub>
+<sub>界面示意图（按 App 真实结构绘制，非真机截图）· 当前为 v1.1.62「水墨云图」浅色皮肤，另有深色与最初的经典皮肤可切换</sub>
 
 </div>
 
@@ -37,14 +37,15 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 
 ### 这是什么
 
-一个安卓 App，解决四件每天都要重复的小事：
+一个安卓 App，把几件每天都要重复的小事合到一处：
 
 - 想知道**本周上什么课**，得登教务、找入口、等页面加载
 - 想知道**哪份作业快到期**，得挨个课程点进去翻
 - 想知道**现在哪间教室空着**，得手动比对课表
 - 想**接杯水**，得先扫码再在机器上按
+- 想看**宿舍空调还剩多少度电**，得进完美校园一层层找自己那间房
 
-这几个动作本身不难，但一天要做好几次。这个 App 把它们合到一处。
+这几个动作本身不难，但一天要做好几次。课表、作业、空教室、接水、空调、校园资料现在都在同一个界面里。最近两版还换了「水墨云图」浅色皮肤，课表角落多了两位会动、会说话的像素小伙伴。
 
 **它不是学校的官方产品**，是在校学生自己写了自己用的工具。数据全部来自学校官方系统，一切正式事务（成绩、选课、评教、缴费）请以官方系统为准。
 
@@ -57,6 +58,8 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 | 直连下载 | <https://xxmu-auth.pages.dev/v1/apk> |
 | 更新群 | QQ `1097668324` |
 
+当前版本 **v1.1.62 / 1162**（2026-11-10）：空调入口卡会写明绑定的是哪间房、套间 AB 宿舍能选到、绑了多间房会列出来自己挑；校园实景和留言板会隔几分钟自己更新，不用退出重进软件；填错格式的学号重新登录一次教务就自动对齐。上一版 v1.1.61 换的水墨云图浅色皮肤与像素小伙伴都还在。
+
 > 在微信里打开会提示无法下载安装包，这是微信的限制。点右上角「···」→「在浏览器打开」，再点一次下载即可。
 
 ### 联系我
@@ -65,9 +68,9 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 
 | 渠道 | 联系方式 |
 |---|---|
-| QQ | **572833261** |
+| QQ | **692962849** |
 | QQ 群（更新通知） | [1097668324](https://qm.qq.com/q/xxmuhelper) |
-| 邮箱 | 572833261@qq.com |
+| 邮箱 | 692962849@qq.com |
 | GitHub | [github.com/cyanheee](https://github.com/cyanheee) |
 
 ### 功能
@@ -96,11 +99,21 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 
 这里有个容易误解的地方：**手机只能「解锁」，出水还得在机器出水口按一下物理键**。胖乖生活平台的官方页面原文就是「请在出水口处点按开始接水」——它没有开放远程开阀的接口，这是硬件设计，不是没做。
 
-但「停」是可以远程下发的，所以做了**定量放水**：选了目标水量之后，到量自动帮你发停止命令。三条限制写在界面上：到量到停阀有几秒延迟会多流一点；断网盯不住；一直没检测到出水会提醒你去按。
+但「停」是可以远程下发的，所以做了**最长放水（防忘关）**：设一个时长上限，到点自动帮你发停止命令。它是一道安全网，不是按毫升精确计量——官方页面并不向网页开放实时出水量。三条限制写在界面上：到点到停阀有几秒延迟会多流一点；断网盯不住；一直没检测到出水会提醒你去按。
 
 **校园资料**
 
-学校常用入口、办事流程、联系方式归到一处，支持检索和本地新增。
+学校常用入口、办事流程、联系方式归到一处，支持检索和本地新增。WIKI 页的校园实景与留言板会隔几分钟自动对一次新内容，从后台切回 App 也会顺手更新，右上角另有「刷新」可手动拉；内容没变时不重排，正在检索的内容不会被打断。
+
+**宿舍空调**
+
+只读展示完美校园里自己那间房的剩余度数，缴费仍在完美校园里自己完成。这里不代办支付，也不换算单位，读数以缴费页为准、可能有延迟。
+
+v1.1.62 针对两条真实反馈做了防呆：入口卡直接印出**当前绑定的是哪间房**，绑错校区一眼能看出来，面板里也留了「换房间」的入口；官方把套间 AB 房（如 22514B）追加在房号列表末尾，以前按数字排序会沉底翻不到，现在改成自然排序、B 间紧跟主号并单独高亮；一个学号登记了多间空调房时，会全部列出来点选，不再默认拿第一间。
+
+**外观与彩蛋**
+
+浅色是「水墨云图 / 花青云水」：宣纸留白、花青淡墨晕染、朱砂印章点缀；深色与最初的经典皮肤都还在，设置里随时切换。课表角落有两位 8-bit 像素小伙伴，会走、会跳、会挥手，气泡里是英中双语台词，点一下马里奥会响一段合成的八位电子音。连击、金币、成就、图鉴、双人拌嘴这些小玩法都在本地跑，长按可以静音，系统开了「减少动态效果」就全部安静下来。它们只占课表底部左右两小块空地，不挡课程、不挡铭牌和底部五个标签。
 
 ### 隐私
 
@@ -134,7 +147,13 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 <details>
 <summary><b>饮水机为什么点完还要在机器上按一下</b></summary>
 
-胖乖生活平台只开放了「解锁」接口，没有远程开阀能力。手机能做的到解锁为止，出水必须人在机器上按。但「停」可以远程做，所以设了目标水量之后能自动停。
+胖乖生活平台只开放了「解锁」接口，没有远程开阀能力。手机能做的到解锁为止，出水必须人在机器上按。但「停」可以远程做，所以设了最长放水（防忘关）之后能自动停。
+</details>
+
+<details>
+<summary><b>空调剩余度数和缴费页对不上</b></summary>
+
+先看入口卡上印的房间名是不是自己宿舍。最常见的原因是绑到了别的校区、别的公寓，或者同一层里另一间空调分表——两间房的数都是真的，只是不是同一间。点进面板用「换房间」重选一次即可。住在套间的同学注意选带 A / B 后缀的那一间，列表里已经按房号排好并单独标了颜色。
 </details>
 
 <details>
@@ -174,6 +193,10 @@ node tools/check_web.js
 node tools/test_parsekb.js
 node tools/test_hwstatus.js
 node tools/test_water.js
+node tools/test_elec.js
+node tools/test_kb_align.js
+node tools/test_photo_rot.js
+node tools/test_net_fix.js
 
 # 打包
 python tools/build_apk.py
@@ -209,14 +232,14 @@ python tools/build_apk.py
 
 ### What this is
 
-An Android app that folds four small, repetitive daily chores into one place:
+An Android app that folds several small, repetitive daily chores into one place:
 
 - Want to know **what classes you have this week**? Log into the academic system, find the right page, wait for it to load.
 - Want to know **which assignment is due soon**? Click into each course one by one.
 - Want to know **which classroom is empty right now**? Compare against your timetable by hand.
 - Want **a cup of water**? Scan a QR code, then press a button on the machine.
 
-None of these is hard on its own, but you do them several times a day. This app puts them together.
+None of these is hard on its own, but you do them several times a day. This app puts them together — timetable, assignments, free classrooms, water, air conditioning and campus info in one place. Recent releases added the “ink-wash” light skin and two animated pixel companions in the timetable corner.
 
 **This is not an official school product.** It is a tool written and used by a student. All data comes from official school systems; anything formal — grades, course registration, teaching evaluations, payments — should be handled on the official systems.
 
@@ -229,6 +252,8 @@ None of these is hard on its own, but you do them several times a day. This app 
 | Direct APK | <https://xxmu-auth.pages.dev/v1/apk> |
 | Update group | QQ `1097668324` |
 
+Current release **v1.1.62 / 1162** (2026-11-10): the air-conditioning card now shows which room is bound, suite A/B rooms are selectable, and multiple registered rooms are listed for you to pick; campus photos and the message board refresh themselves every few minutes without restarting the app; a mistyped student ID is realigned with the academic system on the next login. The v1.1.61 ink-wash light skin and pixel companions are still there.
+
 > Opening the page inside WeChat will refuse to download the APK — that is WeChat's own restriction. Tap "···" in the top-right corner → "Open in browser", then tap download again.
 
 ### Contact
@@ -237,9 +262,9 @@ The more people use it, the clearer it is what to build next. Bug reports, featu
 
 | Channel | Contact |
 |---|---|
-| QQ | **572833261** |
+| QQ | **692962849** |
 | QQ group (release updates) | [1097668324](https://qm.qq.com/q/xxmuhelper) |
-| Email | 572833261@qq.com |
+| Email | 692962849@qq.com |
 | GitHub | [github.com/cyanheee](https://github.com/cyanheee) |
 
 ### Features
@@ -268,11 +293,19 @@ Scan the machine's QR code once to remember it, then operate from the phone.
 
 There is a commonly misunderstood point here: **the phone can only "unlock"; water actually starts when someone presses the physical button on the dispenser.** The official platform page literally says "please tap at the outlet to start". It exposes no remote valve-opening API — that is a hardware design decision, not an unfinished feature.
 
-However, *stopping* can be issued remotely, so the app implements **measured dispensing**: pick a target volume and it sends the stop command for you once reached. Three limits are written into the UI: a few seconds of lag between target and valve closure means a little extra water; a network drop means it stops tracking; and if no water is detected at all, it reminds you to press the button.
+However, *stopping* can be issued remotely, so the app offers a **maximum run time (so you don’t forget to switch it off)**: pick a time limit and it sends the stop command when that limit is reached. It is a safety net, not millilitre-accurate metering — the platform exposes no live flow reading to the web page. Three limits are written into the UI: a few seconds of lag before the valve closes means a little extra water; a network drop means it stops tracking; and if no water is detected at all, it reminds you to press the button.
 
 **Campus info**
 
-Common school entry points, procedures and contacts gathered in one place, with search and locally added entries.
+Common school entry points, procedures and contacts gathered in one place, with search and locally added entries. The campus photos and the message board poll for new content every few minutes, refresh again when the app returns to the foreground, and each has a manual refresh button; unchanged content does not re-render, so an in-progress search is never interrupted.
+
+**Dormitory air conditioning**
+
+Read-only display of the remaining kWh for your own room, taken from the campus platform; payment still happens there. The unit is never converted and the reading may lag — treat the payment page as authoritative. As of v1.1.62 the card prints which room is bound (so a wrong campus is obvious at a glance), suite rooms such as 22514B sort next to their base number and are highlighted, and when a student ID has several registered rooms they are all listed to choose from instead of silently picking the first.
+
+**Look and feel**
+
+The light skin is “ink wash / azure clouds”: paper-white space, pale azurite washes, a touch of cinnabar red. The dark skin and the original classic skin are both still available. Two 8-bit pixel companions sit in the timetable corner; they walk, jump and wave, speak in bilingual bubbles, and tapping Mario plays a short synthesised chiptune. Combos, coins, achievements and a small collection run entirely offline; a long press mutes them and “reduce motion” puts them to rest. They stay in two small gaps and never cover courses or the bottom tabs.
 
 ### Privacy
 
@@ -306,7 +339,13 @@ No. Login happens on the **school's official login page** inside the app's built
 <details>
 <summary><b>Why do I still have to press the machine after using the water dispenser feature?</b></summary>
 
-The platform only exposes an "unlock" API, with no remote valve control. The phone's capability ends at unlocking; starting the water requires pressing the button on the machine. Stopping *can* be done remotely, which is why setting a target volume lets it stop automatically.
+The platform only exposes an "unlock" API, with no remote valve control. The phone's capability ends at unlocking; starting the water requires pressing the button on the machine. Stopping *can* be done remotely, which is why setting a maximum run time lets it stop automatically as a safety net.
+</details>
+
+<details>
+<summary><b>The remaining kWh does not match the payment page</b></summary>
+
+Check the room name printed on the entry card first. Most of the time it is bound to a different campus, building, or another air-conditioning sub-meter on the same floor — both readings are real, just for different rooms. Use “change room” in the panel to pick again. If you live in a suite, pick the room with the A / B suffix; they are now sorted by number and highlighted.
 </details>
 
 <details>
@@ -346,6 +385,10 @@ node tools/check_web.js
 node tools/test_parsekb.js
 node tools/test_hwstatus.js
 node tools/test_water.js
+node tools/test_elec.js
+node tools/test_kb_align.js
+node tools/test_photo_rot.js
+node tools/test_net_fix.js
 
 # Build
 python tools/build_apk.py

@@ -251,8 +251,8 @@ const GUIDE = (() => {
 
     if (x.mine) {
       const del = el('button', 'btn ghost', '删除这条');
-      del.onclick = () => {
-        if (!confirm('删除「' + x.t + '」？')) return;
+      del.onclick = async () => {
+        if (!await askConfirm('删除「' + x.t + '」？', { danger: true })) return;
         const list = loadMine();
         list.splice(parseInt(x.id.slice(1), 10), 1);
         saveMine(list);
