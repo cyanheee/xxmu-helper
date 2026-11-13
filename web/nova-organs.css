@@ -931,12 +931,16 @@ html[data-skin="nova"] .nv-darkroom{
   background:repeating-linear-gradient(45deg,var(--o-line-soft) 0 8px,transparent 8px 16px)}
 html[data-skin="nova"] .nv-darkroom-t{font:9px var(--n-mono);letter-spacing:1.2px;color:var(--o-ink-3)}
 html[data-skin="nova"] .nv-polaroid-grid{gap:12px !important}
+/* v1.1.63：横滑分页后每张相纸外面多了一层 .ph-hang（晾相绳 + 木夹），
+   相纸不再是 .ph-grid 的直接子节点，所以「隔张换个角度」改挂在 .ph-hang 上，
+   木夹 / 绳保持水平，只有相纸微微歪 —— 更像真夹上去的。 */
+html[data-skin="nova"] .nv-polaroid-grid .ph-hang{min-width:0}
 html[data-skin="nova"] .nv-polaroid-grid .ph-card{
   background:#FBFAF7 !important;padding:7px 7px 20px !important;
   border:none !important;border-radius:var(--n-r-xs) !important;
   box-shadow:0 3px 8px rgba(16,24,40,.16) !important;
   transform:rotate(-1.1deg)}
-html[data-skin="nova"] .nv-polaroid-grid .ph-card:nth-child(even){transform:rotate(1.4deg)}
+html[data-skin="nova"] .nv-polaroid-grid .ph-hang:nth-child(even) .ph-card{transform:rotate(1.4deg)}
 html[data-skin="nova"] .nv-polaroid-grid .ph-card:active{transform:rotate(0) scale(.97)}
 /* 没有真实照片时 app.css 给的兜底是「暖沙底 + 斜条纹」，8 张铺开就是最大的一片暖色。
  * 这里换成同明度的中性冷灰 + 更淡的条纹，让「待加载」看起来是留白而不是旧相纸。 */
@@ -958,6 +962,38 @@ html[data-skin="nova"] .nv-polaroid-grid .ph-cap{
   font:500 11px/1.35 var(--n-sans) !important;
   text-align:center !important;padding:6px 2px 0 !important;
   letter-spacing:0 !important;word-break:break-word}
+
+/* ======================================================================
+   v1.1.63 · 暗房晾相绳在 NOVA 器官里的材质适配
+   app.css 给的是「牛皮纸 + 原木夹」；万象舱是冷瓷白台面，绳子改哑灰蓝、
+   木夹改浅瓷木，别让一根棕绳把冷色台面戳出个洞。深色（紫夜舱）再把
+   夹子与圆点染一层雾光紫，呼应「深色多一点紫」，但不上大面积黑。
+   ====================================================================== */
+html[data-skin="nova"] .ph-sec::before{
+  background:radial-gradient(ellipse at 50% 0%,var(--o-accent-lit),transparent 74%);
+  opacity:.10}
+html[data-skin="nova"] .ph-hang::after{border-bottom:2px solid var(--o-line);
+  box-shadow:0 2px 0 -1px rgba(16,24,40,.12)}
+html[data-skin="nova"] .ph-hang::before{
+  background:linear-gradient(90deg,
+    #EDE7DA 0 42%,var(--o-line) 42% 58%,#EDE7DA 58% 100%);
+  border:1px solid var(--o-line);
+  box-shadow:0 1.5px 0 rgba(16,24,40,.18),inset 0 1px 0 rgba(255,255,255,.7)}
+html[data-skin="nova"] .rail-dots i{background:var(--o-accent);
+  opacity:.28;box-shadow:none}
+html[data-skin="nova"] .rail-dots i.on{opacity:1;
+  box-shadow:0 0 8px 1px rgba(31,167,154,.42)}
+/* 紫夜舱：雾光紫圆点 + 一点紫夹子，深色不靠加黑、靠加紫 */
+html[data-skin="nova"][data-theme="dark"] .rail-dots i{background:var(--n-violet);
+  opacity:.34}
+html[data-skin="nova"][data-theme="dark"] .rail-dots i.on{opacity:1;
+  box-shadow:0 0 9px 2px rgba(192,140,255,.55)}
+html[data-skin="nova"][data-theme="dark"] .ph-hang::before{
+  background:linear-gradient(90deg,
+    #C6B8DA 0 42%,var(--o-line) 42% 58%,#C6B8DA 58% 100%)}
+html[data-skin="nova"][data-theme="dark"] .ph-sec::before{
+  background:radial-gradient(ellipse at 50% 0%,var(--n-violet),transparent 76%);
+  opacity:.13}
 
 /* ======================================================================
    器官 ⑪：手绘涂鸦层（涂鸦 / 素描线稿）— D 级 · 降噪
@@ -1170,7 +1206,10 @@ html[data-skin="nova"] .nv-rain-bar.scanning::after{content:'';position:absolute
   left:var(--scan);top:0;bottom:0;width:2px;background:var(--n-cyan);
   box-shadow:0 0 10px 2px var(--n-cyan);opacity:.7;pointer-events:none}
 html[data-skin="nova"] .nv-rain-bar{position:relative;overflow:hidden}
-html[data-skin="nova"] .nv-polaroid-grid{cursor:grab;touch-action:pan-y}
+/* v1.1.63：整页横滑要能从相纸上手起，pan-y 会把横向手势吃掉（与
+   外层 .ph-rail 相交后什么都不剩）。抽相纸显影手感挂在 .nv-polaroid 上，
+   与 .ph-card 不是父子、本来就不冒泡，这里放开横纵两个方向即可。 */
+html[data-skin="nova"] .nv-polaroid-grid{cursor:grab;touch-action:pan-x pan-y}
 html[data-skin="nova"] .nv-polaroid-grid.developing .ph-card{filter:saturate(.4) sepia(.15) brightness(1.06);
   translate:0 var(--draw,0px);transition:translate .12s linear}
 html[data-skin="nova"] .nv-polaroid-grid .ph-card.picked{outline:2px solid var(--n-cyan);outline-offset:2px}

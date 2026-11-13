@@ -410,8 +410,12 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
 .hw:active{transform:scale(.99);background:var(--surface2)}
 .hwbar{display:block;width:3.5px;flex:0 0 3.5px;background:var(--mute)}
 .hwmain{flex:1;padding:11px 12px;min-width:0}
-.hwtop{display:flex;gap:8px;align-items:flex-start;justify-content:space-between}
-.hwtop b{font-size:13.5px;font-weight:600;line-height:1.4;word-break:break-word;
+/* v1.1.66 / m00638：允许标题与徽标换行、让标题可收缩。原来三段
+ * （标题 + 状态徽标 + 来源徽标）在 390px 下会把最后那个 .src-badge 挤出
+ * 右边（首轮实拍两档都复现）；flex-wrap + b 的 min-width:0 让徽标换行
+ * 落位，短标题仍是一行，观感不变。 */
+.hwtop{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap}
+.hwtop b{flex:1 1 auto;min-width:0;font-size:13.5px;font-weight:600;line-height:1.4;word-break:break-word;
   color:var(--fg)}
 .hwbadge{flex:0 0 auto;font-size:10px;padding:2px 8px;border:1px solid var(--line);
   border-radius:999px;line-height:1.5;white-space:nowrap;background:var(--surface)}
@@ -597,6 +601,89 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
 .fb-reply-b{font-size:12.5px;line-height:1.7;color:var(--fg2);
   white-space:pre-wrap;word-break:break-word}
 
+/* ============================================================
+   WIKI · 相纸抽屉 / 暗房晾相（v1.1.63）
+   照片一页 4 张、留言一页 3 条，整页横滑 snap；轨道两侧各留一点
+   padding，滚动时正好露出上一页尾部 / 下一页开头（peek），
+   底下雾紫圆点随页高亮。照片每张挂在晾相绳上、木夹子夹着，
+   像老式洗相片店把刚显影的相纸挂起来晾干。
+   ============================================================ */
+:root{
+  --cord:#8A7350;        /* 晾相麻绳 */
+  --clip:#D2AE79;        /* 木夹子（浅木） */
+  --clip-line:#8A6A42;   /* 木夹中缝 / 描边 */
+}
+html[data-theme="dark"]{
+  --cord:#A08A68;        /* 深色档麻绳提亮，别糊进夜色 */
+  --clip:#C9A875;
+  --clip-line:#6E5638;
+}
+
+/* 横滑轨道：负 margin 抵消 .tab 的左右 padding，让露边贴着屏幕边 */
+.ph-rail,.fb-rail{
+  display:flex;gap:0;
+  overflow-x:auto;overflow-y:hidden;
+  scroll-snap-type:x mandatory;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior-x:contain;
+  scrollbar-width:none;
+  margin-inline:-12px;
+  scroll-behavior:smooth
+}
+.ph-rail::-webkit-scrollbar,.fb-rail::-webkit-scrollbar{display:none}
+.ph-rail{padding-inline:22px;scroll-padding-inline:22px}
+.fb-rail{padding-inline:18px;scroll-padding-inline:18px}
+/* 页宽 = 轨道 content-box 宽；padding-right 是页缝，落在页宽内部，
+   这样 snap 步长恒等于一页宽，老 WebView 也不会越滑越偏。 */
+.ph-page,.fb-page{
+  flex:0 0 100%;box-sizing:border-box;min-width:0;
+  padding-right:8px;
+  scroll-snap-align:start;scroll-snap-stop:always
+}
+.ph-rail .ph-grid,.fb-rail .fb-list{min-width:0}
+
+/* 雾光紫圆点：当前页拉成一小段胶囊，其余是淡紫小点 */
+.rail-dots{display:flex;align-items:center;justify-content:center;
+  gap:6px;min-height:8px;margin:10px 0 2px}
+.rail-dots i{display:block;width:6px;height:6px;border-radius:999px;
+  background:var(--mist);opacity:.30;
+  transition:width .22s ease,opacity .22s ease,box-shadow .22s ease}
+.rail-dots i.on{width:17px;opacity:1;
+  box-shadow:0 0 8px 1px rgba(142,123,196,.42)}
+
+/* 暗房晾相：一张相纸一段绳，左右外扩 10px 与邻段连成整条晾相绳；
+   木夹压在绳上，偶数张换个角度，像真手夹上去的，不死板。 */
+.ph-hang{position:relative;min-width:0;padding-top:15px}
+.ph-hang::after{
+  content:'';position:absolute;top:2px;left:-10px;right:-10px;height:7px;
+  border-bottom:2px solid var(--cord);
+  border-radius:0 0 45% 45% / 0 0 90% 90%;
+  box-shadow:0 2px 0 -1px rgba(0,0,0,.10);
+  pointer-events:none
+}
+.ph-hang::before{
+  content:'';position:absolute;top:0;left:50%;z-index:2;
+  width:15px;height:12px;transform:translateX(-50%) rotate(-2deg);
+  background:linear-gradient(90deg,
+    var(--clip) 0 42%,var(--clip-line) 42% 58%,var(--clip) 58% 100%);
+  border:1px solid var(--clip-line);border-radius:2px 2px 3px 3px;
+  box-shadow:0 1.5px 0 rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.42);
+  pointer-events:none
+}
+.ph-hang:nth-child(even)::before{transform:translateX(-50%) rotate(2.5deg)}
+/* 暗房里那一点雾光紫：只在照片区上沿淡淡一层，不压标题、不吃对比度 */
+.ph-sec{position:relative}
+.ph-sec::before{
+  content:'';position:absolute;left:-12px;right:-12px;top:34px;height:180px;
+  background:radial-gradient(ellipse at 50% 0%,var(--mist-soft),transparent 72%);
+  opacity:.62;pointer-events:none;z-index:0
+}
+.ph-sec > *{position:relative;z-index:1}
+@media (prefers-reduced-motion:reduce){
+  .ph-rail,.fb-rail{scroll-behavior:auto}
+  .rail-dots i{transition:none}
+}
+
 /* ---------------- 校园事务 · 饮水机 ---------------- */
 .fr-label{display:block;font-size:12px;color:var(--mute);margin:14px 0 6px}
 .fr-input{width:100%;padding:12px 13px;border:1px solid var(--line);
@@ -763,7 +850,49 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
   border:1px solid var(--danger-line);background:var(--danger-bg);border-radius:8px}
 .adm-ok{flex:0 0 auto;font-size:11px;color:var(--ok);padding:2px 8px;
   border:1px solid var(--ok-line);background:var(--ok-bg);border-radius:8px}
+/* v1.1.63：名单只认教务绑定号。蓝绿小徽章 + 卡头说明 + 隐去计数 */
+.adm-kb{flex:0 0 auto;font-size:10px;color:var(--accent-ink,var(--accent));
+  background:var(--mist-soft);border:1px solid var(--line);
+  border-radius:8px;padding:2px 7px;white-space:nowrap}
+.adm-tip{margin:2px 0 0;font-size:11px;line-height:1.5;color:var(--mute)}
+.adm-hidden{margin:4px 0 0;font-size:11px;color:var(--warn);min-height:0}
+.adm-hidden:empty{display:none}
+/* v1.1.63 校准：名单卡二级菜单（正常名单 / 校准·异常），各自带计数 */
+.adm-subtabs{margin:8px 0 10px;gap:8px;flex-wrap:wrap}
+.adm-subtabs>button{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700}
+.adm-tab-cnt{font-size:10.5px;font-weight:600;opacity:.72;font-variant-numeric:tabular-nums}
+.adm-subtabs>button.on .adm-tab-cnt{opacity:.9}
+.adm-tab-cnt:empty{display:none}
+#admOddPane{animation:admFadeIn .18s ease both}
+@keyframes admFadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+/* v1.1.64 方案 C：名单双行（上粗下细）+ 卡头三态计数 + 待补录灰度。
+ * 全部走 var()，浅色 / 深色 / 经典西部档各自的颜色变量自动适配。 */
+.adm-item .adm-id{font-weight:700;color:var(--fg);font-size:13px}
+.adm-kbline{font-size:10.5px;color:var(--mute);font-variant-numeric:tabular-nums;
+  white-space:nowrap;opacity:.92;line-height:1.35}
+.adm-item:not(.is-pending) .adm-kbline{color:var(--ok)}
+.adm-item.is-pending{opacity:.66}
+.adm-item.is-pending .adm-id{color:var(--mute);font-weight:600}
+.adm-item.is-pending .adm-kbline{color:var(--warn)}
+.adm-summary{display:flex;align-items:center;gap:7px;flex-wrap:wrap;
+  margin:0 0 10px;padding:0}
+.adm-summary>span{flex:0 0 auto;font-size:10.5px;font-weight:700;
+  font-variant-numeric:tabular-nums;border-radius:999px;padding:3px 9px;
+  border:1px solid var(--line);white-space:nowrap}
+.adm-summary>span:empty{display:none}
+.adm-sum-ok{color:var(--ok);background:var(--ok-bg);border-color:var(--ok-line)!important}
+.adm-sum-pending{color:var(--warn);background:var(--kb-bg);border-color:var(--kb-line)!important}
+.adm-sum-conflict{color:var(--danger);background:var(--danger-bg);border-color:var(--danger-line)!important}
+.adm-only{display:flex;align-items:center;gap:6px;margin:6px 0 10px;
+  font-size:11.5px;color:var(--mute);cursor:pointer;user-select:none}
+.adm-only input{width:14px;height:14px;accent-color:var(--accent);cursor:pointer}
+.adm-cp.adm-fix{color:var(--ok);border-color:var(--ok-line)}
 .card .btn+.btn{margin-top:8px}
+/* v1.1.65 方案 A：全员重绑两枚按钮并排。.btn 默认 width:100% 会把 .chips
+ * 里的两枚各撑满整行，「撤销上次重绑」被 overflow-x:auto 挤出可视区；
+ * 用 id 抬权重让它们等分一行，浅色 / 深色 / 经典西部档三档都生效。 */
+#admRebindGo.btn,#admRebindUndo.btn{flex:1 1 0;width:auto;min-width:0;
+  margin-top:0;padding:11px 8px;font-size:13px;letter-spacing:0}
 
 /* ---------------- 更新提示 ---------------- */
 #upd{position:fixed;inset:0;z-index:120;display:none;align-items:center;
@@ -1772,6 +1901,14 @@ html[data-theme="dark"] .elec-change{color:var(--ink)}
 .wiki-src{color:var(--pencil);border-top:2px dashed var(--line)}
 .ph-card,.ph-full{border-radius:6px;border:1.5px solid var(--edge);
   box-shadow:2px 2px 0 rgba(140,122,94,.40)}
+/* 暗房晾相在经典西部档：相纸换牛皮纸白、墨线描边，挂在绳上像刚冲洗出来 */
+html[data-skin="classic"] .ph-hang .ph-card{background:var(--paper2);
+  border:1.5px solid var(--edge);
+  border-radius:5px 4px 6px 4px / 4px 6px 4px 5px;
+  box-shadow:2px 3px 0 rgba(140,122,94,.42)}
+html[data-skin="classic"] .ph-hang::after{border-bottom-width:2.5px}
+html[data-skin="classic"] .rail-dots i{border-radius:2px;transform:rotate(-4deg)}
+html[data-skin="classic"] .rail-dots i.on{transform:rotate(-4deg)}
 .ph-img{background-image:repeating-linear-gradient(45deg,
   rgba(43,35,24,.10) 0 2px, transparent 2px 9px),var(--img-bg)}
 .ph-cap{background:linear-gradient(transparent,rgba(43,35,24,.84));
@@ -1915,3 +2052,104 @@ html[data-theme="dark"] .grade-row.covered{background:rgba(142,123,196,.16)}
 
 /* ---------------- 滚动条 ---------------- */
 ::-webkit-scrollbar{width:0;height:0}
+
+/* ============================================================
+   v1.1.66 多平台待办：连接卡 / 来源筛选 / 条目徽标（ui-css 追加）
+   ------------------------------------------------------------
+   只在此文件末尾追加，不改动上面任何一条已有规则；不引入新变量体系、
+   不外链字体/CDN。全部沿用 :root 与 html[data-theme="dark"] 里既有的
+   纸感变量。深色档单独放在 html[data-theme="dark"] 作用域里，
+   与上面 612 / 1433 / 2000 / 2047 行同一套选择器。
+   DOM 契约见 docs/multi-source-SPEC.md 第 5 节：
+     .card.src-card[data-src] 里的 .row / [data-role="state"] /
+     [data-role="note"] / [data-act]；#srcChips 里 button.on；
+     作业条目 .hw 右上角的 .src-badge。
+   ============================================================ */
+
+/* ---- 连接卡：底/圆角/内边距/撕纸装饰都由 .card 基类给出，与学习通
+   .cx-card 完全一致；这里只照抄 .cx-card 那三条内部间距，并把三张
+   新卡的上下间距收紧一点，视觉上连成一组。 ---- */
+.src-card{margin-bottom:9px}
+.src-card .row:first-of-type{padding-top:0}
+.src-card .hint{margin:10px 0 0}
+.src-card .btn{margin-top:8px}
+
+/* ---- 来源筛选：完全沿用 .chips / .chips button.on 的既有样式
+   （选中类就是 .on，见 521、1843 行，不自造也不覆盖），只比 .chips
+   多一点点上边距，让它和上面的排序 chips 分个层。 ---- */
+#srcChips{margin-top:4px}
+
+/* ---- 连接状态：默认/橙色警示（未登录、需重登、暂不可用），命中 ok
+   才转绿。绿取 --ok、橙取 --warn，都是项目既有状态笔；字重略提，
+   让状态在 .row 里一眼可见，但不改 .row .v 的字号。
+   为什么带 .src-card 前缀：上面 265 / 1633 行的 .row .v 也是 0-2-0
+   且带 color，裸 .src-state(0-1-0) 会被它压掉变回 --mute；挂上
+   .src-card 后升到 0-2-0/0-3-0 且排在文件末尾，稳赢。 ---- */
+.src-card .src-state,.src-card .src-state.warn{color:var(--warn);font-weight:600}
+.src-card .src-state.ok{color:var(--ok);font-weight:600}
+
+/* ---- 来源徽标：作业/考试 .hw 右上角的小圆角短名，照 .hwbadge 的
+   形制收小一号；浅色用 --mute 低对比、不抢主体。 ---- */
+.src-badge{flex:0 0 auto;font-size:10px;line-height:1.5;
+  padding:1px 7px;border:1px solid var(--line);border-radius:999px;
+  background:var(--surface2);color:var(--mute);
+  white-space:nowrap;font-weight:600;letter-spacing:.3px;
+  vertical-align:middle;margin-left:6px}
+
+/* ---- 降级原因小字：左对齐、自动换行、低对比不刺眼。SPEC 里 note
+   元素带的是 class="hint tight" + data-role="note"，所以同时挂
+   [data-role="note"] 选择器兜底，Lead 两种命名都能命中。不写 display，
+   保留内联 style="display:none" 与 JS 的显隐控制。 ---- */
+.src-note,.src-card [data-role="note"]{
+  text-align:left;font-size:11px;line-height:1.55;
+  color:var(--mute);word-break:break-word;white-space:pre-line;
+  margin:6px 0 2px}
+
+/* ---- 深色档单独照顾（沙漠星空）：1433 行那一段已把变量整体提亮，
+   但状态/徽标/小字在深皮革底上仍需专用值才够读——状态换成套的
+   --kb-ok-fg / --kb-fg（深浅各一份的状态文字色），徽标与小字从偏暗
+   的 --mute 提到 --ink2，避免糊进夜色。
+   状态选择器同样带 .src-card：与浅色段保持同样的层叠权重，深色
+   再加 html[data-theme="dark"] 这一层，深色里必定压过浅色值。 ---- */
+html[data-theme="dark"] .src-card .src-state,
+html[data-theme="dark"] .src-card .src-state.warn{color:var(--kb-fg)}
+html[data-theme="dark"] .src-card .src-state.ok{color:var(--kb-ok-fg)}
+html[data-theme="dark"] .src-badge{color:var(--ink2);border-color:var(--edge)}
+html[data-theme="dark"] .src-note,
+html[data-theme="dark"] .src-card [data-role="note"]{color:var(--ink2)}
+
+/* ---------------- v1.1.66 / m00638：账号绑定细入口条 ----------------
+ * 主窗口以任务列表为主，绑定是低频动作，收进二级半框；主页只留这一条
+ * 细入口。刻意做得比普通 .card 矮、字更小、留白更紧：一眼看得出可点，
+ * 但不会把下面的待办列表挤下去。沿用 .row.click 的手感，不另造交互。 ---- */
+#bindEntry{margin-bottom:9px;padding:2px 12px}
+#bindEntry .row{padding:9px 0;font-size:12.5px;border-top:0}
+#bindEntry .row>span:first-child{color:var(--fg2);font-weight:600}
+#bindEntry .row .v{color:var(--mute);font-size:12px;white-space:nowrap}
+#bindEntry .row.click:active{background:var(--surface2)}
+html[data-theme="dark"] #bindEntry .row>span:first-child{color:var(--ink2)}
+html[data-theme="dark"] #bindEntry .row .v{color:var(--ink2)}
+
+/* ---------------- v1.1.68：喜鹊「粘贴考试安排」输入框 ----------------
+ * 跟着 .src-card 走；颜色全用主题变量（带兜底），浅色/深色自动适配，
+ * 不再单独写一份 html[data-theme="dark"] 覆盖。 ---- */
+.src-card textarea.src-paste{display:block;width:100%;box-sizing:border-box;
+  margin:8px 0 2px;padding:9px 10px;border:1px solid var(--line,rgba(0,0,0,.12));
+  border-radius:10px;background:var(--surface2,rgba(0,0,0,.04));
+  color:var(--ink);font:inherit;font-size:12px;line-height:1.5;
+  resize:vertical;min-height:64px}
+.src-card textarea.src-paste::placeholder{color:var(--mute)}
+
+/* ---------------- v1.1.75：雨课堂四个区域的选择行 ----------------
+ * 四套雨课堂（长江/雨课堂/荷塘/黄河）会话互不通用，必须让人点一下。
+ * 颜色全用主题变量，浅/深自动适配，不写死 hex。 ---- */
+.src-card .ykt-region{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0 0}
+.src-card .ykt-region-label{flex:0 0 auto;font-size:11.5px;font-weight:600;color:var(--fg2)}
+.src-card .ykt-r{padding:4px 10px;border:1px solid var(--line,rgba(0,0,0,.14));
+  border-radius:999px;background:transparent;color:var(--mute);
+  font:inherit;font-size:11.5px;line-height:1.5}
+.src-card .ykt-r.on{background:var(--accent,var(--surface2));border-color:transparent;
+  color:#fff;font-weight:600}
+html[data-theme="dark"] .src-card .ykt-region-label{color:var(--ink2)}
+html[data-theme="dark"] .src-card .ykt-r{color:var(--ink2);border-color:var(--edge)}
+html[data-theme="dark"] .src-card .ykt-r.on{background:var(--accent);color:var(--bg);font-weight:700}

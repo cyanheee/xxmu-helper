@@ -354,8 +354,12 @@ const AUTH = (() => {
     const KEEP = ['device_limit', 'too_old'];
 
     const fp = fingerprint();
+    /* v1.1.63：把本机记着的教务绑定真号一起报上去，服务端才给它打 kb:1、
+     * 名单才认这一行。换号时 LICENSE.activate 已清 K_ACCT_KB，这里自然为空，
+     * 等教务登录成功后由 reportKb / alignKbAccount 补报，不会误报旧号。 */
+    const kb = kbAccount();
     return postJson('/v1/activate', Object.assign({
-      id: sid, code: cd, fp: fp, tag: deviceTag(), akey: ak,
+      id: sid, code: cd, fp: fp, tag: deviceTag(), akey: ak, kb: kb,
     }, verBody())).then(res => {
       if (res && res.ok && res.ticket) {
         if (res.role === 'admin') LICENSE.setUser(sid, '');
@@ -408,6 +412,35 @@ const AUTH = (() => {
     });
   }
 
+  /* v1.1.63：读出本机记着的「教务网绑定真号」。
+   * 教务登录成功后 LICENSE.noteKbAccount 会写 K_ACCT_KB，verified() 表示
+   * 两号一致。优先用 accounts().kb（教务读回的真号），否则两号已核对一致
+   * 且登记的号本身就是在册形状，也认它是真号。拿不准就返回 ''，绝不猜。 */
+  function kbAccount() {
+    const GOOD = /^20\d{2}\d{7}$/;
+    try {
+      const a = (typeof LICENSE !== 'undefined' && LICENSE.accounts) ? LICENSE.accounts() : null;
+      if (a && GOOD.test(a.kb)) return a.kb;
+      if (a && a.verified && GOOD.test(a.id)) return a.id;
+    } catch (e) {}
+    return '';
+  }
+
+  /* v1.1.63：把教务绑定真号单独补报给服务端（老用户升级后的静默回填口）。
+   * 客户端上报、与 renameFrom 同一信任模型；失败静默吞掉，下次开机/复检再补。 */
+  function reportKb(kb) {
+    const GOOD = /^20\d{2}\d{7}$/;
+    const real = String(kb || '').trim();
+    if (!GOOD.test(real)) return false;
+    try {
+      postJson('/v1/kbbind', {
+        id: (typeof LICENSE !== 'undefined' && LICENSE.whoami) ? LICENSE.whoami() : '',
+        kb: real, fp: fingerprint(),
+      }).then(function () {}, function () {});
+    } catch (e) {}
+    return true;
+  }
+
   /* v1.1.62：把「进门时手填的畸形学号」对齐成教务网登录的真实学号。
    *
    * 起因（m01941）：管理台「使用名单」里 202611 / 120261200112 这种号被标
@@ -418,14 +451,16 @@ const AUTH = (() => {
    *   3) 立刻复核，解除 syncSchedule 的「两号不一致」门禁
    *   4) 重新领票并把畸形号塞进 renameFrom，服务端一次 idxApply 完成名单改号
    *
-   * 护栏只认「手填的是畸形号 + 教务读到的是正常 11 位 20xx 号」这一种。
-   * 两个都正常却不一致（拿别人学号）是原有的人工拦截场景，交给弹窗让用户
-   * 自己改，绝不在这里悄悄覆盖；没读真号 / 读到学习通手机号也不动。 */
+   * v1.1.63：放宽护栏。原来要求「from 形状畸形」才对齐，结果 20291100411、
+   * 20241100927 这种「11 位 20 开头、其实乱填」的号形状完全正常，直接漏过去，
+   * 名单里一直挂着。现在只认「教务读到的是正常在册真号 + 两号不同」，
+   * 无论手填号长什么样都对齐成教务真号；没读真号 / 两号相同 / 读到学习通
+   * 手机号（GOOD 不匹配）都不动。 */
   function alignKbAccount(kb, old) {
     const GOOD = /^20\d{2}\d{7}$/;   // 本校在册学号：11 位、20xx 开头
     const real = String(kb || '').trim();
     const from = String(old || '').trim();
-    if (!GOOD.test(real) || GOOD.test(from) || !from || real === from) return false;
+    if (!GOOD.test(real) || !from || real === from) return false;
 
     // 1) 换号（activate 会顺手清掉旧核对记录）
     LICENSE.activate(real, '');
@@ -438,7 +473,8 @@ const AUTH = (() => {
     //    领票失败不影响本地对齐，下次静默复检会补上；绝不因联网挡学生进门。
     try {
       postJson('/v1/activate', Object.assign({
-        id: real, code: '', fp: fingerprint(), tag: deviceTag(), renameFrom: from,
+        id: real, code: '', fp: fingerprint(), tag: deviceTag(),
+        renameFrom: from, kb: real,
       }, verBody())).then(function (res) {
         if (res && res.ok && res.ticket) {
           saveTicket(res.ticket, res.exp);
@@ -592,6 +628,11 @@ const AUTH = (() => {
     /** 最近的管理动作，用来回溯「我什么时候点了什么」 */
     audit() { return getJson('/v1/admin/audit', this.key); },
     list() { return getJson('/v1/admin/list', this.key); },
+    /** v1.1.64 方案 C：校准里手动给某个手填号补录教务网真号 */
+    kbFix(id, kb) { return postJson('/v1/admin/kbfix', { id: id, kb: kb }, this.key); },
+    /** v1.1.65 方案 A：全员下线重绑教务网 / 一键撤销（都会走管理台二次确认） */
+    rebindAll() { return postJson('/v1/admin/rebind-all', {}, this.key); },
+    rebindUndo() { return postJson('/v1/admin/rebind-undo', {}, this.key); },
     /** 管理员名单（act: add / del / list） */
     admins(act, ids) { return postJson('/v1/admin/admins', { act: act, ids: ids || [] }, this.key); },
     versionCheck(minCode, minVersion) {
@@ -711,7 +752,7 @@ const AUTH = (() => {
 
   const api = {
     K_TICKET, K_EXP, K_ROLE,
-    fingerprint, activate, alignKbAccount, check, localValid, usable, clearTicket,
+    fingerprint, activate, alignKbAccount, check, kbAccount, reportKb, localValid, usable, clearTicket,
     ticket, expAt, versionInfo, needUpgrade, cmpVer, deviceTag,
     curCode, curVer, devQuota, verBody,
     role, isAdmin, setRole,
@@ -737,19 +778,27 @@ const AUTH = (() => {
     get: function () { return baseNow(); },
   });
 
-  /* v1.1.62 兜底：老用户升级上来时可能已经登录过教务，
-   * pref 里 K_ACCT_KB 存着真号、K_ID 却还是当初手填的畸形号，
-   * 又不会立刻再登录一次教务。延迟一小会儿用已有真号补做对齐。
+  /* v1.1.63 兜底：老用户升级上来时可能已经登录过教务，
+   * pref 里 K_ACCT_KB 存着真号、K_ID 却还是当初手填的号，
+   * 又不会立刻再登录一次教务。延迟一小会儿：
+   *   ①两号不一致 → 对齐成真号（alignKbAccount 自带 kb 补报，顺带删残留）
+   *   ②两号一致 / 已核对 → 直接静默补报 kb:1，把 v1.1.62 之前没标记的
+   *     老行回填成「教务已绑定」，过渡期名单不会突然空掉
    * 包在 timer + try 里：QA 出图夹具杀掉所有 timer，这行不会跑，
    * 也不会在页面初始化阶段碰 localStorage / Host 出现意外。 */
   try {
     setTimeout(function () {
       try {
         const a = LICENSE.accounts();
-        if (a && a.kb && a.id && a.kb !== a.id && !a.verified
-            && /^20\d{2}\d{7}$/.test(a.kb)) {
+        const GOOD = /^20\d{2}\d{7}$/;
+        if (!a) return;
+        if (GOOD.test(a.kb) && a.id && a.kb !== a.id && !a.verified) {
           alignKbAccount(a.kb, a.id);
+          return;
         }
+        const real = GOOD.test(a.kb) ? a.kb
+          : (a.verified && GOOD.test(a.id) ? a.id : '');
+        if (real) reportKb(real);
       } catch (e) {}
     }, 1200);
   } catch (e) {}

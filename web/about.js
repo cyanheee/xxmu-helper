@@ -11,7 +11,7 @@
  * 两者都通过才放行；服务器不可达时按本地码放行，联网后自动补验。
  */
 
-const APP_VERSION = '1.1.62';
+const APP_VERSION = '1.1.80';
 const DEV_NAME = '孤汩';
 const DEV_QQ = '692962849';
 const DEV_MAIL = '692962849@qq.com';

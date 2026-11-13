@@ -1,4 +1,4 @@
-﻿/* 主题系统的离线行为测试（v1.1.39）
+/* 主题系统的离线行为测试（v1.1.39）
  *
  *   node tools/test_theme.js
  *
@@ -370,9 +370,21 @@ console.log('\n7b. app.css：深色块必须覆盖全部语义变量（漏一个
 {
   const css = read('web/app.css');
   const light = css.slice(css.indexOf(':root{'), css.indexOf('}', css.indexOf(':root{')));
-  const darkStart = css.indexOf('html[data-theme="dark"]{');
-  ok(darkStart > 0, '有深色块');
-  const dark = css.slice(darkStart, css.indexOf('}', darkStart));
+  /* 一个文件里可能有多段 html[data-theme="dark"]{...}：除了整份换变量
+   * 的主深色块，像「晾相片」那类组件也会补一小段只有三两个变量的局部
+   * 深色覆盖（--cord/--clip/--clip-line）。老写法用 indexOf 抓第一段，
+   * 就会把局部块误当成主块，报「深色只改了三个变量 / 没声明
+   * color-scheme」——其实主块好好的。取变量最多的那段才是主深色块，
+   * 这样断言检查的仍是真正换整套变量的地方，没有放松。 */
+  const DARK_HEAD = 'html[data-theme="dark"]{';
+  let dark = '', darkVarsCount = -1, dp = 0;
+  while ((dp = css.indexOf(DARK_HEAD, dp)) >= 0) {
+    const seg = css.slice(dp, css.indexOf('}', dp));
+    const n = (seg.match(/(--[\w-]+)\s*:/g) || []).length;
+    if (n > darkVarsCount) { darkVarsCount = n; dark = seg; }
+    dp += DARK_HEAD.length;
+  }
+  ok(darkVarsCount > 0, '有深色块');
   const lightVars = [...light.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]);
   const darkVars = [...dark.matchAll(/(--[\w-]+)\s*:/g)].map(m => m[1]);
   /* 只有「颜色 / 阴影 / 遮罩」这类会花脸的变量才必须在深色里重给值。

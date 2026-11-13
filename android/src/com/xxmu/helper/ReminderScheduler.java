@@ -116,8 +116,21 @@ final class ReminderScheduler {
         } catch (Throwable ignored) {}
     }
 
-    /** 挂一个闹钟：优先精确；被系统拒（Android 12+ 用户关了「闹钟和提醒」）时退非精确。 */
+    /** 挂一个闹钟。
+     *
+     * v1.1.78 修「提醒延迟 / 不响」：以前主路径是 setExactAndAllowWhileIdle，
+     * 它在 Doze 下受约 15 分钟一次的唤醒配额节流，必然晚点；Android 12+ 一旦
+     * 用户关掉「闹钟和提醒」(SCHEDULE_EXACT_ALARM) 又直接降成非精确，可能根本
+     * 不按时响。改为主路径 setAlarmClock —— 系统把它当用户设的真闹钟，穿透 Doze、
+     * 不受 idle 配额与 SCHEDULE_EXACT_ALARM 特殊权限约束（API21+，minSdk24 满足），
+     * 是准时性最强的一条。万一被拒，再退回原来那套精确 / 非精确兜底。 */
     private static boolean set(AlarmManager am, long at, PendingIntent p) {
+        if (Build.VERSION.SDK_INT >= 21) {
+            try {
+                am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, null), p);
+                return true;
+            } catch (Throwable ignored) {}
+        }
         try {
             if (Build.VERSION.SDK_INT >= 31 && !am.canScheduleExactAlarms()) {
                 // 非精确：可能晚几分钟，但提醒还在，比一条都挂不上要好

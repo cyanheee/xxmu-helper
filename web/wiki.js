@@ -358,6 +358,65 @@ const WIKI = (() => {
   let PHOTOS_AT = 0;      // 上次拉取时间（秒）
   let PHOTO_TRIED = false; // 本次启动是否已试过拉取
 
+  /* ================= WIKI · 横滑分页（v1.1.63） =================
+   * 照片一页 4 张（2×2 相纸），留言一页 3 条；整页左右横滑、snap 对齐，
+   * 每页比容器窄一圈，左右各露出相邻页一点点（peek），底下雾紫圆点导航。
+   * 经典与 NOVA 两档共用同一套 DOM：器官层只负责给 .ph-grid 套相纸材质，
+   * 所以 .ph-grid / .ph-sec 类名与 photoCard 结构一律保留（门禁锁着）。 */
+  function railPages(items, per) {
+    const pages = [];
+    for (let i = 0; i < items.length; i += per) pages.push(items.slice(i, i + per));
+    return pages;
+  }
+
+  /* 造一条横滑轨道。opt:
+   *   railCls / pageCls / innerCls : 容器类名
+   *   cell(it)  : 造一条内容的节点（照片 / 留言）
+   *   hang      : 可选，把 cell 再包一层（照片的 .ph-hang 晾相挂件） */
+  function makeRail(items, per, opt) {
+    const rail = el('div', opt.railCls);
+    const pages = railPages(items, per);
+    pages.forEach(grp => {
+      const page = el('div', opt.pageCls);
+      const inner = el('div', opt.innerCls);
+      grp.forEach(it => {
+        const c = opt.cell(it);
+        inner.appendChild(opt.hang ? opt.hang(c) : c);
+      });
+      page.appendChild(inner);
+      rail.appendChild(page);
+    });
+    return { rail, count: pages.length };
+  }
+
+  /* 雾紫圆点：跟着横滑高亮当前页，点一下也能跳页（scroll-behavior 兜平滑）。 */
+  function railDots(rail, count, cls) {
+    const bar = el('div', cls);
+    if (count < 2) return bar;               // 只有一页就不放空圆点
+    const dots = [];
+    const step = () => rail.firstElementChild
+      ? rail.firstElementChild.getBoundingClientRect().width : rail.clientWidth;
+    for (let i = 0; i < count; i++) {
+      const d = el('i');
+      if (i === 0) d.className = 'on';
+      d.onclick = () => { rail.scrollLeft = i * step(); };
+      bar.appendChild(d);
+      dots.push(d);
+    }
+    rail.addEventListener('scroll', () => {
+      const s = step();
+      const cur = s ? Math.max(0, Math.min(count - 1, Math.round(rail.scrollLeft / s))) : 0;
+      dots.forEach((d, i) => d.classList.toggle('on', i === cur));
+    }, { passive: true });
+    return bar;
+  }
+
+  function photoHang(c) {
+    const h = el('div', 'ph-hang');
+    h.appendChild(c);
+    return h;
+  }
+
   function photosSection() {
     const wrap = el('div', 'ph-sec');
     const head = el('div', 'ph-head');
@@ -388,9 +447,15 @@ const WIKI = (() => {
             : '正在加载校园图片…'));
       }
     } else {
-      const grid = el('div', 'ph-grid');
-      PHOTOS.forEach(p => grid.appendChild(photoCard(p)));
-      wrap.appendChild(grid);
+      /* 一页 4 张相纸：外层 .ph-rail 横滑，页内仍是原来的 .ph-grid（2×2），
+       * 每张外面套 .ph-hang（晾相绳 + 木夹）。器官层的 querySelector('.ph-grid')
+       * 与 CSS 的 .nv-polaroid-grid 照旧能挂上。 */
+      const r = makeRail(PHOTOS, 4, {
+        railCls: 'ph-rail', pageCls: 'ph-page', innerCls: 'ph-grid',
+        cell: photoCard, hang: photoHang
+      });
+      wrap.appendChild(r.rail);
+      wrap.appendChild(railDots(r.rail, r.count, 'rail-dots ph-dots'));
     }
 
     wrap.appendChild(el('p', 'hint left tight',
@@ -609,9 +674,14 @@ const WIKI = (() => {
         wrap.appendChild(el('p', 'hint left tight', '还没有公开的留言。'));
       }
     } else {
-      const list = el('div', 'fb-list');
-      FBS.forEach(f => list.appendChild(fbCard(f)));
-      wrap.appendChild(list);
+      /* 一页 3 条留言：外层 .fb-rail 横滑，页内仍是原来的 .fb-list（竖排），
+       * 与照片墙同一套露边 + 雾紫圆点，观感一致。 */
+      const r = makeRail(FBS, 3, {
+        railCls: 'fb-rail', pageCls: 'fb-page', innerCls: 'fb-list',
+        cell: fbCard
+      });
+      wrap.appendChild(r.rail);
+      wrap.appendChild(railDots(r.rail, r.count, 'rail-dots fb-dots'));
     }
 
     if (!FB_TRIED) setTimeout(loadFeedback, 80);

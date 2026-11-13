@@ -1559,6 +1559,102 @@ if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
 }
 
+// ---- v1.1.63：使用名单只认教务绑定号（v1.1.64 升级为双号三态） ----
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_kb_bind.js')], { encoding: 'utf8' });
+  console.log('  教务绑定名单契约测试    =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('教务绑定名单契约测试未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+}
+
+// ---- v1.1.64 方案 C：双号（id 手填 + kb 真号）+ 三态 + 校准二级菜单 ----
+{
+  console.log('\nv1.1.64 checkpoints（名单双号三态 / 校准二级菜单 / 手动录真号）:');
+  const cssTxt2 = read('web/app.css');
+  const idx2 = read('web/index.html');
+  // 服务端：双号归一与三态分类、确认集/补集、reason 两类、三态分开计数
+  has(worker, 'function kbRealOf(e)', '后端双号归一 kbRealOf');
+  has(worker, 'function kbClassOf(e, seen)', '后端三态分类 kbClassOf');
+  has(worker, "const bound = tagged.filter(t => t.c.state === 'confirmed').map(t => t.e)",
+    '主列表 = confirmed 集');
+  has(worker, "const odd = tagged.filter(t => t.c.state !== 'confirmed').map(t => t.e)",
+    '后端取 confirmed 补集整批回传（校准）');
+  has(worker, 'kb: kbRealOf(e)', '主列表 / 校准每行带真号 kb');
+  has(worker, 'oddCount: oddRows.length', '返回体带 oddCount');
+  has(worker, 'oddRows: oddRows', '返回体带 oddRows 明细');
+  has(worker, "reason: kbClassOf(e, seen).state === 'conflict' ? 'conflict' : 'pending'",
+    'reason 两类：pending / conflict');
+  has(worker, 'confirmedCount: confirmedCount, pendingCount: pendingCount, conflictCount: conflictCount',
+    '三态计数分开回（已确认 / 待补录 / 冲突）');
+  has(worker, 'async function handleKbFix(req, env)', '后端有手动录真号 handleKbFix');
+  has(worker, "if (p === '/v1/admin/kbfix' && req.method === 'POST')", '/v1/admin/kbfix 路由在鉴权块内');
+  // 前端：双行 / 灰度 / 汇总 / 开关 / 手动录真号 / 二级菜单
+  has(app, 'function renderOdd()', '前端有校准表 renderOdd');
+  has(app, 'ODD = res.oddRows || []', '两处拉取都收 oddRows');
+  has(app, 'function switchListTab(t)', '前端有二级菜单切换');
+  has(app, "admOddCnt').textContent = oddN", '异常计数写独立徽章');
+  has(app, "admNormalCnt').textContent", '正常计数写独立徽章');
+  has(app, 'let ONLY_CONFIRMED = false;', '方案 C 只看已确认开关状态');
+  has(app, "r.reason === 'pending'", 'renderList 合并 pending 灰度行');
+  has(app, 'adm-kbline', '双行下一行 .adm-kbline');
+  has(app, 'function renderKbSummary(res)', '卡头三态汇总');
+  has(app, 'function openKbFix(r)', '校准每行手动录真号半框');
+  has(app, 'AUTH.Admin.kbFix(', '手动录真号走 Admin.kbFix');
+  has(auth, "kbFix(id, kb) { return postJson('/v1/admin/kbfix'", 'Admin.kbFix 客户端出口');
+  has(idx2, 'id="admListTab"', '名单卡有二级菜单容器');
+  has(idx2, 'data-t="cal"', '有「校准·异常」按钮');
+  has(idx2, 'id="admOddPane"', '有异常独立 pane');
+  has(idx2, 'id="admOddList"', '有异常独立表格容器');
+  has(idx2, 'id="admKbSummary"', '有卡头三态汇总容器');
+  has(idx2, 'id="admOnlyConfirmed"', '有只看已确认开关');
+  has(cssTxt2, '.adm-subtabs{', '二级菜单样式在');
+  has(cssTxt2, '.adm-kbline{', '双行细字样式在');
+  has(cssTxt2, '.adm-item.is-pending{', '待补录灰度样式在');
+  has(cssTxt2, '.adm-summary{', '卡头汇总样式在');
+  if (!/admListCnt'\)\.textContent = LIST\.length \+ ' 人'/.test(app)) {
+    fail('主列表计数不再只数正常 LIST（校准不能污染 test_admin_list 依赖）');
+  }
+}
+
+// ---- v1.1.65 方案 A：全员下线重绑教务网（cfg.rebindAt 可逆方案） ----
+{
+  console.log('\nv1.1.65 checkpoints（全员重绑 / 撤销 / 老票据判踢 / 管理台按钮）:');
+  const idx3 = read('web/index.html');
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_rebind.js')], { encoding: 'utf8' });
+  console.log('  全员重绑契约测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('全员重绑契约测试未通过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
+  // 服务端：判据 / 两个 handler / 备份键 / 两条 admin 路由
+  has(worker, 'function rebindKicks(rebindAt, exp)', '后端 rebindKicks 判据');
+  has(worker, 'async function handleRebindAll(req, env)', '后端有 handleRebindAll');
+  has(worker, 'async function handleRebindUndo(req, env)', '后端有 handleRebindUndo');
+  has(worker, 'rebind:backup', '整键备份走 rebind:backup 单键');
+  has(worker, 'rebindKicks(cfg.rebindAt, t1.exp)', 'handleCheck 老票据判踢');
+  has(worker, "reason: 'bad_ticket', rebind: true", '返回 bad_ticket + rebind:true');
+  has(worker, "if (p === '/v1/admin/rebind-all' && req.method === 'POST')", '/v1/admin/rebind-all 路由');
+  has(worker, "if (p === '/v1/admin/rebind-undo' && req.method === 'POST')", '/v1/admin/rebind-undo 路由');
+  // 客户端出口 / 二次确认半框 / 管理台按钮 / 状态位
+  has(auth, "rebindAll() { return postJson('/v1/admin/rebind-all'", 'Admin.rebindAll 出口');
+  has(auth, "rebindUndo() { return postJson('/v1/admin/rebind-undo'", 'Admin.rebindUndo 出口');
+  has(app, 'function openRebind(all)', '前端二次确认半框 openRebind');
+  has(app, 'AUTH.Admin.rebindAll()', 'openRebind 调发起');
+  has(app, 'AUTH.Admin.rebindUndo()', 'openRebind 调撤销');
+  has(app, "on('admRebindGo', () => openRebind(true))", 'init 绑发起按钮');
+  has(app, "on('admRebindUndo', () => openRebind(false))", 'init 绑撤销按钮');
+  has(idx3, 'id="admRebindGo"', '名单卡有发起按钮');
+  has(idx3, 'id="admRebindUndo"', '名单卡有撤销按钮');
+  has(idx3, 'id="admRebindState"', '名单卡有重绑状态位');
+  // v1.1.65 两档实拍抓到的真实缺陷：.btn{width:100%} 会把 .chips 里两枚按钮
+  // 各撑满整行，「撤销上次重绑」被 overflow-x:auto 挤出可视区。用 id 抬权重
+  // 让两枚等分并排，浅/深/经典西部三档都生效。
+  const css65 = read('web/app.css');
+  has(css65, '#admRebindGo.btn,#admRebindUndo.btn{', '重绑两按钮并排（修 width 溢出）');
+}
+
 // ---- v1.1.46：更新检查提速 + 发版说明学生视角 ----
 console.log('\nv1.1.46 checkpoints（检查更新 / 说明文案）:');
 has(app, 'function checkUpdateOnFirstPaint()', '启动检查改成立即执行（双 rAF）');
@@ -1720,6 +1816,338 @@ for (const [name, txt] of [['widget_bg', wBg], ['widget_today', wLayout], ['styl
     [path.join(root, 'tools', 'test_tangli.js')], { encoding: 'utf8' });
   console.log('  DSL/成绩离线测试              =', t.status === 0 ? 'PASS' : 'FAIL');
   if (t.status !== 0) fail('糖梨借鉴离线测试未通过：' + ((t.stdout || '') + (t.stderr || '')).trim().split('\n').slice(-3).join(' | '));
+}
+
+/* ---- v1.1.66：多平台作业/考试聚合的静态锚点（契约见 docs/multi-source-SPEC.md 第 9 节） ----
+ * 为什么要有：这一版的失败方式全是「静默」的——脚本漏引不报错、只是没数据；
+ * live() 若把 degraded/stale 并进条目，等于把失效页当真实待办；坏缓存被当成
+ * 「没同步过」，用户就看不到解析失败原因。行为层已由 tools/test_sources.js 覆盖，
+ * 这里把关键结构再钉一遍，防止后来「顺手简化」把诚实降级红线改回去。
+ * 注意：此刻 android/assets/ 还没由 build_apk.py 同步新文件，全量跑会在 assets
+ * 比对那步 FAIL，属预期；本段只追加锚点，不动 KNOWN_ORDER、不删任何旧断言。 */
+console.log('\nv1.1.66 checkpoints（多平台待办聚合 / 诚实降级）:');
+const srcExists = fs.existsSync(path.join(root, 'web', 'sources.js'));
+console.log('  web/sources.js 存在             =', srcExists);
+if (!srcExists) fail('web/sources.js 不存在（聚合器缺失）');
+const srcjs = srcExists ? read('web/sources.js') : '';
+has(srcjs, 'registerBuiltinChaoxing', 'sources.js 把学习通包装成 builtin');
+/* 降级态必须落盘记忆 error：空格写法两种都认，别把锚点写死成单一形式 */
+const srcDeg = /state:\s*'degraded'/.test(srcjs);
+console.log('  sources.js 降级 state 记忆       =', srcDeg);
+if (!srcDeg) fail("sources.js 里没有 state:'degraded' / state: 'degraded'（降级必须落盘原因）");
+has(srcjs, 'function live', 'sources.js 定义了 live() 聚合');
+has(srcjs, '!merged', 'sources.js 无并入来源时 !merged 返回 null');
+has(app, 'SOURCES.live()', 'app.js 用 SOURCES.live() 取代单一来源');
+has(idx, 'srcCards', 'index.html 有 srcCards 连接卡容器');
+has(idx, 'srcChips', 'index.html 有 srcChips 来源筛选容器');
+/* 四个新 script（chaoxing.js 之后、app.js 之前）：漏一个就等于该来源没注册 */
+for (const f of ['sources.js', 'xiqueer.js', 'yuketang.js', 'zhihuishu.js']) {
+  has(idx, '<script src="' + f + '">', 'index.html 引入 ' + f);
+}
+
+/* ---- v1.1.67 / v1.1.68：喜鹊考试页「诊断回传 + 真浏览器辅助发现」锚点 ----
+ * 为什么改：v1.1.66 写死 7 个 jsp、v1.1.67 抓菜单挖链接逐个验真，两轮真机
+ * 诊断都失败（m01034 / m01318）——V17 的业务页防裸 GET，静态 HTML 里没有
+ * 真地址。v1.1.68 改成真浏览器带路 + 粘贴兜底，钉住这些符号防退回硬猜。 */
+console.log('\nv1.1.67 / v1.1.68 checkpoints（喜鹊诊断回传 / 真浏览器辅助发现）:');
+const xqjs = read('web/xiqueer.js');
+has(xqjs, 'parseCapture', 'xiqueer.js 有考试安排解析器（卡片/表格/自由文本）');
+has(xqjs, '__onXqFind', 'xiqueer.js 有 WebView 辅助发现回跳');
+has(xqjs, 'diag:', 'xiqueer.js 回传定位诊断');
+has(srcjs, 'function diag', 'sources.js 透出诊断文本');
+has(app, 'SOURCES.diag', 'app.js 连接卡有「复制诊断」动作');
+has(srcjs, 'r.synced_at || now()', 'sources.js 保留适配器回传的导入时间');
+{
+  const cp = require('child_process');
+  const r = cp.spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_xiqueer.js')], { encoding: 'utf8' });
+  console.log('  喜鹊导入解析离线测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('喜鹊导入解析离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---- v1.1.68：真浏览器辅助发现的 Java 桥 + 前端入口 ---- */
+console.log('\nv1.1.68 checkpoints（WebView 辅助发现 / 粘贴导入兜底）:');
+/* webAct 在前面的 FIT_JS 段已用 const 声明过且同一作用域，这里复用它，
+ * 不能再 const 一次（Node 会直接抛 Identifier 'webAct' has already been declared）。 */
+const webActFind = read('android/src/com/xxmu/helper/WebActivity.java');
+const mainAct = read('android/src/com/xxmu/helper/MainActivity.java');
+has(webActFind, 'FIND_JS', 'WebActivity 有整页文字/表格抓取脚本');
+has(webActFind, 'EXTRA_FIND', 'WebActivity 有 find 模式开关');
+has(mainAct, 'openFinderFor', 'MainActivity 暴露 openFinderFor 给前端');
+has(mainAct, 'REQ_FIND', 'MainActivity 有独立的 find 结果分支');
+has(xqjs, 'openFinderFor', 'xiqueer.js 调起 WebView 辅助发现');
+has(app, "act === 'import'", 'app.js 连接卡有「导入这段」动作');
+
+/* ---- v1.1.69：青果 V17「考试安排表」在 <frameset>/<frame> 里 ----
+ * m01910 第三轮真机报障：已经进了「课程考试 → 考试安排表」、选了学年学期
+ * 索引、按完成仍报「没认出」。v1.1.68 的 FIND_JS 只翻 iframe、顶层 body
+ * 近空 → 回传空。这一版遍历 window.frames（含 <frame>）、连表格/下拉一起读，
+ * 认不出时把读回原文摊进粘贴框。钉住这些符号，防止退回去只翻 iframe。 */
+console.log('\nv1.1.69 checkpoints（frame 递归读页 / 原文可见兜底）:');
+has(webActFind, 'window.frames', 'FIND_JS 遍历 window.frames（含 <frame>，不只 iframe）');
+has(webActFind, 'sels', 'FIND_JS 读下拉已选值（学年学期 / 考试批次）');
+has(webActFind, 'o.raw', 'FIND_JS 拼出整页原文 raw');
+has(xqjs, 'findMdDateTime', 'xiqueer.js 认不带年份的「11月14日」');
+has(xqjs, 'rawTextOf', 'xiqueer.js 认不出时把读回原文摊给用户');
+has(xqjs, 'RAW_KEY', 'xiqueer.js 把读回原文落在独立快照键');
+has(xqjs, 'lastRaw', 'xiqueer.js 暴露 lastRaw 供卡片回填');
+has(app, 'XQ.lastRaw()', 'app.js 喜鹊卡片回填读回原文');
+
+/* ---- v1.1.70：四轮真机够不到青果考试表 → 换执行层「你复制、App 解析」。
+ * m02177 诊断：按「完成」时顶层仍是门户 homes.action、#1 内容帧 about:blank，
+ * 检索出的考试表根本不在 App 够得到的文档里。这版加系统剪贴板桥 + 一键导入，
+ * 钉住这些符号，防止退回去赌自动读页。 */
+console.log('\nv1.1.70 checkpoints（剪贴板导入 / 不再赌读页）:');
+has(mainAct, 'public String getClip()', 'MainActivity 有读取系统剪贴板的桥');
+has(xqjs, 'importClip', 'xiqueer.js 有从剪贴板导入');
+has(xqjs, 'NO_CLIP', 'xiqueer.js 对空剪贴板有清楚提示');
+has(xqjs, 'Host.getClip', 'xiqueer.js 走 Host.getClip 读剪贴板');
+has(app, "act === 'paste'", 'app.js 有「从剪贴板导入」动作');
+
+/* ---- v1.1.71：方案 C 双探全自动（拦检索请求 + 钩导出下载，照课表重放）。
+ * m02339「课表能自动爬取考试为什么不能」：复核发现课表靠免令牌报表端点
+ * wsxk.xskcb_excel10319.jsp?params=；这版同时装两路探针，谁先拿到像报表的
+ * 地址就记住，之后用 SOURCES.http 带 Cookie 全自动重放，零复制。 */
+console.log('\nv1.1.71 checkpoints（双探全自动 / 报表地址重放）:');
+const wa1171 = read('android/src/com/xxmu/helper/WebActivity.java');
+const ma1171 = read('android/src/com/xxmu/helper/MainActivity.java');
+const xq1171 = read('web/xiqueer.js');
+const ap1171 = read('web/app.js');
+has(wa1171, 'EXTRA_PROBE', 'WebActivity 有 EXTRA_PROBE 双探开关');
+has(wa1171, 'shouldInterceptRequest', 'WebActivity 拦「检索」发出的请求 URL');
+has(wa1171, 'setDownloadListener', 'WebActivity 钩「导出/打印」的下载 URL');
+has(wa1171, 'recordProbe', 'WebActivity 把候选地址记进 probes');
+has(ma1171, 'openProbeFor', 'MainActivity 有 openProbeFor 打开双探视图');
+has(ma1171, 'REQ_PROBE', 'MainActivity 有 REQ_PROBE 结果分支');
+has(xq1171, '__onXqProbe', 'xiqueer.js 有双探回跳处理');
+has(xq1171, 'AUTO_KEY', 'xiqueer.js 记住自动报表地址');
+has(xq1171, 'SOURCES.http', 'xiqueer.js 照课表用带 Cookie 的桥重放');
+has(xq1171, 'probeScore', 'xiqueer.js 对候选地址打分挑最像报表的');
+has(ap1171, "act === 'probe'", 'app.js 有「自动同步一次」动作');
+
+/* ---- v1.1.72：幽灵条目与「新窗口黑洞」（m03025「还是不行」真机截图）。
+ * 截图里待完成挂着一条「未标注课程 · — ~ —」，就是重放拿回外壳页时解析出的假考试；
+ * 同时五轮读页都只读到门户框架页，根因是 innerHeight 检索结果用 window.open
+ * 弹新窗口，WebView 没覆写 onCreateWindow 就成了 about:blank。 */
+console.log('\nv1.1.72 checkpoints（丢幽灵条目 / 接住新窗口 / 失败自清地址）:');
+has(wa1171, 'onCreateWindow', 'WebActivity 覆写 onCreateWindow 接住检索结果的新窗口');
+has(wa1171, 'WebViewTransport', 'WebActivity 把新窗口交回主 WebView');
+has(wa1171, 'function walk(w,depth)', 'FIND_JS 递归读嵌套框架（不限一层）');
+has(xq1171, 'if (!course) return;', 'xiqueer.js 丢弃没有课程名的幽灵条目');
+has(xq1171, 'function autoFail', 'xiqueer.js 自动地址失败计数，连续两次就忘掉');
+has(xq1171, "String(e.course || '').trim()", '读旧快照时就地滤掉幽灵条目');
+has(ap1171, '时间未读到', 'app.js 时间两栏都空时不再印「— ~ —」');
+has(ap1171, 'examSrcName', 'app.js 状态文案按实际来源说，不指着教务说学习通');
+
+/* ---- v1.1.73：标题别被学年抬头撑长（m03292 真机：标题两行、副行重复课程名）。 */
+console.log('\nv1.1.73 checkpoints（轮次剥学年抬头 / 副行换轮次）:');
+has(xq1171, 'function cleanRound', 'xiqueer.js 有 cleanRound 剥掉学年学期抬头');
+has(xq1171, 'const round = cleanRound(roundRaw)', '轮次取值经过 cleanRound');
+has(xq1171, 'name: label,', '标题只放课程名，不再拼轮次括号');
+has(ap1171, 'examRound', 'app.js 副行改用轮次');
+has(ap1171, "'考试 · ' + (examRound || x.course)", '副行没有轮次时才退回课程名');
+
+/* ---- v1.1.74：雨课堂从「诚实降级桩」变成真接活清单（m03454「接下来做雨课堂吧」
+ * + m03538「c吧」选方案 C）。端点清单来自 powercess/yuketang-mcp 的 src/api.ts
+ * 与 src/tools.ts（学生端只读接口）；实测未登录时 on-lesson-upcoming-exam 回
+ * 200 {code:50000}、courses/list 回 401，说明端点活着、只缺登录态。
+ * 这条线的红线：接口返回了但认不出条目时必须 degraded + 明说，绝不当「没作业」。 */
+console.log('\nv1.1.74 checkpoints（雨课堂真接活清单 / 诚实降级）:');
+const yt1174 = read('web/yuketang.js');
+has(yt1174, '/api/v3/user/basic-info', 'yuketang.js 先验登录态再花后续请求');
+has(yt1174, '/api/v3/classroom/on-lesson-upcoming-exam', 'yuketang.js 拉待考考试');
+has(yt1174, '/v2/api/web/courses/list?identity=2', 'yuketang.js 拉课程列表（学生视角）');
+has(yt1174, '/v2/api/web/logs/learn/', 'yuketang.js 按课拉时间轴（作业/公告/上课记录）');
+has(yt1174, '/c27/online_courseware/schedule/course/progress/', 'yuketang.js 用 course_progress 补截止时间');
+has(yt1174, "var HDR = 'xtbz: ykt'", '所有请求带 xtbz: ykt（否则 /c27 报 40000）');
+has(yt1174, 'function isDeadlineLeaf', '只把 leaf_type 5/6/19 当作业，视频不算');
+has(yt1174, 'status_known: false', '考试状态不编造，留给渲染层按开考时间写');
+has(yt1174, 'NO_PARSE', '认不出条目时明说，不冒充「没作业」');
+has(yt1174, 'function pool', '逐课请求限并发，别一次放出十几条');
+if (yt1174.indexOf('alwaysDegraded') >= 0) {
+  fail('yuketang.js 又标回 alwaysDegraded 了（会永远降级、还不给登录按钮）');
+}
+console.log('  ' + '不再标 alwaysDegraded'.padEnd(28) + '= ' + (yt1174.indexOf('alwaysDegraded') < 0));
+
+/* ---- v1.1.75：雨课堂四个区域必须可选（m03730「我用的是长江雨课堂，不是
+ * 这个雨课堂」）。v1.1.74 把 request 域写死 standard，扫码留下的是长江域
+ * Cookie，请求全打 www.yuketang.cn —— 一个都读不到。现在四区可切、默认长江，
+ * 请求域 / Cookie 域 / 登录入口 / 断开清 Cookie 四处都跟当前区域走。 */
+console.log('\nv1.1.75 checkpoints（雨课堂四区域可选 / 默认长江）:');
+const yt1175 = read('web/yuketang.js');
+const ap1175 = read('web/app.js');
+const css1175 = read('web/app.css');
+has(yt1175, 'changjiang.yuketang.cn', 'yuketang.js 认得长江域');
+has(yt1175, "var DEFAULT_REGION = 'changjiang'", '默认区域是长江（本校口径）');
+has(yt1175, 'function curRegion', '有 curRegion 实时取当前区域，不再写死常量');
+has(yt1175, 'function hostNow', '请求域由 hostNow() 实时给');
+has(yt1175, 'cookieUrl: hostNow()', 'Cookie 也从当前区域取，否则带不上扫码的 sessionid');
+has(yt1175, 'loggedIn: curLoggedIn', '登录态按当前区域判');
+has(yt1175, 'openLogin: curOpenLogin', '登录入口按当前区域拼');
+has(yt1175, 'logout: curLogout', '断开只清当前区域的 Cookie');
+has(yt1175, 'window.YKT', '给界面暴露区域读写口');
+has(ap1175, "act === 'region'", '卡片上能切区域');
+has(ap1175, 'data-region', '区域按钮带 data-region');
+has(ap1175, 'data-act', '区域按钮走委托表');
+has(ap1175, 'ykt-region', '卡片画出了区域选择行');
+has(css1175, '.ykt-r', '区域按钮有样式');
+has(css1175, 'html[data-theme="dark"] .src-card .ykt-r', '深色档单独覆盖，不靠浅色硬套');
+
+/* ---- v1.1.76：不能只认死结构、也不能只认死 type（m03943「绑定账号了，
+ * 这个里面会发作业，比如数学会有作业。不应该只局限于考试」）。
+ * 真机回报「已登录：梁牛翔；课程 3 门；待考考试 0 场；时间轴条目 0，章节叶 0」
+ * —— 接口都成功，条目却挂在我没猜到的层级 / 类型上，被当成「这学期没作业」。 */
+console.log('\nv1.1.76 checkpoints（下探认结构 / 放开 type 白名单 / 诊断带骨架）:');
+const yt1176 = read('web/yuketang.js');
+has(yt1176, 'function deepArray', '有 deepArray 下探找条目数组，不死认 data.activities');
+has(yt1176, 'function deepConcat', '有 deepConcat 拼多份章节叶');
+has(yt1176, 'function looksLikeActs', '按形状判时间轴条目，字段名不同也认');
+has(yt1176, 'function looksLikeLeaf', '按形状判章节叶');
+has(yt1176, 'function skeleton', '有骨架输出，结构认不出时能把键名发回来');
+has(yt1176, '时间轴骨架', '诊断里真的会打时间轴骨架');
+has(yt1176, '章节骨架', '诊断里真的会打章节骨架');
+has(yt1176, 'function leafWantsAttention', '章节叶不再只认 leaf_type 5/6/19');
+if (yt1176.indexOf('if (a.type !== 5 && a.type !== 19) return;') >= 0) {
+  fail('yuketang.js 又只收 type 5/19 了（新类型作业会被整批吞掉）');
+}
+console.log('  ' + '不再只收 type 5/19'.padEnd(28) + '= '
+  + (yt1176.indexOf('if (a.type !== 5 && a.type !== 19) return;') < 0));
+
+/* ---- v1.1.77：已过截止的不再占「待完成」，排序按截止时间从近到远
+ * （m04098「已过期的不显示在待完成里，这个按时间从近到远排序，就是按紧急
+ * 程度排序」）。以前过期条目 open 仍是 true、left 是负数，越老越负 →
+ * byDue 把它们全顶到最上面，交不了的东西占满首屏。 */
+console.log('\nv1.1.77 checkpoints（已过截止移出待完成 / 按截止时间正序）:');
+const ap1177 = read('web/app.js');
+has(ap1177, 'expired: (left != null && left < 0)', '作业按截止是否过去打 expired 标记');
+has(ap1177, 'expired: (due != null && due < now)', '考试按结束时间打 expired 标记');
+has(ap1177, "x.kind === 'work' && x.open && !x.expired", '顶部待做计数不含已过截止');
+has(ap1177, "' 条已过截止'", '顶部单独报已过截止条数，不混进待做');
+has(ap1177, 'const open = pool.filter(x => hwBucket(x) === \'todo\')', '待完成只收「还能做」的那堆');
+has(ap1177, "const expired = pool.filter(x => hwBucket(x) === 'expired')", '已过截止单独一堆');
+has(ap1177, "'已过截止 · ' + expired.length", '已过截止单独一段、默认折叠');
+has(ap1177, 'const urg = g =>', '按课程排时只用未过期条目算最紧急（全过期则沉底）');
+has(ap1177, '(x.open && !x.expired) ? 0 : (x.expired ? 1', '组内：能做的→已过截止→未开始→其余');
+has(ap1177, '/* @testable:hwBucket */', '分桶抽成纯函数，测试能单独钉住');
+has(ap1177, "if (typeof isDoneStatus === 'function' && isDoneStatus(x.status)) return 'done'", '已完成优先于已过截止');
+if (/const open = pool\.filter\(x => x\.open\)\.sort\(byDue\)/.test(ap1177)) {
+  fail('app.js 待完成又变成「不管过没过截止都算待做」了（过期会顶到首屏）');
+}
+console.log('  ' + '待完成已排除过期'.padEnd(28) + '= '
+  + (!/const open = pool\.filter\(x => x\.open\)\.sort\(byDue\)/.test(ap1177)));
+
+/* ---- v1.1.78：知到（智慧树）双探针接入（方案 C，诊断中间包）----
+ * 从「纯降级桩」往前一步：去 alwaysDegraded、给真登录入口、A 读官方 H5 页 /
+ * B 直连只读端点都做成可切探针，真机跑一轮看诊断再定主线。钉住这些符号，
+ * 防下一版把「去 alwaysDegraded」或「只读红线」改回去。 */
+console.log('\nv1.1.78 checkpoints（知到双探针接入 / 去 alwaysDegraded / 只读）:');
+const zhs78 = read('web/zhihuishu.js');
+const ap1178 = read('web/app.js');
+has(zhs78, '方案 C 双探针诊断版', 'zhihuishu.js 是本版双探针适配器');
+has(zhs78, "id: 'zhihuishu', label: '知到 / 智慧树'", '注册了知到来源');
+has(zhs78, 'loginUrl: LOGIN_URL', '给了真实登录入口（不是 alwaysDegraded 桩）');
+has(zhs78, 'function fetchA', '有 A 探针（读官方作业页快照）');
+has(zhs78, 'function fetchB', '有 B 探针（直连只读端点）');
+has(zhs78, 'function secretStr', '有纯 JS AES-128-CBC 加密（B 探针）');
+has(zhs78, 'getStudentHomework', 'B 探针打作业清单只读端点');
+has(zhs78, 'queryShareCourseInfo', 'B 探针打课程列表只读端点');
+has(zhs78, '__onZhsFind', 'A 探针的 WebView 回跳');
+has(zhs78, 'MODE_KEY', 'A/B 模式可切');
+has(zhs78, '一律不碰', '保留了只读不代交的注释红线');
+if (/alwaysDegraded\s*:\s*true/.test(zhs78)) fail('zhihuishu.js 又标回 alwaysDegraded（永远降级、不给登录按钮）');
+if (/SOURCES\.define\(\{[\s\S]{0,600}alwaysDegraded/.test(zhs78)) fail('define 里还留着 alwaysDegraded');
+has(ap1178, "act === 'zhsmode'", 'app.js 委托表有 A/B 切换分支');
+has(ap1178, "act === 'zhsopen'", 'app.js 委托表有「打开知到作业页」分支');
+has(ap1178, '登录 / 重新登录知到', '知到卡片登录文案按来源分流');
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_zhihuishu.js')], { encoding: 'utf8' });
+  console.log('  知到双探针离线测试          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('知到双探针离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---- v1.1.78：课程提醒两修复（连堂只提醒一次 / 准时性）----
+ * 用户原话「有的课是三个课时，它每节课时前都提醒，应该同一门课只提醒一次。
+ * 还有这个提醒有的有问题，有延迟或者不提醒」。钉住两条主路径，防下一版改回去。 */
+console.log('\nv1.1.78 checkpoints（连堂只提醒一次 / setAlarmClock 穿透 Doze）:');
+const rm78 = read('web/reminder.js');
+const sched78 = read('android/src/com/xxmu/helper/ReminderScheduler.java');
+has(rm78, '连堂只留最早一节', 'build() 按一门课一周只留最早一节（连堂不重复提醒）');
+has(sched78, 'setAlarmClock(', 'Java 主路径改用 setAlarmClock（不被 Doze 节流）');
+has(sched78, 'new AlarmManager.AlarmClockInfo(at, null)', '用 AlarmClockInfo 构造真闹钟');
+has(sched78, 'setExactAndAllowWhileIdle', '保留 setExactAndAllowWhileIdle 兜底（被拒时仍能挂上）');
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_reminder_fix.js')], { encoding: 'utf8' });
+  console.log('  提醒两修复离线测试          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('提醒两修复离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---- v1.1.79：知到登录链路修复（杜绝秒关 / 真登录判据独立 / 手动完成）----
+ * v1.1.78 真机诊断：okHints 写成裸域名 zhihuishu.com，登录页 onlineweb 自己
+ * 就命中，WebActivity 刚 onPageFinished 就判「已登录」秒关，回跳还写下假
+ * __bound，结果没真登录却盲发探针，课程/作业接口全 401，两个探针都打不开
+ * 登录页。这一版把 okHints 换成永不命中的哨兵，登录完成只认右上角「完成」
+ * 按钮，真登录判据独立成 AUTH_KEY，不再认秒关留下的假 __bound。 */
+console.log('\nv1.1.79 checkpoints（知到登录链路修复 / 杜绝秒关 / 只读）:');
+const zhs79 = read('web/zhihuishu.js');
+const ap1179 = read('web/app.js');
+has(zhs79, 'v1.1.79', '头注释标出 v1.1.79 登录链路修复');
+has(zhs79, 'OK_SENTINEL', 'okHints 用永不命中的哨兵（登录页绝不会命中）');
+has(zhs79, 'AUTH_KEY', '真登录判据独立成 AUTH_KEY，不认旧假 __bound');
+has(zhs79, 'window[CB]', '覆盖登录回跳，只在「完成」且验到 cookie 才写真登录');
+has(zhs79, '不再自动秒关', '诊断首行说明不再自动秒关');
+has(zhs79, '方案 C 双探针诊断版', '保留方案 C 双探针标题锚点');
+has(zhs79, '一律不碰', '保留只读不代交红线');
+has(ap1179, '点右上角', '卡片提示引导用户手动点右上角「完成」');
+/* 反向：绝不能再把裸域名当 okHints（URL 常量是 'https://online.zhihuishu.com/'
+ * 这种，前面有 online. 不会命中 "'zhihuishu.com'" 这个独立引号串）。 */
+if (zhs79.indexOf("'zhihuishu.com'") >= 0) fail('v1.1.79 仍把裸域名 zhihuishu.com 当 okHints（会秒关登录页）');
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_zhihuishu.js')], { encoding: 'utf8' });
+  console.log('  知到登录修复离线测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('知到登录修复离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---- v1.1.80：知到定 B 主线接活（修课程列表请求体字段名 / 删 CAS / 诚实分层）----
+ * YG 的 v1.1.79 模式 B 真机诊断：课程列表成功返回 {code:200,result:{totalCount:0,
+ * courseOpenDtos:null}}、作业清单 {code:500,message:"For input string: \"\""} ——
+ * 都是服务端成功解密 secretStr 之后的正常响应，证明 AES 密钥/端点/cookie 全活，
+ * 登录也不再 401。真凶是课程列表请求体：v1.1.79 发的 {pageSize:5,pageNum:0,status:0}
+ * 查到 0 门课后拿空 recruitId 占位，才炸出那个 500。本版据 pjm314159/zhs 逐字复刻
+ * {status:0,pageNo:1,pageSize:5} + code==200 + result.courseOpenDtos + totalCount 分页，
+ * 删纯多余的 CAS 换票 GET，默认模式切 B，无课程/解析失败绝不冒充「没作业」。 */
+console.log('\nv1.1.80 checkpoints（知到定 B 主线 / 课程列表字段名 / 只读）:');
+const zhs80 = read('web/zhihuishu.js');
+const ap1180 = read('web/app.js');
+has(zhs80, 'v1.1.80', '头注释标出 v1.1.80 定 B 主线');
+has(zhs80, 'function courseIdOf', 'extract_course_id 口径：顶层 courseId=0 下探 courseInfo.courseId');
+has(zhs80, 'result.courseOpenDtos', '课程数据读 result.courseOpenDtos（不再猜 rt.shareCourseList）');
+has(zhs80, 'totalCount', '分页按 result.totalCount');
+has(zhs80, 'pageNo: p', '课程列表请求体用 pageNo（从 1 起）/status/pageSize');
+has(zhs80, '业务 code=', '诊断记业务 code=200 成功判据');
+has(zhs80, 'function hwResponseOk', '作业清单按 status=200 + studentHomeworkList 判定');
+has(zhs80, '本学期没抽到课程', '无课程如实报，不造空 recruitId 占位');
+has(zhs80, '不拿空课程号', '删掉会炸 500 的空 recruitId 占位请求');
+has(zhs80, '平台确认当前没有待交作业', '每门课都读通的空清单才算诚实空 ok');
+has(zhs80, "'A' ? 'A' : 'B'", '默认模式 B（接口直连）作主线，A 可手动切回兜底');
+has(zhs80, '一律不碰', '保留只读不代交红线');
+has(ap1180, '默认「接口直连」', '卡片文案以「接口直连」为主');
+has(ap1180, "['B', 'A']", '卡片按钮顺序 B 在前（主线在前）');
+/* 反向：课程列表真实调用不能再用错的 {pageSize,pageNum,status} 请求体，也不能残留 CAS 换票。 */
+if (zhs80.indexOf("post(COURSE_API, { pageSize") >= 0) fail('v1.1.80 课程列表仍发错的 pageSize/pageNum 请求体');
+if (/cas\/login/.test(zhs80)) fail('v1.1.80 仍残留多余的 CAS 换票 GET（真机 404）');
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_zhihuishu.js')], { encoding: 'utf8' });
+  console.log('  知到定 B 主线离线测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('知到定 B 主线离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
 }
 
 console.log('\n' + (bad === 0 ? '[PASS] 静态体检全部通过' : '[FAIL] ' + bad + ' 项未过'));

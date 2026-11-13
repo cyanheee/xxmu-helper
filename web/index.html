@@ -248,6 +248,18 @@
       </span>
     </div>
 
+    <!-- v1.1.66 / m00638：账号绑定收进二级半框，主窗口只留这一条细入口 +
+         任务列表。四张连接卡（学习通 + 喜鹊/雨课堂/知到）平时住 #toolPark，
+         点这里整组搬进 #sheet 半框。为什么分层：用户要「主窗口以显示待完成
+         任务为主」，四张连接卡摊在主页会把待办列表一路往下挤、390px 下还
+         把状态/按钮挤出右边；绑定本就是低频动作，收进半框最合适。 -->
+    <div class="card" id="bindEntry">
+      <div class="row click">
+        <span>账号绑定 · 学习通 / 喜鹊 / 雨课堂 / 知到</span>
+        <span class="v dim" id="bindEntryStat">管理 ›</span>
+      </div>
+    </div>
+
     <!-- v1.1.28：待办/番茄钟两张卡的「停车场」。平时藏在这里，
          点头部小按钮时整卡搬进 #sheet 半框，关闭时搬回来。
          卡片 DOM 常驻（MYTODO/FOCUS 直接按 id 找它们），只是换了住处。
@@ -293,6 +305,21 @@
         <button data-noise="brown">棕噪音</button>
       </div>
     </div>
+    <!-- v1.1.66 / m00638：账号绑定卡组。平时住停车场，点 #bindEntry 整组搬进
+         #sheet 半框。整组用 sheet-only 容器（自身不画卡片），里面 cxCard 与
+         SrcUI 动态生成的 src-card 各自成卡，竖排四张。DOM 常驻在此，
+         CxUI / SrcUI 照旧按 id 找节点，感知不到自己被搬过。 -->
+    <div class="sheet-only" id="bindCard">
+      <div class="card cx-card" id="cxCard">
+        <div class="row"><span>学习通</span><span id="cxState" class="v warn">未登录</span></div>
+        <div class="row" id="cxAtRow" style="display:none"><span>上次同步</span><span id="cxAt" class="v">--</span></div>
+        <button id="btnCxLogin" class="btn">登录学习通（学校统一认证）</button>
+        <button id="btnCxSync" class="btn soft" style="display:none">重新抓作业与考试</button>
+        <button id="btnCxOut" class="btn ghost" style="display:none">断开学习通</button>
+        <p class="hint tight">只读，不会替你交作业、不会点开考试。登录态只存在这台手机上。</p>
+      </div>
+      <div id="srcCards"></div>
+    </div>
     </div><!-- /toolPark -->
 
     <!-- v1.1.27：课程提醒。课前 N 分钟由系统闹钟弹本地通知（锁屏也收得到）。
@@ -308,14 +335,18 @@
       </div>
     </div>
 
-    <!-- 学习通连接状态：没登录时这里就是入口；登录了就显示上次同步时间 -->
-    <div class="card cx-card" id="cxCard">
-      <div class="row"><span>学习通</span><span id="cxState" class="v warn">未登录</span></div>
-      <div class="row" id="cxAtRow" style="display:none"><span>上次同步</span><span id="cxAt" class="v">--</span></div>
-      <button id="btnCxLogin" class="btn">登录学习通（学校统一认证）</button>
-      <button id="btnCxSync" class="btn soft" style="display:none">重新抓作业与考试</button>
-      <button id="btnCxOut" class="btn ghost" style="display:none">断开学习通</button>
-      <p class="hint tight">只读，不会替你交作业、不会点开考试。登录态只存在这台手机上。</p>
+    <!-- v1.1.66 / m00638：四张连接卡已收进 #toolPark 的 #bindCard，
+         点顶部 #bindEntry 在二级半框里打开；主窗口这里只放任务筛选与列表。 -->
+    <!-- v1.1.66：待完成 / 已完成 视图切换。默认看待完成；点「已完成」，下面整块
+         列表换成「平台明确说了做完」的条目，点回来又是要动的那些。
+         为什么单独一档 seg 而不是塞进「全部/作业/考试」：那排胶囊管的是
+         「作业还是考试」，这里管的是「做完没做完」，两个维度叠着用才对。
+         为什么放最上面：以前「已完成」是列表底部一个默认收起的折叠组，
+         回看自己做过什么要滚到底再点开；提到最上面一键切换，顺手。
+         语义红线照旧：状态没读到的条目永远留在「待完成」，绝不冒充已完成。 -->
+    <div class="seg" id="doneSeg">
+      <button data-dview="todo" class="on">待完成</button>
+      <button data-dview="done">已完成</button>
     </div>
 
     <div class="seg" id="sortSeg">
@@ -328,6 +359,8 @@
       <button data-filter="work">作业</button>
       <button data-filter="exam">考试</button>
     </div>
+      <!-- v1.1.66：来源筛选，由 app.js 的 SrcUI 动态填充 -->
+      <div class="chips" id="srcChips"></div>
 
     <!-- v1.1.22：我的待办 —— 学习通里没有的那些事。
          独立成一张卡，不和下面的作业列表混排：混在一起之后
@@ -657,15 +690,42 @@
 
         <div class="card">
           <div class="card-title"><span class="dot"></span>使用名单 <span id="admListCnt" class="adm-cnt"></span></div>
-          <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
-                 placeholder="搜学号（留空显示全部）">
-          <div class="chips" id="admFilter">
-            <button data-f="all" class="on">全部</button>
-            <button data-f="granted">正常</button>
-            <button data-f="revoked">已停用</button>
+          <!-- v1.1.63 校准：用户原话「把有异常的单独挑出来在一个二级菜单里面，
+               主菜单列表那就显示正常的，计数也分开计数」。正常/异常各自成表、各自计数。 -->
+          <div class="chips adm-subtabs" id="admListTab">
+            <button data-t="normal" class="on">正常名单 <span id="admNormalCnt" class="adm-tab-cnt"></span></button>
+            <button data-t="cal">校准 · 异常 <span id="admOddCnt" class="adm-tab-cnt"></span></button>
           </div>
-          <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          <!-- v1.1.64 方案 C：三态计数汇总（用户原话「计数也分开计数」）+ 只看已确认开关 -->
+          <div class="adm-summary" id="admKbSummary"></div>
+          <div id="admNormalPane">
+            <p class="adm-tip" id="admListTip">上面粗的是进门填的学号，下面细的是教务网登录读回的真号；灰的是还没补录真号，可在「校准」里手动补。</p>
+            <p class="adm-hidden" id="admListHidden"></p>
+            <label class="adm-only"><input type="checkbox" id="admOnlyConfirmed"> 只看已确认（隐去待补录）</label>
+            <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
+                   placeholder="搜学号（留空显示全部）">
+            <div class="chips" id="admFilter">
+              <button data-f="all" class="on">全部</button>
+              <button data-f="granted">正常</button>
+              <button data-f="revoked">已停用</button>
+            </div>
+            <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          </div>
+          <div id="admOddPane" style="display:none">
+            <p class="adm-tip">这些是没绑教务网、或手填形状不对的号，单独放在「校准」里；主列表只显示正常名单。可逐个查看详情或停用。</p>
+            <div id="admOddList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          </div>
           <button id="admListBtn" class="btn ghost">刷新名单</button>
+          <!-- v1.1.65 方案 A：全员下线重绑教务网。破坏性动作走 #sheet 二次确认，
+               按钮留给管理员自己点；服务端动手前自动备份，「撤销」一键还原。 -->
+          <p class="adm-tip" style="margin-top:14px"><b>全员重绑教务网</b>：清空名单里的教务真号标记、
+            让所有老票据失效；学生重开 App 后要重新登录一次教务网确认学号。动手前自动备份整份名单，
+            「撤销」可一键还原名单与公告。</p>
+          <p class="adm-tip" id="admRebindState"></p>
+          <div class="chips" style="margin-top:6px">
+            <button id="admRebindGo" class="btn ghost">发起全员重绑</button>
+            <button id="admRebindUndo" class="btn ghost">撤销上次重绑</button>
+          </div>
         </div>
       </div>
 
@@ -890,7 +950,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.62</div>
+      <div class="about-ver" id="aboutVer">v1.1.80</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
@@ -1114,6 +1174,10 @@
      必须早于 about.js / app.js：那两处要用 window.askConfirm 替掉原生 confirm()。 -->
 <script src="pop.js"></script>
 <script src="chaoxing.js"></script>
+<script src="sources.js"></script>
+<script src="xiqueer.js"></script>
+<script src="yuketang.js"></script>
+<script src="zhihuishu.js"></script>
 <script src="about.js"></script>
 <script src="wiki.js"></script>
 <script src="guide.js"></script>

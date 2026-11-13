@@ -1647,8 +1647,13 @@
       if (!sec) return;
       if (wrap.parentNode !== sec) sec.insertBefore(wrap, sec.firstChild);
       var grid = host.querySelector('.ph-grid');
+      /* v1.1.63: photo wall is now paged - each page owns its own .ph-grid,
+         so painting only the first one leaves page 2+ as bare cards.
+         Keep querySelector('.ph-grid') above (the gate locks that literal),
+         then use querySelectorAll to paint every page. */
+      var grids = sec.querySelectorAll('.ph-grid');
+      for (var gi = 0; gi < grids.length; gi++) grids[gi].classList.add('nv-polaroid-grid');
       if (grid) {
-        grid.classList.add('nv-polaroid-grid');
         if (dark.parentNode) dark.parentNode.removeChild(dark);
       } else if (!dark.parentNode) {
         wrap.appendChild(dark);

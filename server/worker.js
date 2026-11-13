@@ -51,6 +51,39 @@ function oddShape(id) {
   return s.length !== 11 || !/^20\d{2}/.test(s);
 }
 
+/* v1.1.63：只认「教务网绑定读回的真实学号」。
+ * oddShape 只判形状异常（11 位 / 20 开头），挡不住 20291100411、20241100927
+ * 这种「形状完全正常、其实是进门乱填」的号 —— 截图里它们照样挂在名单上。
+ * 所以名单不再按形状放行，而是看 idx 行有没有 kb=1 绑定标记；标记只能由
+ * 客户端把教务网登录读回的真号补报上来（isKbId + /v1/kbbind + activate 的 kb 字段）。 */
+function isKbId(id) {
+  return /^20\d{2}\d{7}$/.test(String(id || '').trim());
+}
+
+/* v1.1.64 双号（用户原话「上面粗的是软件登录时填的，下面细的小字是绑定教务网，
+ * 确认是教务网登录所抓取到的学号」）：idx 每行同时留 id=进门手填号 + kb=教务真号。
+ * kbRealOf 把两种历史写法归一成一个真号字符串；kbClassOf 分三态：
+ *   confirmed = 已抓到真号且全表唯一；pending = 还没补报真号；conflict = 脏数据/真号撞车。
+ * seen 是 handleList 先数好的「真号 → 出现次数」，>1 即两号冲突。 */
+function kbRealOf(e) {
+  if (!e) return '';
+  if (typeof e.kb === 'string' && e.kb && isKbId(e.kb)) return e.kb;
+  /* v1.1.63 遗留：kb===1 且 id 本身就是真号（旧 bindKbRow 新建的真号行）。 */
+  if (e.kb === 1 && isKbId(e.id)) return String(e.id);
+  return '';
+}
+
+function kbClassOf(e, seen) {
+  const raw = e ? e.kb : undefined;
+  /* kb 写了东西但不是合法真号 → 脏数据，别当成已确认显示给管理员 */
+  if (typeof raw === 'string' && raw && !isKbId(raw)) return { state: 'conflict', real: '' };
+  if (raw === 1 && e && !isKbId(e.id)) return { state: 'conflict', real: '' };
+  const real = kbRealOf(e);
+  if (!real) return { state: 'pending', real: '' };
+  if (seen[real] > 1) return { state: 'conflict', real: real };
+  return { state: 'confirmed', real: real };
+}
+
 /* ---------------------------------------------------------------- 工具 */
 
 const CORS = {
@@ -460,6 +493,48 @@ async function idxApply(env, adds, dels) {
     try { console.error('idx 已达上限 ' + IDX_CAP + '，本次跳过 ' + overflow + ' 条新增（激活不受影响）'); } catch (e) {}
   }
   return { idx: idx, changed: changed, overflow: overflow };
+}
+
+/* v1.1.64（用户原话「第一次登录肯定绑定教务了，就是要他们绑定教务的学号
+ * 记录下来」）：把「教务网绑定真号」写进 idx 里「进门手填号」那一行，不再删行。
+ * v1.1.63 是「新建真号行 + 删掉手填行」，结果存量名单整批被判成「未绑教务」，
+ * 管理员看不见到底谁进来过。现在同一行同时留两个号：
+ *   id  = 进门/激活时填的号（可能是乱填，也可能是真号）
+ *   kb  = 教务网登录读回的真号字符串（v1.1.64 起写字符串，旧版是数字 1）
+ *   kbAt= 补报时刻
+ * 找不到 gateId 那一行时：命中 v1.1.63 遗留的真号行（id===kb && kb===1）就
+ * 幂等留用；都没有才新增一行。单次读整表、内存里改完、changed 才写一次。 */
+async function bindKbRow(env, gateId, kb) {
+  const idx = await getIdx(env);
+  if (idx === null) throw new Error('idx 索引损坏，读不出来（为免覆盖真实名单，本次不写入）');
+  const from = String(gateId || '').trim();
+  const real = String(kb || '').trim();
+  let changed = false;
+  let bound = false;
+  let row = null;
+  let i = from ? idx.findIndex(e => e && e.id === from) : -1;
+  if (i < 0) {
+    /* 老用户已经把本地 K_ID 对成真号：gateId 就是真号，v1.1.63 的真号行留用。 */
+    i = idx.findIndex(e => e && e.id === real && e.kb === 1);
+  }
+  if (i >= 0) row = idx[i];
+  if (!row) {
+    if (idx.length < IDX_CAP) {
+      row = { id: from || real, at: now(), note: '', kb: real, kbAt: now() };
+      idx.push(row);
+      changed = true; bound = true;
+    }
+  } else {
+    bound = true;
+    const cur = kbRealOf(row);
+    if (cur !== real || row.kbAt == null) {
+      row.kb = real;
+      row.kbAt = now();
+      changed = true;
+    }
+  }
+  if (changed) await putIdx(env, idx);
+  return { changed: changed, bound: bound };
 }
 
 /** 一次性拿到所有停用标记（分页 list，每页 1 次子请求） */
@@ -1082,10 +1157,15 @@ async function handleActivate(req, env) {
    * 「添真实号 + 删畸形行」：名单从此显示教务网登录的学号，教务网与软件学号
    * 也就一致了。护栏很硬：只有 from 畸形、to 是正常 11 位 20xx 号、二者不同、
    * 且 from 没被管理员停用时才认；管理员支路在上面已提前 return，不受影响。
-   * 旧客户端不带 renameFrom 时 dels 为空，行为与从前完全一致。 */
+   * 旧客户端不带 renameFrom 时 dels 为空，行为与从前完全一致。
+   *
+   * v1.1.63：放宽 from 的形状限制。原来只认「畸形号」，结果 20291100411、
+   * 20241100927 这种「11 位 20 开头、其实是乱填」的号形状完全正常，
+   * oddShape(from)=false 直接漏过去 —— 标签没了、乱号还挂在名单上。
+   * 现在按「to 是教务绑定真号 + from 是任意合法激活号」放行，手填残留一并删。 */
   let dels = [];
   const renameFrom = String(b.renameFrom || '').trim();
-  if (renameFrom && renameFrom !== id && oddShape(renameFrom) && !oddShape(id)
+  if (renameFrom && renameFrom !== id && isKbId(id) && /^\d{6,20}$/.test(renameFrom)
       && !(await env.AUTH.get('rev:' + renameFrom))) {
     dels = [renameFrom];
   }
@@ -1094,7 +1174,144 @@ async function handleActivate(req, env) {
   } catch (e) {
     console.error('激活成功但名单记账失败：', e && e.message);
   }
+  /* v1.1.63：客户端把教务绑定真号一起报上来就给它打 kb:1。
+   * 名单只认带标记的行（handleList），所以这一步决定「这个人进不进名单」。
+   * 第一次进门还没登录教务时 kb 为空 → 行先记着、隐去不显；教务登录成功后
+   * /v1/kbbind 或重新激活会补标记，手填残留也在这时被 bindKbRow 清掉。 */
+  const kb = String(b.kb || '').trim();
+  if (isKbId(kb)) {
+    try { await bindKbRow(env, id, kb); }
+    catch (e) { console.error('教务绑定记账失败：', e && e.message); }
+  }
   return json({ ok: true, ticket: ticket, exp: exp, devCount: bind.devs.length, maxDev: maxDev(cfg) });
+}
+
+/** POST /v1/kbbind {id, kb, fp} —— v1.1.63 教务绑定真号补报
+ *
+ * 教务网登录成功后，客户端把「登录教务读回的真实学号」单独报一次。
+ * 与 activate 里的 kb 字段是同一条信任模型（客户端上报、不联网核验教务），
+ * 但它是「老用户升级后的静默回填口」：v1.1.62 及更早的 idx 里 54 人
+ * 全都没有 kb 标记，只靠新激活补会让升级过渡期名单全空。
+ * 开机兜底 / __onLoginDone / alignKbAccount 三条路都会打到这里。 */
+async function handleKbBind(req, env) {
+  const b = await req.json().catch(() => null);
+  if (!b) return bad('请求体不是合法 JSON');
+  const id = String(b.id || '').trim();
+  const kb = String(b.kb || '').trim();
+  const fp = String(b.fp || '').trim();
+  if (!/^\d{6,20}$/.test(id)) return bad('学号格式不对');
+  if (!isKbId(kb)) return bad('教务绑定学号格式不对');
+  if (!fp) return bad('缺少设备标识');
+  try {
+    const r = await bindKbRow(env, id, kb);
+    return json({ ok: true, bound: r.bound, changed: r.changed });
+  } catch (e) {
+    console.error('教务绑定补报失败：', e && e.message);
+    return bad('名单索引读不出来，稍后再试。', 500);
+  }
+}
+
+/** POST /v1/admin/kbfix {id, kb} —— 管理员手动补录教务真号（v1.1.64 方案 C）。
+ * 真号只在学生本机，等对方再开一次 App 自动补报不总是可行；校准里每行给一个
+ * 「手动录真号」按钮，管理员拿教务网查到的号直接补。走的是和 /v1/kbbind
+ * 同一个 bindKbRow：不删手填行，同行写 kb + kbAt，主列表立刻变「已确认」。
+ * 已鉴权（挂在 /v1/admin/* 块里）+ 留 audit 痕。 */
+async function handleKbFix(req, env) {
+  const b = await req.json().catch(() => null);
+  if (!b) return bad('请求体不是合法 JSON');
+  const id = String(b.id || '').trim();
+  const kb = String(b.kb || '').trim();
+  if (!/^\d{6,20}$/.test(id)) return bad('学号格式不对');
+  if (!isKbId(kb)) return bad('教务绑定学号格式不对');
+  try {
+    await bindKbRow(env, id, kb);
+    await audit(env, 'kbfix', [id], kb);
+    return json({ ok: true });
+  } catch (e) {
+    console.error('手动补录教务学号失败：', e && e.message);
+    return bad('名单索引读不出来，稍后再试。', 500);
+  }
+}
+
+/* ------------------------------------------------- v1.1.65 方案 A：全员重绑 */
+
+/** 票据是不是「全员重绑之前签发的」？抽成纯函数，tools/test_rebind.js 直接真跑。
+ * 严格小于：同一秒内重新激活签发的票据（issuedAt === rebindAt）必须放行。 */
+function rebindKicks(rebindAt, exp) {
+  const t = parseInt(rebindAt, 10) || 0;
+  return !!t && (exp - 30 * DAY) < t;
+}
+
+/** POST /v1/admin/rebind-all —— 全员下线重绑教务网（一次性、可逆）。
+ *
+ * YG 原话（m02386）：「能不能让所有人下线，都重新绑定一次教务网，重新补录一下」。
+ * 不用 rev: —— 那会死锁：handleActivate 也查 rev:，写了之后用户重新激活同样被挡，
+ * 永远回不来。改用 cfg.rebindAt：一个时间戳就让所有「重绑之前签发的票据」
+ * 在 handleCheck 里判 bad_ticket。客户端收到 bad_ticket 会 deactivate + clearTicket，
+ * 清掉本机登记与 K_ACCT_KB，用户重开 App 进门后必须重新登录一次教务网，
+ * 登录成功抓到真号再经 activate 的 kb 字段 / /v1/kbbind 补回 idx ——
+ * 这就真正「重绑了一次教务网」。
+ *
+ * 动作：① 整键备份 idx + 公告到 rebind:backup；② 逐行删 kb / kbAt（保留
+ * id / at / note），名单整批回「待补录」；③ cfg.rebindAt = now() + 发一条公告；
+ * ④ purgeEdge 让 /v1/config 立即生效；⑤ audit 留痕。全程约 5 次 KV 写（O(1)），
+ * 不像逐个删 dev: 要按人数线性写、吃掉 1000 写/天的免费额度。
+ *
+ * 已发起过就拒绝重入，避免第二次用「已清空的 idx」覆盖掉第一份备份。 */
+async function handleRebindAll(req, env) {
+  const idx = await getIdx(env);
+  if (idx === null) return bad('名单索引读不出来，本次没有做任何写入。', 500);
+  const cfg = await getCfg(env);
+  if ((parseInt(cfg.rebindAt, 10) || 0) && (await env.AUTH.get('rebind:backup'))) {
+    return bad('已经发起过全员重绑，请先「撤销上次重绑」再重新发起，避免覆盖备份。');
+  }
+  const backup = {
+    idx: idx, rebindAt: cfg.rebindAt || 0,
+    notice: cfg.notice || '', noticeAt: cfg.noticeAt || 0, noticeTitle: cfg.noticeTitle || '',
+    at: now(),
+  };
+  await env.AUTH.put('rebind:backup', JSON.stringify(backup));
+  const cleared = idx.map(e => {
+    if (!e || typeof e !== 'object') return e;
+    const o = Object.assign({}, e);
+    delete o.kb;      // v1.1.64 的教务真号字符串 / v1.1.63 的 kb:1 标记一并去掉
+    delete o.kbAt;
+    return o;
+  });
+  await putIdx(env, cleared);
+  const t = now();
+  const next = Object.assign({}, cfg, {
+    rebindAt: t,
+    notice: '请重开 App，按提示重新登录一次教务网确认学号。',
+    noticeTitle: '学号重新确认',
+    noticeAt: t,
+  });
+  await putCfg(env, next);
+  await purgeEdge(req, '/v1/config');
+  await audit(env, 'rebind-all', [], 'rows=' + idx.length);
+  return json({ ok: true, rows: idx.length, rebindAt: t });
+}
+
+/** POST /v1/admin/rebind-undo —— 撤销全员重绑，一键还原。
+ * 恢复 idx（含 kb / kbAt）、删掉 cfg.rebindAt、还原公告，老票据随即重新有效
+ * （设备绑定 dev: 从头到尾没被动过）。 */
+async function handleRebindUndo(req, env) {
+  const raw = await env.AUTH.get('rebind:backup');
+  if (!raw) return bad('没有可撤销的重绑记录（还没发起过全员重绑）。');
+  let b;
+  try { b = JSON.parse(raw); } catch (e) { return bad('重绑备份读不出来，没有做任何写入。', 500); }
+  if (!b || !Array.isArray(b.idx)) return bad('重绑备份格式不对，没有做任何写入。', 500);
+  await putIdx(env, b.idx);
+  const cfg = await getCfg(env);
+  const next = Object.assign({}, cfg, {
+    notice: b.notice || '', noticeAt: b.noticeAt || 0, noticeTitle: b.noticeTitle || '',
+  });
+  delete next.rebindAt;
+  await putCfg(env, next);
+  await purgeEdge(req, '/v1/config');
+  await env.AUTH.delete('rebind:backup');
+  await audit(env, 'rebind-undo', [], 'rows=' + b.idx.length);
+  return json({ ok: true, rows: b.idx.length });
 }
 
 /** POST /v1/check {id, ticket, fp, ver, code} */
@@ -1139,6 +1356,16 @@ async function handleCheck(req, env) {
   const t1 = await checkTicket(env, id, fp, b.ticket);
   if (!t1) {
     return json({ ok: false, reason: 'bad_ticket', msg: '登录凭证无效或已过期，请重新激活' });
+  }
+  /* v1.1.65 方案 A：全员重绑。cfg.rebindAt = 发起全员重绑的时刻（秒）。
+   * 普通票据恒为 30 天签（handleActivate: exp = now() + 30*DAY），所以
+   * 「签发时刻」= exp - 30*DAY；签发早于 rebindAt 的老票据一律判 bad_ticket。
+   * 客户端 check() 收到 bad_ticket 会清登记重新激活；重新激活（或登录后
+   * reportKb / alignKbAccount）把教务真号补回 idx，名单逐个回「已确认」。
+   * 管理员票据在 handleCheck 顶部 isAdminId 分支提前 return，不受影响。
+   * cfg.rebindAt 默认不存在 → 这段不触发 → 线上零回归。 */
+  if (rebindKicks(cfg.rebindAt, t1.exp)) {
+    return json({ ok: false, reason: 'bad_ticket', rebind: true, msg: '请重新登录一次教务网确认学号' });
   }
   const exp0 = t1.exp;
 
@@ -1345,9 +1572,24 @@ async function handleList(env) {
    * 管理员可能真跑去改 KV，把好数据也毁掉。 */
   if (idx === null) return bad('名单索引读不出来（KV 里的 idx 值损坏）。为了不覆盖真实数据，本次没有做任何写入。请到 Cloudflare KV 检查 idx 这个键。', 500);
   const rev = await revokedSet(env);
-  const rows = idx.map(e => ({
+  /* v1.1.64 双号（用户原话「现在显示的都是未绑定教务了，但第一次登录肯定绑定
+   * 教务了，就是要他们绑定教务的学号记录下来」）：idx 每行同留 id=手填号 +
+   * kb=教务真号。不再整批把存量行判成「未绑教务」，而是按三态分开：
+   *   confirmed 已抓到真号且全表唯一 → 主列表（上面粗手填号、下面细真号）
+   *   pending   还没补报真号         → 主列表灰度行 + 校准里可手动录真号
+   *   conflict  kb 脏数据 / 真号撞车 → 只进校准，等人处理
+   * seen 先数每个真号出现几次，撞车（>1）即冲突，避免两行都显示「已确认」。 */
+  const seen = {};
+  idx.forEach(e => { const r = kbRealOf(e); if (r) seen[r] = (seen[r] || 0) + 1; });
+  const tagged = idx.map(e => ({ e: e, c: kbClassOf(e, seen) }));
+  const bound = tagged.filter(t => t.c.state === 'confirmed').map(t => t.e);
+  /* 校准·异常：confirmed 的补集整批回传，管理员要在二级菜单看见具体是哪些号、
+   * 什么时候进来、为什么异常，才好逐个处置或手动补真号。 */
+  const odd = tagged.filter(t => t.c.state !== 'confirmed').map(t => t.e);
+  const rows = bound.map(e => ({
     id: e.id, at: e.at || 0, note: e.note || '',
     revoked: rev.has(e.id),
+    kb: kbRealOf(e),
   }));
   /* v1.1.45：名单按「新收录」从新到老（用户原话「按照新收录的学号排序，从新到老」）。
    *
@@ -1363,7 +1605,25 @@ async function handleList(env) {
     if (a.at !== b.at) return b.at - a.at;
     return a.id.localeCompare(b.id);
   });
-  return json({ ok: true, count: rows.length, revokedCount: rev.size, rows: rows });
+  /* 校准表和主列表用同一套「新收录从新到老」，两处时间口径一致。 */
+  const oddRows = odd.map(e => ({
+    id: (e && e.id) || '', at: (e && e.at) || 0, note: (e && e.note) || '',
+    revoked: rev.has((e && e.id) || ''),
+    kb: kbRealOf(e),
+    reason: kbClassOf(e, seen).state === 'conflict' ? 'conflict' : 'pending',
+  }));
+  oddRows.sort((a, b) => {
+    if (a.at !== b.at) return b.at - a.at;
+    return a.id.localeCompare(b.id);
+  });
+  const revokedCount = rows.filter(r => r.revoked).length;
+  const confirmedCount = bound.length;
+  const pendingCount = oddRows.filter(r => r.reason === 'pending').length;
+  const conflictCount = oddRows.filter(r => r.reason === 'conflict').length;
+  return json({ ok: true, count: rows.length, revokedCount: revokedCount,
+    hidden: idx.length - bound.length, oddCount: oddRows.length,
+    confirmedCount: confirmedCount, pendingCount: pendingCount, conflictCount: conflictCount,
+    rows: rows, oddRows: oddRows });
 }
 
 /** POST /v1/admin/state {ids:[...]} —— 批量查单个学号的完整状态
@@ -2301,6 +2561,13 @@ export default {
         }
         return await handleActivate(req, env);
       }
+      if (p === '/v1/kbbind' && req.method === 'POST') {
+        /* 教务登录成功一次报一次，正常用量极低；按 IP 宽松限流挡脚本刷标记。 */
+        if (!rlHit('kb:ip:' + clientIp(req), 200, 10 * 60 * 1000)) {
+          return bad('请求太频繁，等几分钟再试。', 429);
+        }
+        return await handleKbBind(req, env);
+      }
       if (p === '/v1/check' && req.method === 'POST') {
         /* 客户端本来就 6 小时才复检一次；这里只是挡真正发疯的循环。
          * 按 IP 计，同样要留够——一台设备 6 小时 1 次，200 次/6 分钟
@@ -2346,6 +2613,9 @@ export default {
         if (p === '/v1/admin/apkdel') return await handleApkDel(req, env);
         if (p === '/v1/admin/versioncheck') return await handleVersionCheck(req, env);
         if (p === '/v1/admin/list') return await handleList(env);
+        if (p === '/v1/admin/kbfix' && req.method === 'POST') return await handleKbFix(req, env);
+        if (p === '/v1/admin/rebind-all' && req.method === 'POST') return await handleRebindAll(req, env);
+        if (p === '/v1/admin/rebind-undo' && req.method === 'POST') return await handleRebindUndo(req, env);
         if (p === '/v1/admin/code') return await handleCode(url, env);
         if (p === '/v1/admin/admins') return await handleAdmins(req, env);
         if (p === '/v1/admin/photos') return await handleAdminPhotos(env);

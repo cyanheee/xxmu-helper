@@ -89,7 +89,12 @@ const REMINDER = (() => {
   }
 
   /* 遍历课表，产出 [{at,name,room,mins,mode}]，只留未来时间。
-   * mode 必须逐项带着：Java 侧会原样落盘，重启重挂时按它重建 PendingIntent。 */
+   * mode 必须逐项带着：Java 侧会原样落盘，重启重挂时按它重建 PendingIntent。
+   *
+   * v1.1.78 连堂去重：同一门课同一天可能连着上好几节（periods:[1,2,3]），
+   * 以前对每一节都挂一条提醒，三节课就响三次。用户原话「同一门课只提醒一次」。
+   * 现在按「一门课 × 一周」只取当天最早那一节，在它前面 N 分钟提醒一次。
+   * 顺带把 200 条上限里被连堂重复项占掉的名额省出来（学期后半段不再被吃光）。 */
   function build() {
     const out = [];
     const courses = (typeof DATA !== 'undefined' && DATA && Array.isArray(DATA.courses)) ? DATA.courses : [];
@@ -99,18 +104,19 @@ const REMINDER = (() => {
     courses.forEach(c => {
       const weeks = Array.isArray(c.weeks) ? c.weeks : [];
       const periods = Array.isArray(c.periods) ? c.periods : [];
-      periods.forEach(pRaw => {
-        const p = parseInt(pRaw, 10);
-        if (!(p >= 1)) return;
-        const pIdx = p - 1;
-        weeks.forEach(w => {
-          if (!(w >= 1 && w <= (typeof TOTAL_WEEKS !== 'undefined' ? TOTAL_WEEKS : 21))) return;
-          const d = courseDate(c, pIdx, w);
+      weeks.forEach(w => {
+        if (!(w >= 1 && w <= (typeof TOTAL_WEEKS !== 'undefined' ? TOTAL_WEEKS : 21))) return;
+        let at = null;
+        periods.forEach(pRaw => {
+          const p = parseInt(pRaw, 10);
+          if (!(p >= 1)) return;
+          const d = courseDate(c, p - 1, w);
           if (!d) return;
-          const at = d.getTime() - m * 60000;
-          if (at <= now) return;
-          out.push({ at, name: c.name || '', room: c.room || '', mins: m, mode: md });
+          const t = d.getTime() - m * 60000;
+          if (at === null || t < at) at = t;   // 连堂只留最早一节
         });
+        if (at === null || at <= now) return;
+        out.push({ at, name: c.name || '', room: c.room || '', mins: m, mode: md });
       });
     });
     out.sort((a, b) => a.at - b.at);

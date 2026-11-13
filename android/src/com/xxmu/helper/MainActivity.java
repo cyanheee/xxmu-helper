@@ -628,6 +628,30 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        /**
+         * v1.1.70：读取系统剪贴板文本，给喜鹊「从剪贴板导入考试表」用。
+         *
+         * 为什么换执行层：青果 V17 业务页防直链、检索结果常进弹窗/子框架，
+         * App 主动 evaluateJavascript 四轮真机都够不到考试表（m02177 诊断：
+         * 按「完成」那一刻顶层仍是门户 homes.action，#1 内容帧 about:blank）。
+         * 这版让人在自己看得见的那页长按选中复制，App 只读剪贴板自己解析。
+         * 返回 String：getPref 已是同款同步返回值桥，JS 侧 Host.getClip() 直取。
+         */
+        @JavascriptInterface
+        public String getClip() {
+            try {
+                android.content.ClipboardManager cm =
+                    (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                if (cm == null || !cm.hasPrimaryClip()) return "";
+                android.content.ClipData cd = cm.getPrimaryClip();
+                if (cd == null || cd.getItemCount() == 0) return "";
+                CharSequence t = cd.getItemAt(0).getText();
+                if (t == null) return "";
+                String s = t.toString();
+                return s.length() > 60000 ? s.substring(0, 60000) : s;
+            } catch (Throwable ignored) { return ""; }
+        }
         /* ===== 异步 HTTP 桥（v0.9.4 修复） =====
          *
          * 教训：v0.9.3 把 httpFetchAsync / httpFetchPoll / fetchScheduleHtmlAsync
@@ -753,6 +777,96 @@ public class MainActivity extends Activity {
                         // detect=false，没有输入框可读，给了选择器也只是空跑。
                         if (detect) it.putExtra(WebActivity.EXTRA_GRAB, "input#phone,input#uname");
                         startActivityForResult(it, REQ_CX);
+                    } catch (Throwable e) {
+                        showToast("无法打开页面：" + e.getClass().getSimpleName());
+                    }
+                }
+            });
+        }
+
+        /**
+         * v1.1.66：多平台来源（喜鹊儿 / 雨课堂 / 知到）的通用登录入口，
+         * 见 docs/multi-source-SPEC.md 第 8 节。和学习通 openWebFor 分开：
+         * 那个方法把判据、抓取选择器、回调名都写死在 Java 里，每接一个平台
+         * 就得改一次壳；这里把 badHints / okHints / grabSel / 回调名全部交给
+         * 前端参数化，新增来源只改 web/ 里的适配器，不用再动 APK。
+         *
+         * detectLogin 固定为 true：这是登录页，必须让 WebActivity 自动按 hints
+         * 判定登录成功、并给一个手动「完成」按钮，否则用户按返回只会被判成取消。
+         * 登录结果在 onActivityResult 的 REQ_SRC 分支回跳 window[cbName](ok, acct)。
+         */
+        /* v1.1.68：喜鹊考试安排「WebView 辅助发现」。
+         *
+         * 为什么不是再猜一个 jsp 地址：真机诊断（m01318）里 /frame/homes.action
+         * 是活的（32382B），可同一份 Cookie 直连 /student/*.jsp 全被 KingoEncypt
+         * 令牌/防直链挡成「凭证失效页」，静态 HTML 里也挖不到 AJAX 菜单的真地址。
+         * 唯一稳的路是让真浏览器自己跑完 JS：打开教务框架，用户点一次「考试安排」，
+         * 页面渲染出来后按「完成」，把整页文字与表格行交回前端解析。
+         *
+         * 这里刻意不置 EXTRA_DETECT_LOGIN：那条路会按 URL 命中 /student/ 就自动
+         * finishWithResult(true)，既拿不到 EXTRA_RESULT，也没等用户点到考试页。 */
+        @JavascriptInterface
+        public void openFinderFor(final String url, final String title, final String cbName) {
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    try {
+                        pendingFindCb = cbName;
+                        android.content.Intent it = new android.content.Intent(
+                                MainActivity.this, WebActivity.class);
+                        it.putExtra(WebActivity.EXTRA_URL, url);
+                        it.putExtra(WebActivity.EXTRA_TITLE, title);
+                        it.putExtra(WebActivity.EXTRA_FIND, true);
+                        startActivityForResult(it, REQ_FIND);
+                    } catch (Throwable e) {
+                        showToast("无法打开页面：" + e.getClass().getSimpleName());
+                    }
+                }
+            });
+        }
+
+        /** v1.1.71：打开「双探」教务视图。用户进「课程考试 → 考试安排表」，
+         *  选好学年学期按一次「检索」（或点一次「导出」），按「完成」把拦到的
+         *  候选地址交回前端；之后前端照课表用带 Cookie 的桥全自动重放，零复制。 */
+        @JavascriptInterface
+        public void openProbeFor(final String url, final String title, final String cbName) {
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    try {
+                        pendingProbeCb = cbName;
+                        android.content.Intent it = new android.content.Intent(
+                                MainActivity.this, WebActivity.class);
+                        it.putExtra(WebActivity.EXTRA_URL, url);
+                        it.putExtra(WebActivity.EXTRA_TITLE, title);
+                        it.putExtra(WebActivity.EXTRA_PROBE, true);
+                        startActivityForResult(it, REQ_PROBE);
+                    } catch (Throwable e) {
+                        showToast("无法打开页面：" + e.getClass().getSimpleName());
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public void openLoginFor(final String url, final String title, final String badHints,
+                                 final String okHints, final String grabSel, final String cbName) {
+            runOnUiThread(new Runnable() {
+                public void run() {
+                    try {
+                        // 回调名先存字段：结果走 onActivityResult，而 Intent 不便回带
+                        // 「要调哪个 JS 函数」的字符串，故暂存到 pendingSrcCb。
+                        pendingSrcCb = cbName;
+                        android.content.Intent it = new android.content.Intent(
+                                MainActivity.this, WebActivity.class);
+                        it.putExtra(WebActivity.EXTRA_URL, url);
+                        it.putExtra(WebActivity.EXTRA_TITLE, title);
+                        it.putExtra(WebActivity.EXTRA_DETECT_LOGIN, true);
+                        // 三个判据 / 选择器全部参数化，沿用 WebActivity 现有 extra key。
+                        // 壳只负责透传：空串或 null 交给 WebActivity 自己回退默认规则
+                        // （空 grabSel 视为不抓账号），不在 MainActivity 里二次解释。
+                        it.putExtra(WebActivity.EXTRA_BAD_HINTS, badHints);
+                        it.putExtra(WebActivity.EXTRA_OK_HINTS, okHints);
+                        it.putExtra(WebActivity.EXTRA_GRAB, grabSel);
+                        startActivityForResult(it, REQ_SRC);
                     } catch (Throwable e) {
                         showToast("无法打开页面：" + e.getClass().getSimpleName());
                     }
@@ -1048,13 +1162,15 @@ public class MainActivity extends Activity {
         // ---- 课程提醒（本地通知）----
         //
         // 前端（reminder.js）算好「下一次课的绝对毫秒时间戳」，把这一批
-        // 闹钟一次性传下来；这里在 Java 侧用 AlarmManager.setExactAndAllowWhileIdle
-        // 挂精确闹钟。到点后系统广播给 ReminderReceiver，由它发通知。
+        // 闹钟一次性传下来；Java 侧由 ReminderScheduler 用
+        // AlarmManager.setAlarmClock 挂成系统真闹钟（v1.1.78 起，穿透 Doze、
+        // 不受 idle 唤醒配额与「闹钟和提醒」特殊权限节流）。到点后系统广播给
+        // ReminderReceiver，由它发通知。
         //
         // 为什么闹钟要放在 Java、而不是前端 setInterval 里数秒：
         //   锁屏 / 切后台后 WebView 的定时器会被系统节流甚至冻结，
         //   前台数秒的提醒在真机上几乎必然晚点或漏掉；AlarmManager 由系统
-        //   定时，App 被杀也能唤醒（用 setExactAndAllowWhileIdle 在 Doze 下也尽量准）。
+        //   定时，App 被杀也能唤醒。
 
         /** 取消所有已挂的课程提醒（改课表 / 关提醒时先清空再重挂） */
         @JavascriptInterface
@@ -1174,6 +1290,17 @@ public class MainActivity extends Activity {
     private static final int REQ_CX = 1006;   // 学习通登录
     private static final int REQ_APK = 1007;  // 选安装包
     private static final int REQ_PHOTO = 1008; // 选一张校园图片上传
+    private static final int REQ_SRC = 1009;  // v1.1.66 多平台来源通用登录（openLoginFor）
+    private static final int REQ_FIND = 1010; // v1.1.68 喜鹊考试安排：WebView 辅助发现
+    private static final int REQ_PROBE = 1011; // v1.1.71 喜鹊考试双探：拦检索请求 + 钩导出下载
+
+    /** v1.1.66：REQ_SRC 登录结果要回跳的 JS 全局回调名（window[cb](ok,acct)）。
+     *  由 openLoginFor 存下，结果在 onActivityResult 的 REQ_SRC 分支消费后清空。 */
+    private String pendingSrcCb = "";
+    /** v1.1.68：openFinderFor 的 JS 回跳名（window[cb](jsonText)），REQ_FIND 消费后清空。 */
+    private String pendingFindCb = "";
+    /** v1.1.71：openProbeFor 的 JS 回跳名（window[cb](jsonText)），REQ_PROBE 消费后清空。 */
+    private String pendingProbeCb = "";
 
     /**
      * 用独立 Activity 打开网页。
@@ -1253,6 +1380,47 @@ public class MainActivity extends Activity {
             } catch (Throwable ignored) {
             }
             notifyCxDone(res == RESULT_OK, acct);
+        } else if (req == REQ_SRC) {
+            // v1.1.66 多平台来源登录回跳：和学习通 __onCxDone、教务 __onLoginDone
+            // 彻底分开，用 openLoginFor 传进来的独立回调名，避免三条登录链串台。
+            CookieManager.getInstance().flush();
+            String acct = "";
+            try {
+                if (res == RESULT_OK && data != null) {
+                    String a = data.getStringExtra(WebActivity.EXTRA_ACCOUNT);
+                    if (a != null) acct = a.trim();
+                }
+            } catch (Throwable ignored) {
+            }
+            String cb = pendingSrcCb;
+            pendingSrcCb = "";  // 一次性消费，防止下一次登录误用旧回调
+            notifySrcDone(res == RESULT_OK, acct, cb);
+        } else if (req == REQ_FIND) {
+            // v1.1.68：用户点过「考试安排」并按「完成」，把整页 JSON 文本交回前端。
+            CookieManager.getInstance().flush();
+            String payload = "null";
+            try {
+                if (res == RESULT_OK && data != null) {
+                    String s = data.getStringExtra(WebActivity.EXTRA_RESULT);
+                    if (s != null && s.length() > 4) payload = s;
+                }
+            } catch (Throwable ignored) {}
+            String cb = pendingFindCb;
+            pendingFindCb = "";
+            notifyFindDone(payload, cb);
+        } else if (req == REQ_PROBE) {
+            // v1.1.71：双探视图关掉，把整页 + 拦到的候选请求地址交回前端。
+            CookieManager.getInstance().flush();
+            String payload = "null";
+            try {
+                if (res == RESULT_OK && data != null) {
+                    String s = data.getStringExtra(WebActivity.EXTRA_RESULT);
+                    if (s != null && s.length() > 4) payload = s;
+                }
+            } catch (Throwable ignored) {}
+            String cb = pendingProbeCb;
+            pendingProbeCb = "";
+            notifyFindDone(payload, cb);
         } else if (req == REQ_APK) {
             handleApkResult(res, data);
         } else if (req == REQ_PHOTO) {
@@ -1686,6 +1854,27 @@ public class MainActivity extends Activity {
     }
 
     /**
+     * v1.1.66：多平台来源（喜鹊儿 / 雨课堂 / 知到）的登录结果回调。
+     *
+     * cb 是 openLoginFor 传进来的前端全局函数名（形如 __onSrcDone_<id>），
+     * 由 sources.js 按来源 id 动态生成，所以这里用 window[cb] 取函数而不是
+     * 写死 window.__onXxx —— 三条登录链（学习通 / 教务 / 多平台）各回各的调，
+     * 绝不串台。cb 与 acct 都过 JSONObject.quote：名字或账号里若带引号、
+     * 反斜杠，拼进 JS 字符串字面量也不会把这段脚本截断。
+     */
+    private void notifySrcDone(final boolean ok, final String acct, final String cb) {
+        if (cb == null || cb.length() == 0) return;  // 没给回调名就别调 window[""]
+        final String key = org.json.JSONObject.quote(cb);
+        final String js = "window[" + key + "] && window[" + key + "](" + ok + ","
+                + org.json.JSONObject.quote(acct == null ? "" : acct) + ")";
+        runOnUiThread(new Runnable() {
+            public void run() {
+                if (web != null) web.evaluateJavascript(js, null);
+            }
+        });
+    }
+
+    /**
      * 相册选图 → 解码二维码。
      *
      * v0.9.6 起先在 Java 侧用原始位图直接解（ZXing），解出来就不用把图传给前端；
@@ -1998,6 +2187,22 @@ public class MainActivity extends Activity {
     private void notifyWaterCapture(final String payload) {
         final String lit = org.json.JSONObject.quote(payload == null ? "null" : payload);
         final String js = "window.__onWaterCapture && window.__onWaterCapture(" + lit + ")";
+        runOnUiThread(new Runnable() {
+            public void run() {
+                if (web != null) web.evaluateJavascript(js, null);
+            }
+        });
+    }
+
+    /** v1.1.68：把 WebView 抓到的一整页 JSON 文本交回 window[cb](jsonText)。
+     *  payload 本身已是 JSON 文本，quote 包一层成合法 JS 字符串字面量；
+     *  cb 单独 quote，防回调名里带引号把脚本截断。与学习通/教务/多平台
+     *  三条登录回调彻底分开，不串台。 */
+    private void notifyFindDone(final String payload, final String cb) {
+        if (cb == null || cb.length() == 0) return;
+        final String key = org.json.JSONObject.quote(cb);
+        final String lit = org.json.JSONObject.quote(payload == null ? "null" : payload);
+        final String js = "window[" + key + "] && window[" + key + "](" + lit + ")";
         runOnUiThread(new Runnable() {
             public void run() {
                 if (web != null) web.evaluateJavascript(js, null);

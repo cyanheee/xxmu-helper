@@ -7,6 +7,308 @@
 
 ---
 
+### v1.1.77（2026-11-12）—— 已过截止移出「待完成」，排序按截止时间从近到远（**本地包 1.1.77 / 1177，未上线；线上仍 1.1.65**）
+
+触发：m04098 原话「已过期的不显示在待完成里，这个按时间从近到远排序，就是按紧急程度排序」+ 截图 m04099（雨课堂待完成 11 条全是已过期作业，09-27 / 10-06 / 10-11 越老越靠前）。
+
+根因两条：
+
+1. **过期条目仍算「待做」**：`renderHomework` 里 works 的 `_open` 在 `CX.classify(status)==='open'` 时恒 `true`，完全不看截止时间——「待做」表示没交，这是事实，但对「待完成」这个视图来说，交不了的东西不该占位置。
+2. **过期越老越靠前**：`byDue` 是 `left` 升序，过期后 `left` 为负，`-1200` 小时 < `-10` 小时，于是 9 月那批全被顶到首屏，10 月的反而沉底——和「按紧急度」正好反着。
+
+改动 `web/app.js`：
+
+- works 条目加 `expired: (left != null && left < 0)`；exams 加 `expired: (due != null && due < now)`（判据用结束时间，不依赖状态——状态没读到也不能一直挂顶上）。
+- 顶部统计拆开：`openWorks/openExams` 只数 `x.open && !x.expired`，另算 `expWorks/expExams/expN`，`hwcount` 变成「N 条待做 · M 场考试待考 · K 条已过截止」。
+- 新增可测纯函数 `/* @testable:hwBucket */ function hwBucket(x)`（优先级 `done > expired > notstart > todo > unknown`；`expired` 既认 `x.expired===true` 也自己按 `x.left<0` 判，防止别的调用点没填标志位），并让它接管排序分桶：`open` 取 `'todo'`、`expired`、`notstart`、`done`、`unknown`。
+- 「已过截止」用 **left 降序**（越接近现在越靠前，最老的沉底）——和待完成的升序相反，翻的时候第一眼看到的是刚过期那条。
+- 「按课程」排序：`urg()` 只拿未过期条目算最紧急（整门课都过期就沉底，不再用负剩余时间抢位置）；组内 `ra()` 改成 `open&&!expired→0 / expired→1 / notStart→2 / 其余→3`；组头 parts 顺序改「未完成 / 未开始 / 已过截止 / 情况不明」。
+- 待完成为空时给一句「现在没有还要交的。已过截止的在下面，想回看可以展开。」，并新增 `foldSec('已过截止 · N', wrap, false)` 默认折叠。
+
+测试 `tools/test_hwsort.js`（**新建**）：按 `@testable:hwBucket` / `@end` 标记从 app.js 切出函数在 vm 里跑，不加载整个 app.js（那玩意儿一加载就要 DOM）。18 条断言覆盖：未交未过期→todo、未交已过期→expired、已完成优先于过期→done、未开始/未开考→notstart、状态没读到→unknown、没截止时间的待做仍→todo、待完成按 `一小时后|一天后|三天后`、已过截止按 `过期中|过期最老`、过期一条都不在待完成。
+
+**写的时候被自己的测试抓到两处**：① `hwBucket` 一开始只认 `x.expired`，负 `left` 的条目会漏判成 todo（断言 ③ 直接红了）→ 补成也自己按 `left<0` 判；② `expired` 排序一开始照抄 `byDue` 升序，把最老的顶上来（断言 ⑧ 红）→ 改 left 降序。
+
+门禁：`node --check` app.js/test_hwsort/check_web 全 0；`test_hwsort` 18/18；`test_hwstatus` 56/0（老的分桶断言一条没动，「E 未交已过期 仍是没交」保持 `open===true`——open 语义没改，改的只是视图分桶）；全套按退出码 **38/0**（新增 test_hwsort 后从 37 变 38）；`check_web` `[PASS]`（v1.1.77 段 9 锚点 + 一条反向检查「待完成不许写成不过滤 expired」）；`verify_apk` `[PASS]`；`check_notes` 6/6。
+
+出包：`apk\xxmu-helper-v1.1.77.apk` **934010 字节 cb04a153dfd6…**，`javac (11 个源文件)` / `d8 (121 个 class)`，签名同前，交付目录逐字节校验通过。
+
+两档实拍（390×2600）：light 203695B / dark 204283B，逐块看过：待完成 4 条之后多了「已过截止 · 2 ▾」一段（浅色米黄 / 深色深棕下都清楚），雨课堂卡的区域行仍是长江选中，无白字压白底、无横向溢出。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 待完成里是否只剩还能交的，已过期的 09-27/10-06 那批是否移到了下面折起来的「已过截止」；② 待完成是否按截止从近到远（最上面是最快到的，不是最老的）；③ 顶部是否写成「N 条待做 · M 场考试待考 · K 条已过截止」；④ 切「按课程」时每门课是否先列还能做的、组头写出已过截止条数。
+
+---
+
+### v1.1.76（2026-11-12）—— 雨课堂读不到作业的两处根因：死认结构 + 死认类型（**本地包 1.1.76 / 1176，未上线；线上仍 1.1.65**）
+
+触发：m03943 真机回报「已登录：梁牛翔；课程 3 门；待考考试 0 场；时间轴条目 0，章节叶 0」+ 原话「绑定账号了，这个里面会发作业，比如数学会有作业。不应该只局限于考试」。
+
+诊断：登录态、课程列表都通了（v1.1.75 的区域修复生效），两个取作业的接口也返回成功，但**一条条目都没解析出来**，于是走了「接口返回了但没认出作业条目」的降级。两处根因：
+
+1. **死认字段层级**：`activitiesOf` 只读 `data.activities`、`leavesOf` 只读 `data.course_progress[].section_leaf_list`。平台实际把数据挂在别的层级时，这两个函数静默返回空数组，和「这学期真没作业」无法区分。
+2. **死认类型白名单**：时间轴只收 `type === 5 || type === 19`，章节叶只收 `leaf_type 5/6/19`。平台新增过类型（type 20 等），数学那种普通作业落进新类型就被整批吞掉——这正是 YG 说的「数学会有作业」。
+
+改动 `web/yuketang.js`：
+
+- 新增 `ownKeys / skeleton / deepArray / deepConcat / looksLikeActs / looksLikeLeaf`。
+  - `deepArray(root, match)`：顺着对象往下找第一个「匹配断言且本身有内容」的数组，返回 `{key, value}`。
+  - `deepConcat(root, match)`：收集所有匹配数组并拼起来（章节树里 `section_leaf_list` 可能有多份）。
+  - `looksLikeActs` / `looksLikeLeaf`：**按形状判**——有 `title|name` 且有 `type|is_finished|create_time` 就是时间轴条目；有 `leaf_type`，或有 `name` + `progress` 对象就是章节叶。字段名不同也能认。
+- `activitiesOf`：先走 `data.activities`，空了就 `deepArray` 下探。
+- `leavesOf`：先走 `data.course_progress`，一处都没有就 `deepConcat` 把「像章节叶」的数组全拼起来；顺带补 `userScore / totalScore`。
+- 类型白名单放开：时间轴只排除 `type 9`（公告）与 `type 14`（上课记录），其余全收；章节叶改用新函数 `leafWantsAttention(lf)`——`leaf_type 5/6/19` **或** `score_deadline > 0` **或** 状态含「未交/未完成/待交/待做/待完成/进行中/未提交」都算待办。
+- `skeleton(root, depth)`：把返回内容摊成「键名 + 数组长度」的一行（数组会自动下探取第 0 个元素），深度 2、上限 26 段，**只打键名不打内容**，既不泄露作业正文也够定位层级。
+- 诊断里补两条：一条课的时间轴认不出就 `diag.push('时间轴骨架：' + skeleton(row.acts.data))`，章节认不出就 `diag.push('章节骨架：' + ...)`；接口失败时也把 `row.acts.err` 写进诊断。这样「复制诊断」发回来能一次定位，不用再猜。
+
+测试 `tools/test_yuketang.js` 新增 ⑪（换层级 `data.records` + `progress_tree[].leaves` 也要认、type 20 收下、type 9 仍排除、leaf_type 7 靠「未交」收下、整体 ok）与 ⑫（结构完全认不出 → degraded、诊断里出现「时间轴骨架」且含真实键名 `hello`）→ **60/60**。
+
+门禁：`node --check` web/yuketang.js + test + check_web 全 0；`test_yuketang` 60/60；全套按退出码 **37/0**；`check_web` `[PASS]`（新增 v1.1.76 段 8 锚点 + 一条反向检查「不许再只收 type 5/19」）；`verify_apk` `[PASS]`；`check_notes` 6/6。
+
+出包：`apk\xxmu-helper-v1.1.76.apk` **934010 字节 537404c63edb…**，`javac (11 个源文件)` / `d8 (121 个 class)`，签名同前，交付目录逐字节校验通过。
+
+两档实拍（390×2500）：light 197161B / dark 197708B，逐块看过：雨课堂卡新增一句「认不出条目时，『复制诊断』会把返回内容的骨架一起带出来——这版不再只往固定字段里找作业，也不再只认两种作业类型」，区域行「区域 长江(on) 雨课堂 荷塘 黄河」正常，浅色米黄/深色深棕都无白字压白底、无横向溢出。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 「重新抓一次」后待完成里是否真出现数学等课程的作业（这次不该再是 0 条）；② 若仍是 0 条，「复制诊断」里的骨架是否已经写出真实键名 —— 把那段发回即可定位；③ 已交作业是否进「已完成」；④ 截止时间是否与课程章节进度一致，读不到应显示「时间未读到」。
+
+---
+
+### v1.1.75（2026-11-11）—— 雨课堂四区域可选（默认长江）（**本地包 1.1.75 / 1175，未上线；线上仍 1.1.65**）
+
+触发：m03730 原话「我用的是长江雨课堂，不是这个雨课堂」。v1.1.74 把 `HOST/BASE/LOGIN_URL` 写死 standard（`www.yuketang.cn`），而 YG 用的是长江区——扫码留下的是 `changjiang.yuketang.cn` 的 Cookie，请求却全打到 standard 域，等于一条都读不到。**这是把「四区域会话不通用」写进注释、代码里却仍然单区域的典型漏改。**
+
+实测确认长江区整套接口健全（pwsh，UA Chrome131 Mobile + `Accept: application/json` + `xtbz: ykt` + `Referer /web`）：
+- `GET /api/v3/user/basic-info` → 200 `{"code":50000,"msg":"UNAUTHENTICATED","data":""}`
+- `GET /api/v3/classroom/on-lesson-upcoming-exam` → 200 同上
+- `GET /v2/api/web/courses/list?identity=2` → 401
+- `GET /v2/api/web/logs/learn/1?actype=-1&page=0&offset=50&sort=-1` → 401
+- `GET /c27/online_courseware/schedule/course/progress/?classroom_id=1&course_id=2` → 401
+- `GET /v2/api/web/classrooms/1?role=5` → 401
+- `GET https://changjiang.yuketang.cn/` → 200，`<title>长江雨课堂网页版-登录</title>`，重定向终点 `/web`
+- `GET /api/v3/user/login/app-web-pre-info` → 200，`qrContent` 指向 `changjiang.yuketang.cn/api/v3/user/login/app-web-qr?...`
+
+结论：长江区端点与登录流程全活，v1.1.74 只是问错了域。
+
+改动：
+
+- `web/yuketang.js`
+  - 删掉 `HOST / BASE / LOGIN_URL` 三个写死常量，改 `REGIONS` 表：`changjiang`（长江，`https://changjiang.yuketang.cn`，**排第一=默认**）/ `standard`（雨课堂）/ `hetang`（荷塘 `pro.yuketang.cn`）/ `huanghe`（黄河 `huanghe.yuketang.cn`）。
+  - `REGION_KEY = 'xxmu_ykt_region'`、`DEFAULT_REGION = 'changjiang'`；`regionOf(id) / curRegion() / setRegion(id)`，认不出存值就回落默认。
+  - `hostNow() / baseNow() / loginNow()` 三个取值函数；`api(path)` 改成 `SOURCES.http(baseNow()+path, { cookieUrl: hostNow()+'/', referer: loginNow(), headers: HDR })`——请求域与 Cookie 域必须同源，否则带不上扫码的 sessionid。
+  - define 里 `host / loginUrl` 取 `curRegion()`，并**新增三个覆盖函数**把三件事都绑到当前区域：`loggedIn: curLoggedIn`（`Host.hasCookieFor(hostNow()+'/')`，无 Host 退 pref `xxmu_ykt_todo__bound`）、`openLogin: curOpenLogin`（标题带区域名，人一眼知道在扫哪套）、`logout: curLogout`（只清当前区域 Cookie）。
+  - 导出 `window.YKT = { regions, region, setRegion, regionName }` 给界面用。
+  - 头注释「四区域为什么不能混用」整段重写为「四区域：必须让人选，不能猜」，把 v1.1.74 的死因写在文件顶上。
+- `web/app.js`
+  - 雨课堂卡片加「区域」选择行：`div.ykt-region` + 每区一个 `button.ykt-r[data-act=region][data-region=<id>]`，当前区带 `.on`；配一句「用哪套就选哪个（本校一般是「长江」）。换区等于换一套账号，要重新扫码」。
+  - 委托表加 `act === 'region'` 分支：`YKT.setRegion(rid)` → 清 `xxmu_ykt_todo` 与 `__bound` → `paint()` + `renderHomework()` → toast「已切到「X」雨课堂，先点登录扫码」并 return。切区必须清缓存：那是另一套系统里的数据，留着会串。
+- `web/app.css`：末尾追加 `.ykt-region / .ykt-region-label / .ykt-r / .ykt-r.on` 浅色 + 三条深色覆盖，全用主题变量（`--fg2 / --mute / --accent / --line / --edge / --bg`）。**首版深色用 `#1b1524` 被「app.css 组件里残留中性硬编码（深色会花脸）」门禁 FAIL，改 `var(--bg)` 后过。**
+- `tools/test_yuketang.js`：沙箱升级（`prefs` 真存取、`XXMU.pref` 读写、`Host` 扩 `hasCookieFor / openLoginFor / clearCookieFor / setPref` 并记 `calls.loginUrl / cleared`、`load()` 返回 `windowSw` 暴露 `window.YKT`），新增 ⑩ 组 11 条断言：默认长江、请求域全 `changjiang.yuketang.cn`、Cookie 同域、长江区照旧出 2 作业 1 考试、登录入口指长江、`YKT.setRegion` 存在、切 `standard` 成功、`region()` 读到 `standard`、换区后请求改打 `www.yuketang.cn`、登录入口同步换域、断开只清当前区 Cookie → **49/49**。
+- `tools/check_web.js`：追加 v1.1.75 段 15 条锚点（新 const `yt1175 / ap1175 / css1175`，不复用 yt1174）：`changjiang.yuketang.cn`、`var DEFAULT_REGION = 'changjiang'`、`function curRegion`、`function hostNow`、`cookieUrl: hostNow()`、`loggedIn: curLoggedIn`、`openLogin: curOpenLogin`、`logout: curLogout`、`window.YKT`、`act === 'region'`、`data-region`、`data-act`、`ykt-region`、`.ykt-r`、`html[data-theme="dark"] .src-card .ykt-r`。
+- `design/sketch/learn-v1166.html`：雨课堂卡加区域行（长江 on）+ 换区说明。
+- `apk/v1.1.75.notes.txt`（602 字，学生视角四节：这版修的是「区域」/ 换区要重新登录 / 其余同上一版 / 还是只读）。
+
+门禁：`node --check` 三文件全 0；`test_yuketang` 49/49；全套按退出码 **37/0**；`check_web` `[PASS] 静态体检全部通过`（含 v1.1.75 十五锚点）；`verify_apk` `[PASS] 五件套`；`check_notes` 6/6。
+
+出包：`apk\xxmu-helper-v1.1.75.apk` **934010 字节**，`javac (11 个源文件)` / `d8 (121 个 class)`，签名 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`，交付目录 `C:\Users\Administrator\Desktop\xxmuhelper\河医大助手-v1.1.75.apk` 逐字节校验通过。
+
+两档 390×2400 实拍：light 186714B / dark 187380B（read_image 归一化 sha `3680b865d3e5…` / `910518b40c43…`），逐块看过：区域行「区域 长江(on) 雨课堂 荷塘 黄河」在浅色米黄与深色深棕下都清楚，选中态是实心主色块，无白字压白底、无横向溢出。
+
+**未上线**（线上 `/v1/config` 实读仍 1.1.65 / 1165，等 YG 明说「上线」再部署官网 + 切 cfg.latest）。
+
+真机待看：① 装后卡片上「区域」默认选中「长江」；② 点「登录 / 绑定雨课堂」是否打开 `changjiang.yuketang.cn/web` 并扫码成功；③ 扫码回来「重新抓一次」是否真出作业与待考考试；④ 若其实不是长江区，切到对应区域后是否立刻变「未登录」并要求重扫（不能拿旧区数据凑）。
+
+---
+
+### v1.1.74（2026-11-11）—— 雨课堂从「诚实降级桩」变成真接活清单（**本地包 1.1.74 / 1174，未上线；线上仍 1.1.65**）
+
+触发：m03454 原话「接下来做雨课堂吧」→ 出 A（只打待考考试）/ B（+课程列表+每课时间轴）/ C（+course_progress 补截止时间、收已完成）三方案 → m03538 原话「c吧」选定 C。
+
+**端点来源（权威、可复核）**：`powercess/yuketang-mcp` 的 `src/api.ts` 与 `src/tools.ts`（学生端只读接口）。GitHub 直连/raw/jsdelivr/ghproxy 四条 `Invoke-WebRequest` 全部连不上（「基础连接已经关闭」「无法连接到远程服务器」），只有 `mcp__anysearch__extract` 能取到原文——以后要复核这份清单直接走 extract。
+- 验登录态 `GET /api/v3/user/basic-info`
+- 待考考试 + 正在上课 `GET /api/v3/classroom/on-lesson-upcoming-exam`
+- 课程列表 `GET /v2/api/web/courses/list?identity=2`（identity=2 是学生视角）
+- 每课时间轴 `GET /v2/api/web/logs/learn/{classroomId}?actype=-1&page=0&offset=50&sort=-1`（`offset` 是每页条数不是跳过条数；`has_more` 不可信，用「返回条数 < offset」判）
+- 每课章节进度 `GET /c27/online_courseware/schedule/course/progress/?classroom_id=&course_id=`（截止时间 `score_deadline` 只在这里）
+- `type`：5=试卷作业、9=公告、14=上课记录、19=章节作业；`leaf_type`：0=视频、3=推荐、4=讨论、5=考试/作业、6=作业、8=签到、19=章节作业
+
+**实测（无登录态，pwsh Invoke-WebRequest，UA Chrome131 + `xtbz: ykt`）**：`on-lesson-upcoming-exam` → HTTP 200 `{"code":50000,"msg":"UNAUTHENTICATED"}`；`basic-info` 同样；`courses/list` → **HTTP 401**。端点全活，只缺登录态。
+
+**改动**
+- `web/yuketang.js` 全量重写（约 400 行）：`api(path)` → `SOURCES.http(BASE+path,{cookieUrl:HOST, referer:LOGIN_URL, headers:'xtbz: ykt'})`；`parse(res)` 三套成功字段分流（`success:boolean` 家族 / `errcode` 家族 / `code` 家族），失败码翻译 50000·401002·10005→「登录失效重新扫码」、40000、80005、80019、20009/20007；`fmt(ms)` 把 <1e12 的按秒级换算成 `YYYY-MM-DD HH:mm`，解析不出返回空串绝不编时间；`pool(items,4,fn)` 限并发；`isDeadlineLeaf(t)` 只认 5/6/19；`fetchTodo` 五步（验登录 → 并发[待考考试, 课程列表] → 逐课并发[时间轴, 章节进度] → 以 `课程|标题` 合并、章节叶补 `end` 与状态 → 零条目时 degraded + `NO_PARSE`）；`SOURCES.define` **去掉 `alwaysDegraded: true` 与 `degradedError`**（不去掉会永远 degraded、且 `hasLogin` 为 false 连登录按钮都不给）。
+- `tools/test_yuketang.js` 新建（Node vm 注入假 SOURCES/XXMU/Host/CX，假路由按最长片段命中）：10 组 38 条断言。
+- `tools/check_web.js` 追加 v1.1.74 段 11 条锚点（验登录、待考考试、课程列表、时间轴、course_progress、`xtbz: ykt`、`isDeadlineLeaf`、`status_known: false`、`NO_PARSE`、`pool`、不出现 `alwaysDegraded`）。
+- `design/sketch/learn-v1166.html` 待完成从 3 条变 4 条（新增雨课堂「第三章 章节测验」12-20 23:59 截止）、雨课堂卡从「暂不可用」改「已读到 · 4 条 · 1 场考试」+ 三条按钮。
+- `apk/v1.1.74.notes.txt` 新建（672 字，学生视角）。
+
+**首跑 3 条 FAIL 的真相（教训）**：`④ 收下 3 条` 得到 4 条、`④ 请求量 6` 得到 7、`⑦ 作业 3 条` 得到 4 条——不是适配器重复入列，是 **fixture 的错**：两门课共用同一个 `/c27/.../course/progress/` 假响应，同一批章节叶被记到两门课名下。改成按 `classroom_id=101` / `=102` 分开注册后 38/38 全过。教训：假路由用最长片段命中时，凡带查询参数的接口必须连参数一起写进 key，否则会串数据。
+
+**门禁**：`node --check` 三文件全 0；`test_yuketang` `[PASS] 38 assertions`；`test_xiqueer` 41/41；`test_sources` 7/7；`check_notes` 6/6（672 字）。
+
+**出包**：`bump_ver.py 1.1.74 1174` → 三处 ok。
+
+**未上线**：官网未部署、`cfg.latest` 仍 1.1.65（m00979「我还没说上线」）。真机待看：扫码后能否读到作业、截止时间是否对得上章节进度、首屏耗时是否可接受、未登录/失效时的文案是否说清。
+
+
+
+触发：m03290 原话「有了，终于有了」+ 真机截图 m03291（23:03，NOVA 深紫）。v1.1.72 真机确认成功——幽灵考试消失、考试表读到了。卡片数据全对：`📝 高等数学B1 5.0（2026-2027学年第一学期期中考试）` / 未开考 / 喜鹊 / `考试 · 高等数学B1 5.0` / `距开考 还剩 2 天` / `2026-11-14 11:00 ~ 2026-11-14 12:00`。唯一瑕疵：青果「轮次」那格写的是整句「2026-2027学年第一学期期中考试」，学年抬头被原样拼进标题，标题撑成两行、副行又重复课程名。
+
+改动（只动展示，不动取数）：
+- `web/xiqueer.js` 新增 `cleanRound(s)`：先剥 `20XX-20XX学年`、再剥 `第?[一二三四1-4]学期`、再兜 `学年|学期`、清空括号残留、压缩空白、去首尾标点、超 20 字截断。`const roundRaw = findVal(seg, '轮次')` → `const round = cleanRound(roundRaw)`。输出对象里 `name` 从 `round ? label + '（' + round + '）' : label` 改为 `name: label`（标题只放课程名）。
+- `web/app.js` 副行从 `'考试 · ' + x.course` 改为 `'考试 · ' + (examRound || x.course)`，`examRound` 取 `x.raw.round`。前缀 `'考试 · '` 必须留——`web/nova-organs.js:548-551` 的分面靠 `tt.indexOf('📝 ')===0 || ct.indexOf('考试 · ')===0` 认考试。
+- `openExamSheet(e)` 原本就有 `轮次` 行，round 剥净后详情自动变短，无需改。
+
+门禁：`tools/test_xiqueer.js` 新增 ㊵（`2026-2027学年第一学期期中考试` → `name='高等数学B1'` + `round='期中考试'`）、㊶（`期末考试` 同样剥净）→ `[PASS] 41 assertions: pass=41 fail=0`；`tools/check_web.js` 追加 v1.1.73 五条锚点（`function cleanRound` / `const round = cleanRound(roundRaw)` / `name: label,` / `app.js examRound` / `'考试 · ' + (examRound || x.course)`），复用 `wa1171/ma1171/xq1171/ap1171` 不新声明；`design/sketch/learn-v1166.html` 待完成第 3 张换成真机实样（`📝 高等数学B1 5.0` / 未开考 / `考试 · 期中考试`），喜鹊卡改「已读到 · 1 场」+ 上次同步说明。
+
+出包：`python -X utf8 tools/bump_ver.py 1.1.73 1173` → 三处 ok；`python -X utf8 tools/build_apk.py` → assets 49 文件 / javac 11 源文件全过 / d8 121 class / `apk\xxmu-helper-v1.1.73.apk 925818 字节 e9f57c6702f5…` / 签名 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799` / 送桌面逐字节校验通过。全量门禁：`check_web` `[PASS] 静态体检全部通过`、全套 `36/0`、`verify_apk` 五件套 PASS、`check_notes` 6/6。
+
+未上线：按 m03304 原话「好，改吧，先不上线」，官网未部署、`cfg.latest` 仍 1.1.65。真机待看：标题是否变成单行「高等数学B1 5.0」、副行是否显示「考试 · 期中考试」、详情里轮次一行是否只剩「期中考试」。
+
+### v1.1.72（2026-11-11）—— 喜鹊考试：接住「检索」弹出的新窗口，假考试整条丢掉（**本地包 1.1.72 / 1172，未上线；线上仍 1.1.65**）
+
+触发：m03025 原话「还是不行」+ 两张真机截图（22:41，NOVA 深紫万象舱）。截图 A 学习页待完成只剩一条 `📝 未标注课程`，徽标「状态未知」、来源「喜鹊」、时间行「— ~ —」；截图 B 点开详情：「课程=未标注课程 / 开始=— / 结束=— / 状态=未读到（学习通页面里没找到状态位）」。说明 v1.1.71 的双探**确实记到了一条地址并重放了**，但拿回的是外壳页/凭证页，于是造出一场幽灵考试。
+
+**根因两条（本轮定案）**
+
+1. **幽灵考试**：`parseOneText` 在 `course` 为空时回退成「未标注课程」照旧 push，外壳页里零星几个日期/时刻字样就拼出一场无课程名、无时间的假考试，还挂在「待完成 1」要人去交。另外「考试安排表」这行标题字能通过 `isCourseLike()`，冒充成课程名。
+2. **新窗口黑洞（五轮读页全空的真凶）**：青果「考试安排表」按下「检索」后，结果用 `window.open`/`target=_blank` 开在**新窗口**。`WebSettings.setJavaScriptCanOpenWindowsAutomatically(true)` 是开着的（`WebActivity.java:408`），但 `WebChromeClient` **没有覆写 `onCreateWindow`** → 每个新窗口都落成 `about:blank` 空壳。这正好对上 m02177 诊断里「#1 about:blank 0字/0表」，也解释了「人明明看见表、程序按完成只读到门户框架页」。前四版（硬猜 jsp / 挖菜单 / iframe / window.frames 递归）都在读**主文档**，从没接过新窗口，所以怎么改都读不到。
+
+**改动**
+
+- **`WebActivity.java`（740→800 行，javac 11 源文件全过，d8 121 class）**：`setWebChromeClient` 内新增 `public boolean onCreateWindow(WebView view, boolean isDialog, boolean isUserGesture, android.os.Message resultMsg)`——判 `resultMsg.obj instanceof WebView.WebViewTransport`，建临时 `new WebView(WebActivity.this)`（开 JavaScript/DomStorage/LoadWithOverviewMode/UseWideViewPort），其 `WebViewClient` 里 `take(String u)` 过滤 `u.length()<8 || u.startsWith("about:")` 后 `tmp.stopLoading(); tmp.destroy(); web.loadUrl(u);` 交回主 WebView，`shouldOverrideUrlLoading` 返回 true、`onPageStarted` 也调 take，末尾 `((WebView.WebViewTransport) resultMsg.obj).setWebView(tmp); resultMsg.sendToTarget(); return true;`，外层 try/catch 兜底 return false。`FIND_JS` 由「只遍历一层 `window.frames`」改为 `function walk(w,depth)` 递归（`depth>3` 停、每层最多 20 个），`try{walk(window,1)}catch(e){}`，覆盖门户 frameset + 业务页 iframe 两层。
+- **`web/xiqueer.js`**：新增 `autoFail(why)`——`o.fail=(+o.fail||0)+1`，`fail>=2` 就 `ps(AUTO_KEY,'')` 忘掉死地址并提示重新同步，否则保留地址并提示「先保留上次的结果」；`fetchExams` 三条失败路径（无考试条目 / `res.error` / 异常）全部先 `autoFail(...)` 再 `fromSnap(...)` 保旧快照。`isCourseLike` 补挡 `安排表|检索|打印|导出|查询|序号|批次|课程名称`。`parseOneText` 改 `if (!course) return;` + `const label = course;`——**没有课程名就整条丢弃**。`loadSnap()` 读出后按 `String(e.course||'').trim() || String(e.start||'').trim()` 滤掉旧版落下的幽灵条目并回写。`window.XQ` 增 `fail: autoFail`。
+- **`web/app.js`**：`openExamSheet` 增 `examSrcName`（`SOURCES.get(e.source||e._src)` 取 short/label，兜底 `xiqueer→喜鹊`），状态说明改为按真实来源说「（喜鹊页面里没有状态这一列）」，不再一律甩「学习通」；`cardOf` 考试时间行改 `const examWhen = (start||end) ? start~end : '时间未读到'`，不再无条件印「— ~ —」。
+- **门禁/测试**：`tools/test_xiqueer.js` 新增 ㊲（外壳页 `'考试安排表\n2026-11-14\n11:00-12:00\n检索 打印 导出'` 必须 **0 条**）、㊳（正常表格仍认出医用物理学）、㊴（记地址后连续两次重放失败 → `XQ.auto()===null`、`XQ.has()===true` 保旧快照）→ **39/39 全过**。`check_web.js` 追加 `v1.1.72 checkpoints` 8 锚点（`onCreateWindow` / `WebViewTransport` / `function walk(w,depth)` / `if (!course) return;` / `function autoFail` / `String(e.course || '').trim()` / `时间未读到` / `examSrcName`，复用已有 const 不新声明）。全量 `check_web [PASS]`、全套 `TESTS_PASS=36 TESTS_FAIL=0`、`test_sources 7/7`、`check_notes 6/6`（`apk/v1.1.72.notes.txt`）、`verify_apk 五件套 PASS`。
+- **出包**：`bump_ver 1.1.72 1172` → `build_apk` 一次成功，成品 **`apk/xxmu-helper-v1.1.72.apk` 925818 字节 / SHA-256 `80665399dcb9…`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\河医大助手-v1.1.72.apk` 逐字节校验通过。两档 390×2400 实拍（light 182663B sha `573d41759f…`、dark 183414B sha `127888bf75…`）逐块核对通过：主窗口待完成 3 条 + 已完成切换块 + 来源 chips + 二级半框喜鹊 v1.1.72 态（自动同步一次 / 剪贴板兜底 / 打开教务网 / 粘贴框 / 导入这段 / 登录 / 复制诊断），浅色纸感、深色深棕均无白字压白底、无横向溢出。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 留给 YG 点头，线上实读 `/v1/config` 仍 1.1.65。
+- **真机待测（一律未声称验证）**：①按「检索」后新窗口是否被接住、表是否读得到；②「未标注课程 · — ~ —」是否彻底消失（旧条目重开学习页应自动清掉）；③自动地址连续两次失败后是否忘掉并提示重新同步、旧考试是否保住；④清掉考试与自动地址是否不牵连教务登录态与课表。
+
+---
+
+### v1.1.71（2026-11-11）—— 喜鹊考试改「点一次，之后自己同步」（方案 C 双探全自动 + 复制兜底）（**本地包 1.1.71 / 1171，未上线；线上仍 1.1.65**）
+
+触发：m02339 原话「能不能不用复制的，就按自动的，你都能爬取课表为什么不能爬取考试」——直接纠正 v1.1.70「换执行层剪贴板」被判早了。复核 `web/sync.js:14`：`const KB_PATH = '/student/wsxk.xskcb_excel10319.jsp?params=';`，课表靠这个**免令牌报表端点**（b64(`xn&xq&xh`) + 带 Cookie 直出 GBK 表，不需菜单/AJAX/检索/令牌）全自动；考试四版（v1.1.66 硬猜 jsp / v1.1.67 挖菜单 / v1.1.68 iframe / v1.1.69 window.frames 递归）从没试过同款报表端点，「考试安排表」页上的「检索 / 打印 / 导出」按钮正是线索。出 A/B/C 三套全自动方案，m02392「c」选定 C＝双探一次做齐、谁先拿到可用地址用谁、都堵才诚实降级回剪贴板/粘贴。
+
+- **Java 桥（纯增量，javac 11 源文件全过，d8 120 class）**：`WebActivity` 加 `EXTRA_PROBE="probe"`、字段 `probe`/`java.util.ArrayList<String> probes`；onCreate `probe=getBooleanExtra(EXTRA_PROBE,false); if(probe){find=true;capture=true;}` 复用 find→capture→grabFind 链；`WebViewClient` 加两个 `shouldInterceptRequest`（`WebResourceRequest` 版取 `getUrl()/getMethod()` + 旧 `String` 版）旁路 `recordProbe(url,method,"request")` 后 `return null` 不改页面；`web.setDownloadListener(new android.webkit.DownloadListener(){...})` 钩「导出/打印」`recordProbe(u,"GET","download")`；`recordProbe` 滤 about:/data:/图片/字体/样式（**别用 `low.indexOf(".js")` 过滤，会误伤 .jsp**）、去重限 80 条、`org.json.JSONObject` 存 `{url,method,kind}`；`completeCapture()` 在 probe 模式把 probes 并进 lastCap 对象 `o.put("probes",arr); o.put("probe",true)`。全部用全限定名、无新 import。`MainActivity` 加 `REQ_PROBE=1011` / `pendingProbeCb` / `@JavascriptInterface openProbeFor(url,title,cbName)`（putExtra `EXTRA_PROBE=true` → `startActivityForResult(it,REQ_PROBE)`），onActivityResult 在 REQ_FIND 之后插 REQ_PROBE 分支，一次性消费 cb 后**复用既有 `notifyFindDone(payload,cb)`**（`JSONObject.quote` 拼 `window[cb](<lit>)`）。
+- **web/xiqueer.js（34 处补丁，31967 字节）**：删「fetchExams 只读快照不做任何裸 HTTP 抓取」过时断言；加 `AUTO_KEY='xxmu_xq_auto'`、`autoLoad()/autoSave(url,kind)`（存 `{url,at,kind}`）、`probe()`（`Host.openProbeFor(HOME,'自动同步 · 检索或导出后按完成','__onXqProbe')`，退 `openFinderFor`）、`htmlToText(html)`（tr→\n、td/th→\t、stripTags）、`fromSnap(prefix)`、**替换 `fetchExams`**：见 AUTO_KEY 则 `SOURCES.http(auto.url,{cookieUrl:BASE+'/',referer:HOME,method:'GET'})` → `parseCapture(htmlToText(res.text))` → 认出 `save(exams,auto.url,'全自动同步')` 返回 ok；重放失败/认不出 `fromSnap(...)` **保留旧快照**，绝不把凭证失效页当 0 条；无 AUTO_KEY 直接 `fromSnap('')`（零 HTTP，稳住旧断言）。`probeScore(p)` 打分（download +4、params=/excel +4、export/print +3、ksap/exam/kaoshi/kscx +3、.jsp/.action/.do +1、GET +1、POST -3；homes.action/menu.jsp/login/custom/js/静态资源归零）；`window.__onXqProbe`：页面直接渲染表→当场 `save`+`fireSync`+toast；否则挑 probes 最高分 ≥5 → `autoSave`+LAST_DIAG+`fireSync`+toast「记住地址，之后自动」；两路都挡→`ps(RAW_KEY,rawTextOf(obj))`+`SrcUI.paint()`+textarea rows=5 摊原文+toast，剪贴板/粘贴兜底保留。`clear()` 连 `AUTO_KEY` 一起清。`NOEXAM` 保留「三步」子串、`defaultDiag()` 保留「读回整页」子串以兼容旧断言。
+- **app.js / 样张 / notes**：喜鹊卡换 v1.1.71 态——主按钮「自动同步一次」(`data-act=probe`)、「从剪贴板导入（兜底）」(`data-act=paste`)、「打开教务网」(`data-act=find`)、textarea 回填 `XQ.lastRaw()`、「导入这段」；`bOut` 文案「清掉考试与自动地址」；委托表 `const act=...` 后插 `probe` 分支；out 确认改「清掉已经读到的考试和记住的自动地址？教务登录不会受影响。」。`apk/v1.1.71.notes.txt` 782 字学生视角（点一次→检索/导出→完成→之后全自动 + 双探原理 + 兜底 + 只读 + 群号 1097668324）。
+- **门禁**：补丁脚本 `design/sketch/_apply_v1171.py` 仿 v1.1.70 的 CRLF 归一机制（MainActivity.java 是 CRLF、其余 LF；每锚点 `count==1` + 只防 `old==new`）；首跑 `ANCHOR_FAIL web/xiqueer.js edit 4 count=0`（defaultDiag 散文断行位置与磁盘不符）→ 重读 `web/xiqueer.js:33-82` 改锚点后 `ANCHOR_CHECK_OK edits=34 files=7`。`tools/test_xiqueer.js` 沙箱注入 `httpBox`/`Host.openProbeFor`/`calls.probe+httpUrls`，新增 ㉛-㊱ 六条（probe 挂回跳 / 记住 ksap_excel 地址+SrcUI.sync / fetchExams 全自动重放发 1 次 http 认出医用物理学 / 重放认不出保留旧快照 / 两探针都挡摊 RAWTEXT_probe / 页面直接渲染表当场认出零 HTTP）→ **36/36 全过**；`check_web.js` 追加 `v1.1.71 checkpoints` 11 锚点（新 const wa1171/ma1171/xq1171/ap1171 避免重复声明）。全量 `check_web [PASS]`、全套 `36 ok / 36`、`test_sources 7/7`、`check_notes 6/6`、`verify_apk 五件套 PASS`。两档 390x2400 实拍（light sha `0972402213…`、dark sha `0e4a07ee8…`）逐块核对通过：主窗口待完成/已完成切换 + 来源 chips + 二级半框喜鹊 v1.1.71 完整态（自动同步一次主按钮 + 剪贴板兜底 + 打开教务网 + 粘贴框 + 导入这段），浅色纸感/深色深棕都无白字压白底、无溢出。
+- **出包**：`bump_ver 1.1.71 1171` → `build_apk` 一次成功，成品 **`apk/xxmu-helper-v1.1.71.apk` 921722 字节 / SHA-256 `f37e78770dc4923af97e4b734a75505bf596ab59cf8b9d8046601d1ddcf26dc2`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\河医大助手-v1.1.71.apk` 逐字节校验通过。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 留给 YG 点头，线上实读 `/v1/config` 仍 1.1.65。
+- **真机待测（一律未声称验证）**：点「自动同步一次」后在「课程考试 → 考试安排表」选学年学期/批次按「检索」或「导出」，`shouldInterceptRequest`/`DownloadListener` 是否真拦到报表 URL 并记住；第二次起刷新是否像课表一样全自动出考试（带 Cookie 重放不被令牌挡）；两路都被挡时原文摊框 + 剪贴板/粘贴兜底是否清楚；「清掉考试与自动地址」是否不牵连教务登录态与课表。
+
+---
+
+### v1.1.70（2026-11-11）—— 喜鹊考试换执行层「你复制、App 解析」（剪贴板一键导入）（**本地包 1.1.70 / 1170，未上线；线上仍 1.1.65**）
+
+触发：m02177 第四轮真机报障「检索了还是不行」+ 诊断全文 + 两张截图（m02179 学习页喜鹊卡「已绑定，未刷新」+ toast「这一页没认出考试表」+ textarea 摊出的是「学籍档案 / 学籍异动 / 培养方案 / 辅修事宜」那串门户首页菜单；m02181 是无关的 AI+医学 PPT 截图）。诊断 verbatim：「辅助发现：打开了 https://qgjw.xxmu.edu.cn/frame/homes.action?v=79848703084729403858173，顶层 256 字，递归读了 2 个框架（含 <frame>）：#0 https://qgjw.xxmu.edu.cn/frame/jw/teacherstudentmenu.jsp?menucode=S204 29字/0表；#1 about:blank 0字/0表，仍没认出考试条目。」→ **按「完成」那一刻程序够到的只有门户框架页，检索出的考试表根本不在 App 能 evaluateJavascript 到的文档里**（内容帧 about:blank）。四轮（v1.1.66 硬猜 jsp / v1.1.67 挖菜单 / v1.1.68 iframe 读页 / v1.1.69 window.frames 递归）全卡在「App 主动去够青果页面」这一层，它一直挡。定案换执行层：不再赌读页，人在自己看得见的那页长按复制，App 读系统剪贴板自己解析。
+
+- **Java 桥（纯增量，javac 11 源文件全过）**：`MainActivity.Host` 加 `@JavascriptInterface public String getClip()`（`ClipboardManager.getPrimaryClip().getItemAt(0).getText()`，60000 字封顶，异常返回 ""），与既有 `getPref()` 同款同步返回 String 桥；`file://` 下拿不到 `navigator.clipboard`，只能走原生。`openFinderFor` 保留但喜鹊不再挂自动读页回跳。
+- **web/xiqueer.js（17 处补丁之一，共 448 行基础）**：新增 `NO_CLIP`（剪贴板空的清楚提示）、`importClip()`（`Host.getClip()` → `parseCapture` → 认出则 `save` 一步落快照；空/认不出返回 `{count:0,error,raw}`，认不出时把原文写 `RAW_KEY` 摊进框给人改，绝不落空快照）；`NOEXAM` / `NO_PARSE` / `defaultDiag()` 文案全改成「复制优先」；`find()` 改只开教务门户方便复制，`cb` 传空串（`notifyFindDone` 因回调名为空直接 return，不再弹「没认出」）；`window.XQ` 暴露 `importClip`。卡片/表格式/不带年份「11月14日」补年/诚实状态等解析全部沿用 v1.1.69，零 HTTP。
+- **app.js / 样张 / notes**：喜鹊卡主按钮改「从剪贴板导入」(data-act=paste)，「去教务里找考试安排表」降级为 ghost「打开教务网（复制考试表用）」；委托表新增 `paste` 分支（`XQ.importClip()` → 认不出把 raw 摊进 textarea + showTip，认出则 paint+renderHomework+toast+`sync(id,true)` 重建聚合缓存）；hint2 改「你复制、App 解析」。样张喜鹊卡同步改 v1.1.70 态；`apk/v1.1.70.notes.txt` 818 字学生视角（根因四轮 + 三步用法 + 摊原文 + 清快照 + 诚实状态 + 群号 1097668324）。
+- **门禁**：`tools/test_xiqueer.js` 沙箱注入 `clipBox` + `Host.getClip`，⑱ 断言改「find() 回跳名留空」，新增 ㉗-㉚（剪贴板有考试表一步认出 / 空剪贴板清楚提示不落空快照 / 首页菜单认不出摊回 raw）→ **30/30 全过**；`check_web.js` 追加 `v1.1.70 checkpoints` 5 锚点（`public String getClip()` / `importClip` / `NO_CLIP` / `Host.getClip` / `act === 'paste'`，复用已声明 const 不重复声明）。全套 `check_web PASS`、`36 ok / 36`、`test_sources 7/7`、`check_notes 6/6`、`verify_apk 五件套 PASS`。补丁脚本 `design/sketch/_apply_v1170.py` 先校验 17 锚点再一次性写盘（首跑因 MainActivity.java 是 CRLF 而锚点按 LF 写 → count=0 失败，改为按文件原行尾归一化匹配、写盘时还原 CRLF；二跑又因 `len(n)<=len(o)` 把「整行换短文案」误判 NOOP_OR_SHRINK → 去掉长度判据只防 `o==n`，三跑 `ANCHOR_CHECK_OK edits=17`）。两档 390x2400 实拍（light sha `28acf7c3…`、dark sha `94f17bc2…`）逐块核对通过：主窗口待完成/已完成切换 + 来源 chips + 二级半框喜鹊 v1.1.70 态（从剪贴板导入主按钮 + 打开教务网 ghost + textarea + 导入这段），浅色纸感/深色深棕都无白字压白底、无溢出。
+- **出包**：`bump_ver 1.1.70 1170` → `build_apk` 一次成功，成品 **`apk/xxmu-helper-v1.1.70.apk` 917626 字节 / SHA-256 `8c9e41e65613…`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\河医大助手-v1.1.70.apk` 逐字节校验通过。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 留给 YG 点头，线上实读 `/v1/config` 仍 1.1.65。
+- **真机待测（一律未声称验证）**：在教务「考试安排表」检索出表或喜鹊儿 APP「考试安排」页长按复制后，点「从剪贴板导入」能否读出系统剪贴板并认出课程/起止/考场；空剪贴板/复制了首页菜单时的提示与原文摊框是否清楚；「打开教务网」是否只开门户不误弹「没认出」。
+
+---
+
+### v1.1.69（2026-11-11）—— 喜鹊「考试安排表」在 `<frame>` 里，读页桥连框架一起读（frame 递归 + 原文可见兜底）（**本地包 1.1.69 / 1169，未上线；线上仍 1.1.65**）
+
+触发：m01910 第三轮真机报障「课程考试里，有考试安排，但是得选择学年学期索引，我索引出来点完成也没用」+ 三张真机截图（m01912 教务门户首页「课程考试」磁贴、m01914 「课程考试 → 考试安排表」页：标签行「申请缓考 / 查看缓考信息 / 考试安排表 / 申请补考 / 考试选择信息」+「检索 / 打印 / 导出」+ 学年学期/考试批次两个下拉 + 主体空白、m01916 学习页 toast「这一页没认出考试安排」）。用户 m01951 追问「喜鹊的内容在教务网都有，是不是爬取教务网的数据就行了」——方向对（读的正是教务网），但「发包去爬」已被三轮判死（V17 业务页防直链、裸 HTTP 全被挡成凭证失效/404，只有带登录态真浏览器进得去），正确姿势是「在浏览器里读已渲染的表」。
+
+根因：**青果 V17 的「考试安排表」渲染在 `<frameset>/<frame>` 里**，检索出的表在子 frame；v1.1.68 的 `FIND_JS` 只 `document.getElementsByTagName('iframe')`，顶层 `document.body.innerText` 近空 → 回传 `{text:'',frames:[]}` → `parseCapture` 空 → 报「没认出」。modlens OCR 本机无 provider（`Error: No vision provider is set up on this machine`），读图靠 read_image 看原图；web_search 青果 frameset 结构只返回 KINGOSOFT V17 PDF/手册、无具体端点 → 印证别再猜地址。
+
+- **Java 桥（纯增量，javac 11 源文件全过）**：`WebActivity.FIND_JS` 全量重写——`grabDoc(d)` 读 `body.innerText||textContent`（slice 30000）+ 前 400 个 `<tr>` 行 + 前 20 张 `<table>`（slice 6000）+ 前 20 个 `<select>` 已选 `option.text`（学年学期/考试批次）；`var top=grabDoc(document)` 填 `o.text/rows/tables/sels`；**遍历 `window.frames`（覆盖 `<frame>`+`<iframe>`）** 对每个同源 frame 再 `grabDoc` 填 `o.frames[i]={u,text,rows,tables,sels}`（跨域 `contentDocument` 抛 SecurityError 留空）；拼 `parts` 成 `o.raw=parts.join('\n').slice(0,60000)`。返回**对象** `{u,text,rows,tables,sels,frames[],raw}`。
+- **web/xiqueer.js 全量重写（448 行）**：新增 `RAW_KEY='xxmu_xq_last_raw'`、`lastRaw()`、`rawTextOf(obj)`（raw 优先，否则拼 text/rows/tables/sels+frames）、`refYearOf(text)`/`findMdDateTime(line,ry)`（认不带年份「11月14日 11:00」按学年推年，必须带「月」字）；`collectBlocks` 的 `addDoc(d)` 认 `d.text/rows/tables` 并 `d.frames.forEach(addDoc)` 递归（**raw 不进解析块**，不凭下拉/原文造影子考试）；`parseOneText` 支持缺 t1 时向下两行配 `HH:MM`；`window.__onXqFind` **认不出分支**：`ps(RAW_KEY,rawTextOf(obj))` 存下读回原文 + LAST_DIAG 拼「打开了 url，顶层 N 字，递归读了 nf 个框架（含 `<frame>`）…请选好学年学期和考试批次、按「检索」把表查出来再按「完成」；读回原文已放进喜鹊卡片的框」+ `SrcUI.paint()` + `document.querySelectorAll('textarea.src-paste')` 逐个 `value=rawText.slice(0,20000)` / `rows='5'` + toast，把黑盒解析变可见原文兜底；成功分支 `save`+`SrcUI.sync('xiqueer',true)`。`save` 写快照后 `ps(RAW_KEY,'')`，`clear()` 连原文一起清；`find()` 标题改「考试安排表 · 检索出表后按完成」。
+- **app.js / 样张 / notes**：cardNode 喜鹊 hint2 改「进「课程考试 → 考试安排表」，选好学年学期按「检索」查出表，再按「完成」；没认出时读回原文会摊进下面的框」；按钮改「去教务里找考试安排表」；textarea 初始值 `XQ.lastRaw().slice(0,20000)`、有原文时 `rows=5`（paint 重建后回填）；样张 `design/sketch/learn-v1166.html` 喜鹊卡同步改 v1.1.69 态 + 注解「这一版连 `<frame>` 框架一起读回」；`apk/v1.1.69.notes.txt` 749 字学生视角（根因/用法/摊原文/清快照/不带年份补年/诚实状态/雨课堂知到暂不可用/更新群 1097668324）。
+- **门禁**：`tools/test_xiqueer.js` 全量重写 26 断言（在 20 条基础上加 frame 递归认出、`tables[]` 数据行认出、只有 sels/raw 不造影子、「11月14日」按学年补年、认不出落进 `lastRaw()`、摊进两个 textarea 且 `rows=5`/clear 连原文清；load() 沙箱加 `document.querySelectorAll` stub + `mkTa()`）；`check_web.js` 追加 `v1.1.69 checkpoints` 8 锚点（`window.frames`/`sels`/`o.raw`/`findMdDateTime`/`rawTextOf`/`RAW_KEY`/`lastRaw`/`XQ.lastRaw()`，复用已声明 const 不重复声明）。全套 `check_web PASS`、`36 ok / 36`、`test_xiqueer 26/26`、`test_sources 7/7`、`check_notes 6/6`、`verify_apk 五件套 PASS`。两档 390x2400 实拍（light sha `113ed4ee…`、dark sha `d424daab…`）逐块核对通过：主窗口待完成/已完成切换 + 来源 chips + 二级半框喜鹊 v1.1.69 完整态（新按钮/textarea/框架注解），浅色纸感/深色深棕都无白字压白底、无溢出。
+- **出包**：`bump_ver 1.1.69 1169` → `build_apk` 一次成功，成品 **`apk/xxmu-helper-v1.1.69.apk` 917626 字节 / SHA-256 `20a0516a1692…`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\河医大助手-v1.1.69.apk` 逐字节校验通过。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 留给 YG 点头，线上实读 `/v1/config` 仍 1.1.65。
+- **真机待测（一律未声称验证）**：进「课程考试 → 考试安排表」选学年学期+考试批次按「检索」出表后，`window.frames` 是否真读到子 frame 表格；按「完成」回传的 `frames[]/tables[]` 能否被 parseCapture 认出；没认出时原文是否真摊进 textarea 可编辑再导入；「清掉导入的考试」是否只清快照+原文、不牵连课表登录态。
+
+---
+
+### v1.1.68（2026-11-11）—— 喜鹊考试改「你带路、程序读页」（WebView 辅助发现 + 粘贴兜底）（**本地包 1.1.68 / 1168，未上线；线上仍 1.1.65**）
+
+触发：m01318 真机诊断全文 + 两张真机截图（m01320 主窗口 / m01322 喜鹊儿 APP 考试安排卡片）。v1.1.67「抓 9 菜单页挖链接→按考试分排序→验真表头」被真机彻底证伪：`/frame/homes.action` 活页 32382B（11 条业务链接）、`/frame/desk/changeUserGroupcode.action` 真页 21630B，但 7 条 `/student/ksap*.jsp?menucode=S20302` 全「凭证失效页」、`/frame/homepage.action` 等 7 页 HTTP 404。根因＝KINGOSOFT V17 用 `.action`/`.do` Struts + AJAX 动态菜单 + KingoEncypt 动态令牌（CSDN 89375147 `getEncParams` / `custom/js/SetKingoEncypt.jsp`），裸 HTTP 无浏览器上下文进不去业务页；喜鹊儿 APP 又是卡片式数据（考试性质/轮次/考试地点/座位号），非青果网页 GBK 表格。本机 `data/session.json` Cookie 已过期（探针 `_probe_v17.py` 复现不了活会话；注：`get_gbk` 无 timeout 形参，探针首跑 TypeError 后改用 `get()`）、外网 uint128 协议分析 / kancloud 开发指南 / seebug / anysearch 全拿不到活考试页地址、APP `wapController.jsp` 有版本门「请升级到最新版本」+ `libkdvmp.so` 9.3MB dex VMP → **猜端点 / 挖静态 HTML 这条路彻底作废**，改为让真浏览器带活会话自己跑 JS。
+
+- **Java 桥（纯增量，`javac` 11 源文件全过）**：`WebActivity` 加 `EXTRA_FIND`（值 find）+ `FIND_JS`（抓 top document 与全部同源 iframe 的 `innerText`、前 400 个 `<tr>` 行，返回**对象** `{u,text,rows,frames[]}`，60KB / 20 iframe 封顶）+ `find` 字段与 `grabFind()`（复用 capture 的顶栏「完成」按钮与 800ms 轮询，但不置 `EXTRA_DETECT_LOGIN`，免得按 URL 自动收工拿不到 `EXTRA_RESULT`）；`MainActivity` 加 `@JavascriptInterface openFinderFor(url,title,cbName)` + `REQ_FIND=1010` + `pendingFindCb` + `notifyFindDone(payload,cb)`（`JSONObject.quote` 把整页 JSON 文本包一层成 `window[cb](str)`，前端 JSON.parse，仿 notifyWaterCapture）。真浏览器里 AJAX 菜单会真加载、KingoEncypt 令牌会自动建立，绕开裸 HTTP 防直链。
+- **web/xiqueer.js 全量重写（334 行）**：删掉裸 HTTP 硬抓；`window.XQ={find,importText,clear,has,parse,fetch}` + `window.__onXqFind`（JSON.parse → parseCapture → 存快照 → `SrcUI.sync('xiqueer',true)`）；`parseCapture` 认三种形态（喜鹊儿卡片式 `[yg0231]高等数学B1` + `2026-11-14(11周 星期六)11:00-12:00` 夹括号周次 + 字间带空格的 `考 试 地 点：` 标签 / 表格式 `<tr>` innerText〔`\t` 压成空格，不压成换行，否则课程时间考场拆散〕/ 自由文本），按 `course|start` 去重、slice(0,60)；「只有日期没时刻」也给一条但 `start/end/status` 全留空（绝不编「已完成」，`CX.classify` 无状态→unknown）；快照 pref `xxmu_xq_capture={exams,url,at,diag}`；`fetchExams` **零 HTTP 只读快照**，有数据回 `ok` 并回传 `synced_at=at`（`sources.js` refresh ok 分支 `now()` 改 `r.synced_at||now()` 保留导入时间），没数据回 degraded 给「三步」指引。define 的 key 换 `xxmu_xq_capture_src` 避开 v1.1.67 旧缓存。
+- **app.js / app.css / 样张**：喜鹊卡加「去教务里找考试安排」+ textarea「粘贴考试安排」+「导入这段」+ 委托 find/import；import 成功后补一次 `sync(id,true)` 重建聚合缓存（否则 live() 读旧降级态）；out 分支 xiqueer 特殊走 `XQ.clear()+SOURCES.refresh`，**绝不 `SOURCES.logout`**（`clearCookieFor(教务)` 会把课表一起登出）；`openExamSheet` 补考场 / 学分 / 轮次 / 考试性质 / 座位号行（缺字段整行不画，不用「—」冒充读到）；textarea 用纯主题变量（首版 `var(--ink,#2B2318)` 兜底硬编码被 check_web「深色会花脸」门禁抓到，改 `var(--ink)`）。雨课堂 / 知到仍诚实标「暂不可用 / 本机预留接入」。
+- **门禁**：一次性补丁 `design/sketch/_apply_v1168.py` 先校验 19 锚点再 WriteAllText（首跑 `if old in new` 把「插入式保留 old」误判成没改，改 `old==new` / `len(new)<=len(old)` 后 `ANCHOR_CHECK_OK edits=19`）；`tools/test_xiqueer.js` 全量重写 20 断言（卡片式 / 表格式 / iframe 去重 / 多考试不串 / 只有日期 / no-parse / clear / find 回跳 / 零 HTTP）；`check_web.js` 加 v1.1.67-68 锚点（首跑 `const webAct` 与 :1300 FIT_JS 段重复声明 → 改 `webActFind`）。全套 `36 ok / 36`、`test_sources 7/7`、`check_notes 6/6`、`verify_apk 五件套 PASS`、`check_web PASS`。两档 390x2400 实拍（light sha `ca8316f1…`、dark sha `28c17ad1…`）逐块核对通过：主窗口待完成 / 已完成切换 + 来源 chips + 二级半框里喜鹊 v1.1.68 完整态，浅色纸感 / 深色深棕都无白字压白底、无溢出。
+- **出包**：`bump_ver 1.1.68 1168` → `build_apk` 两次（第二次为同步 app.css 修复进 assets），成品 **`apk/xxmu-helper-v1.1.68.apk` 913530 字节 / SHA-256 `22bdb9e7e5e4…`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\` 逐字节校验通过。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 都留给 YG 点头，线上实读 `/v1/config` 仍 1.1.65。
+- **真机待测（一律未声称验证）**：点「去教务里找考试安排」打开的框架页里 AJAX 菜单 / KingoEncypt 是否真建立；点开「考试安排」按「完成」回传的整页能否被 parseCapture 认出；从喜鹊儿 APP 复制文字粘贴导入能否落进详情半框；「清掉导入的考试」是否只清快照不牵连课表登录态。
+
+---
+
+### v1.1.67（2026-11-11）—— 喜鹊考试改「动态发现」+ 诊断回传（**本地包 1.1.67 / 1167，未上线；线上仍 1.1.65**）
+
+触发：m01034「喜鹊还是没用」+ 两张真机截图（m01036 / m01038）。读图定案：真机教务 Cookie 是活的（「断开喜鹊」按钮在、学习通同步正常），但 v1.1.66 写死的 7 条 jsp 路径一条都没命中，却把失败误写成「考试安排页未定位到（本机教务登录态已过期…）」，且 SrcUI 只在 nologin/stale 态画登录按钮 → degraded 态既没「重新登录」也没诊断出口。三重错：硬猜 URL + 错误文案 + 缺兜底。本机探针（`design/sketch/_probe_ks.py`）确认 `data/session.json` 的 JSESSIONID 已过期、公开登录页无菜单树；外网（uint128 逆向文、lizhengqiang/kingosoft_api README、anysearch）都拿不到活考试页地址 → 定案让真机登录后自己发现。
+
+- **web/xiqueer.js 全文重写**：MENU_PAGES 9 条框架/菜单页并行 `Promise.all` 抓 → `collectLinks(html)` 正则挖 href/src/url/onclick 里的 jsp|action|do 链接并绝对化去重 → `examScore(u)` 按 ks/kaoshi/exam/考试/menucode 打分 → `discovered.sort(...).concat(CANDS).slice(0,MAX_PROBE=22)`（菜单发现优先、7 条硬猜兜底、命中即停）→ 逐个验真「课程名称 + 考试时间/考场」同行表头，命中 parseExams 记住真地址。删掉误人的 MISS_ERR，degraded 改实话「没定位到考试安排页：已带登录态找过 N 个菜单页、验真 M 个候选…」。
+- **诊断回传链**：xiqueer.fetchExams 每步写 DIAG 并随结果回传 `diag:` → sources.js refresh() 三处落盘都存 diag、新增 `function diag(id)` 透出 → app.js 连接卡加「复制诊断」按钮（data-act=diag，Host.clip→navigator.clipboard→showTip 兜底），自动发现漏了时用户复制探针结果发群下轮钉死。
+- **登录按钮放宽**：cardNode 的 bLogin 改「登录 / 重新登录教务」，显示条件从 `(nologin||stale)` 放宽到 `s.hasLogin && s.state!=='ok'`（雨课堂/知到 hasLogin=false 不受影响）；bDiag 只在 degraded/stale 显。四按钮纵向堆叠。
+- **门禁**：新建 `tools/test_xiqueer.js`（Node vm 跑真 xiqueer.js + 造菜单页/考试表/STALE fixture，7 断言含「菜单发现的非硬猜路径能命中」「命中即停时 CANDS indexOf=-1 也算排在前面」「stale 不冒充 0 条」）；check_web.js 加 v1.1.67 五锚点 + spawn test_xiqueer；check_notes.js 6/6（notes 初版含「- 」项目符号被 `!/^\s*[-*]\s/m` 判 FAIL，重写成纯文本）。全套 `36 ok / 36`、verify_apk 五件套 PASS。
+- **出图与出包**：`design/sketch/learn-v1166.html` 喜鹊卡改诚实降级态 + 四按钮，浅/深两档 390×2600 实拍（light sha `2d253f8f574c…`、dark sha `b50d556f1a46…`）逐块核对通过。`python -X utf8 tools/build_apk.py` 成品 **`apk/xxmu-helper-v1.1.67.apk` 909434 字节 / SHA-256 `d08253044bbf…`**，签名 `0e684845…11157799` 可盖装，送桌面 `xxmuhelper\` 逐字节校验通过。**未上线**：m00979「我还没说上线」+ 记忆 0mwbtyww，官网部署与 cfg.latest 都留给 YG 点头。
+- **真机待测（一律未声称验证）**：动态发现能否在 XXMU 真机教务菜单里命中真考试表；点「复制诊断」回传的链接清单能否定位真地址；雨课堂微信扫码抓包端点；知到 CAS/SSO 二跳签名活接口复验。
+
+---
+
+### v1.1.66（2026-11-11）—— 学习页多平台作业考试待办聚合（方案 B）（**本地包 1.1.66 / 1166，未上线；线上仍 1.1.65**）
+
+触发：m00002 要学习栏加喜鹊考试 / 知到作业考试 / 雨课堂作业考试待办、先看可行性再给方案 → 三套方案（A 全端侧实时聚合 / B 按可行性分三批〔推荐〕/ C 最小侵入快照），m00167「吧吧，开始做」+ m00216「可以请 ai 组建团队」授权按 B 组队落地。调研定案：喜鹊儿＝青果官方 APP 与 qgjw.xxmu.edu.cn 同后端同账号，攻其 APP 接口要过 libkdvmp.so dex VMP + 版本门（16 个版本号全无效）→ 复用青果网页端登录态；雨课堂有 @powercess/yuketang-mcp 只读端点；知到有 CAS/SSO 二跳签名、逆向仓库多归档需真机复验。
+
+- **契约与组队**：`docs/multi-source-SPEC.md` 为并行唯一契约（8 铁律、文件所有权、Wave2 流程）；web/sources.js 聚合器导出 register/define/http/status/live/…（状态机 ok|stale|degraded|nologin|idle，只并 `state==='ok'&&synced_at>0`，产出 `_source:'multi'` 单一 d，学习通包装成 builtin）。5 路 teammate 并行：adapters 建 web/xiqueer.js / yuketang.js / zhihuishu.js；bridge 改 MainActivity.java 加 @JavascriptInterface `openLoginFor` + REQ_SRC(1009) + pendingSrcCb + notifySrcDone（javac EXIT=0，openWebFor/REQ_LOGIN 零改动）；ui-html 改 index.html 加 #srcCards/#srcChips + 4 script；ui-css 在 app.css 尾加 .src-* 浅/深两套；tests 建 tools/test_sources.js（7 断言）+ check_web 锚点。
+- **app.js 8 改点**：`SOURCES.live()` 合并替代单 CX.cached()、READ_ERR 汇总、srcTag 多平台标签、来源筛选 SRCF_K / curSrcFilter、cardOf 来源徽标、SrcUI 模块（连接卡/筛选/事件委托）、CxUI 联动；修「假登录按钮」隐患（hasLogin/alwaysDegraded/degradedError，status 精确判 degraded，sync 去掉未登录前置拦截）。雨课堂/知到 `alwaysDegraded:true` 诚实标「暂不可用」，从不 ok、不填「已完成」。
+- **追加两轮用户反馈**：m00638「账号绑定作为二级窗口，主窗口还是以显示待完成任务为主」→ 沿用 #toolPark→#sheet 半框，cxCard+srcCards 收进 #bindCard，主页只留细入口 #bindEntry + 任务列表，sh-close/遮罩统一走 closeSheet()；m00831「待完成旁边加已完成，点击切换」→ #doneSeg + DVIEW_K='xxmu_done_view'，已完成视图平铺、状态没读到的一律留待完成。
+- **出图定案（截图伪影）**：无头 Edge `--window-size=390` 实际渲染内宽 492（Chromium 最小窗口宽），`--screenshot` 只截 390 → 右边 102px 硬裁；探针实测 `scrollWidth==clientWidth==492` 证明无横向溢出。修法：样张内联 `html,body{width/min/max:390px!important;overflow-x:hidden!important}`。前两版「右侧裁切」全是此伪影，非布局 bug。
+- **门禁**：bump_ver 1.1.66/1166 → build_apk（sync_assets 扫 web/ 全量 49 文件）→ check_web PASS（v1.1.66 十二锚点）→ test_sources 7/7 → 全套 35/35 → verify_apk 五件套 PASS。修 tools/test_theme.js 既有缺陷（同选择器多段 `indexOf` 抓首段「晾相片」局部深色块、漏主深色块致 3/111 失败 → 遍历取变量最多那段）。成品 `apk/xxmu-helper-v1.1.66.apk` 909434 字节 / sha `7c9e48bc8b8a…`，已 present 交付。**未上线**：m00979「我还没说上线」喊停，官网同步脚本在 `MISS: hero lead` 抛错（三文件线上零改动），`/v1/config` 实读仍 1.1.65。
+
+---
+
+### v1.1.65（2026-11-11）—— 全员下线重绑教务网（方案 A / cfg.rebindAt O(1) 可逆一键重绑）（**已上线 1.1.65 / 1165**）
+
+用户原话与触发：m02386「能不能让所有人下线，都重新绑定一吹教务网，重新补录一下」（承接 v1.1.64 名单，嫌逐个补录不干净）；给了 A/B/C 三方案（A＝服务端一键重绑不发版可逆 / B＝发 1.1.65 清 K_ACCT_KB 强逼真重登教务网 / C＝先跑 A 看回流率再精准引导）后 m02424「a是什么意思」、m02429「你给我跳哪了，我说的补录学号方案里的a」纠正字母指代（写全局 lesson 0mwbck7e：字母按最近一轮用户自己提的话题解析，别被同名注入方案带偏）；m02436 正面重发 A 的解释并收尾「确认走 A，就按这套落码、出包、上线」；**m02438「先这个吧」＝选 A 并授权整链执行**。
+
+- **重大发现＋决策（静默改对）**：A 原设计的「每人写 `rev:` 下线」会**死锁** —— `server/worker.js handleActivate:1088` 与 `handleCheck:1260` 都查 `rev:`，`web/auth.js check():554-562` 收到 `reason==='revoked'|'bad_ticket'` 就 `LICENSE.deactivate(); clearTicket();` 强制重新激活，但 activate 又被 `rev:` 挡死 → 学生永远回不来。改用 **`cfg.rebindAt` 的 O(1) 可逆方案**：不写 `rev:`、不删 `dev:`、不改票据 body、学生端零改动。判据 `function rebindKicks(rebindAt, exp) { const t = parseInt(rebindAt,10)||0; return !!t && (exp - 30*DAY) < t; }` —— 普通票据恒 30 天签（`handleActivate: exp = now()+30*DAY`），签发时刻 = `exp - 30*DAY`，早于 rebindAt 的老票据在 `handleCheck` 被判 `bad_ticket`（严格小于，同秒重激活放行）；管理员票据在 `isAdminId` 分支提前 return 不受影响；`DEFAULT_CFG` 不含 rebindAt → 默认不存在 → 线上零回归。
+- **落码六处**（一次性补丁 `design/sketch/_patch_v1165.js`，6 处唯一锚点 + `node --check` WORKER/AUTH/APP 全 OK）：`server/worker.js` 新增 `rebindKicks` / `async function handleRebindAll(req, env)`（备份整份 idx+公告三字段到单键 `rebind:backup` → 逐行删 `kb`/`kbAt` 保留 `id`/`at`/`note` → `putIdx` → `putCfg` 写 `rebindAt=now()`+「请重开 App，按提示重新登录一次教务网确认学号。」/「学号重新确认」→ `purgeEdge('/v1/config')` → `audit('rebind-all')` → 返回 `{ok,rows,rebindAt}`；已发起过且 backup 在则报错防覆盖）/ `async function handleRebindUndo(req, env)`（读 backup → `putIdx` 还原 → 删 `cfg.rebindAt` + 恢复公告 → `purgeEdge` → 删 backup → `audit('rebind-undo')`）；`handleCheck` 在 `const exp0 = t1.exp;` 前插 `if (rebindKicks(cfg.rebindAt, t1.exp)) return json({ ok:false, reason:'bad_ticket', rebind:true, msg:'请重新登录一次教务网确认学号' });`；admin 鉴权块加 `/v1/admin/rebind-all`、`/v1/admin/rebind-undo` 两条 POST 路由。`web/auth.js` 的 `Admin` 加 `rebindAll()`/`rebindUndo()`；`web/index.html` 名单卡 `#admListBtn` 后加 `#admRebindState` + `#admRebindGo`「发起全员重绑」/`#admRebindUndo`「撤销上次重绑」+ 说明段；`web/app.js` 加 `function openRebind(all)`（#sheet 二次确认 + 写状态 + `refreshList()`）、init 绑两个按钮。
+- **回流机制（真·重绑，正是 A 想要的）**：客户端收到 `bad_ticket` → `LICENSE.deactivate()` 清 `K_ID/K_STATE/K_VERIFIED/K_ACCT_KB/K_ACCT_CX` 五键 → 必须重新登录教务网抓真号 → `activate` 带 `kb=kbAccount()` → `handleActivate:1181 if (isKbId(kb)) bindKbRow(env,id,kb)` 写回 `kb`/`kbAt` → 名单逐个回「已确认」。全程约 5 次 KV 写（O(1)）。`handleSetCfg` 是白名单式构造会丢 rebindAt，故 rebindAll/Undo 必须自己 `Object.assign({}, cfg, ...)` + `putCfg`，不能走 `Admin.setConfig`。
+- **硬红线**：**只提供能力 + 管理台按钮，按钮留给 YG 自己点，我没替他执行** —— 不主动调用 rebind-all 把线上全员踢下线（破坏性运营动作，YG 没说「现在执行」）。撤销可一键还原名单与公告、老票据重新有效、设备绑定从未被碰过。
+- **门禁**：新建 `tools/test_rebind.js`（仿 `test_kb_bind.js`，vm `grabDecl` 抽三段真源码真跑，T=1700000000/DAY=86400 桩，56 passed：rebindKicks 7 条 + rebindAll 一次发起/重入护栏 + rebindUndo + 三种坏输入 500 零写入 + getIdx=null + 不用 rev: 硬约束 + 前后端接线静态锁）；`tools/check_web.js` 挂 spawn + v1.1.65 checkpoint（18 条 has，保留全部 v1.1.64 checkpoint 与 `admListCnt` 反查锁）；`tools/verify_apk.py` 三处符号锁（app.js/index.html/auth.js + WORKER_SYMBOLS 8 个新符号）。一次性补丁 `design/sketch/_patch_gate_v1165.js` 首跑 `ENOENT design\tools\check_web.js`（root 少一层），edit 成 `path.resolve(__dirname,'..','..')` 后全绿。
+- **出图抓到并修掉一个真实 CSS 缺陷**：首轮浅/深两档 390x1500 实拍都只见「发起全员重绑」一枚整行按钮，「撤销上次重绑」被挤出可视区 —— 根因 `.btn{width:100%}` 让 `.chips` 里两枚按钮各撑满一行、`overflow-x:auto` 把第二枚横向挤出，浅/深/经典三档同病。修 `web/app.css` 用 id 抬权重 `#admRebindGo.btn,#admRebindUndo.btn{flex:1 1 0;width:auto;min-width:0;margin-top:0;padding:11px 8px;font-size:13px;letter-spacing:0}`（沿用 :1231 `#revPhotoNav` 同款惯例），并钉进 `check_web.js` 静态锁防回退。**重出图逐块核对通过**：`design/sketch/shots/admin-rebind-light.png` 390x1500 / 139522 字节 / SHA `1fb35d7d1050499e0a1f401b0879c438afb8790d0cf1353661f38ffa83db802e`、`admin-rebind-dark.png` 390x1500 / 142119 字节 / SHA `ab3a73f3b7ed00cbb0de98b5aabaf2a0f499d8b923674557fb5e6a8bb130778e`；三色汇总（已确认3/待补录2/冲突1）+ 双行名单 + 校准区 + 重绑说明段 + 两枚按钮并排等分，浅色米白/深色紫夜舱都不压字。
+- **验证与出包**：`python -X utf8 tools/bump_ver.py 1.1.65 1165`（web/about.js、web/index.html#aboutVer、android/AndroidManifest.xml 三处同源）；学生版 `apk/v1.1.65.notes.txt`「v1.1.65 学号确认这条链路更顺了」277 字，只写「万一提示重新登录教务网确认学号，照提示做一遍就好」，管理员/重绑按钮/全员下线等内部词一字未提；官网正文一字未改（管理员侧功能不进官网，沿用纪律），只把 `server/pages/dist/_worker.js:73` BUILD 切 `v1.1.65-rebind` 供 `check_site_skin` 版本门禁；`python -X utf8 tools/build_apk.py` 跑两次（修 CSS 后重新 sync_assets 45 文件并重签），成品 **`apk/xxmu-helper-v1.1.65.apk` 884603 字节 / SHA-256 `d7c9fe565409a864b2b97072b10717d3b5194c0543e3480e9b6b34118a026dfa`**（修 CSS 前 65e330bad7cd），签名 `0e684845…11157799` 与 v1.1.1 一致可盖装，deliver.py 送桌面 `xxmuhelper\` 字节校验通过。**七项门禁全绿**：`check_web.js` PASS（v1.1.65 18 has + 三个契约测试全 PASS）、`check_site_skin.js` 47/0、`check_notes.js` 6/6、`check_tutorial.js` 38/38、`test_kb_bind.js` 87/0、`test_rebind.js` 56/0、`verify_apk.py` 五件套。
+- **已上线三步（选 A 后按长任务授权自主跑完，2026-11-11 09:10）**：Worker `cwd=server; npx.cmd wrangler deploy` → Version ID `6a59fe01-e174-4407-bce2-ab64690e7ed1`（67.86 KiB / gzip 18.64 KiB、绑定 KV `02669ca1…`）、`https://xxmu-auth.yg-xxmu.workers.dev`、`WORKER_DEPLOY_EXIT=0` → Pages `cwd=server/pages; npx.cmd wrangler pages deploy <dist 绝对路径> --project-name xxmu-auth --commit-dirty=true` → `https://62e08473.xxmu-auth.pages.dev`、`PAGES_DEPLOY_EXIT=0` → `python -X utf8 tools/publish_apk.py --notes-file apk/v1.1.65.notes.txt`（1× URLError 退避重试后完成）切 `cfg.latest` 到 1.1.65 / 1165，`/v1/config latest=1.1.65 code=1165 size=884603 sha=d7c9fe565409…`、`/v1/apk` 884603 字节 SHA 一致、下载链路一致、`PUBLISH_EXIT=0`。**双入口验收** `design/sketch/_verify_live_v1165.py` → `RESULT: PASS`（主域名 www.xxmuhelper.top 的邮箱被 CF cf-email-protection 保护、解码后 692962849@qq.com，回滚口 xxmu-auth.pages.dev 为 plain；两入口 /v1/config、notes 277 字逐字、首页 21 项含「官网无内部词」扩到 rebind 系列、三张水墨 SVG、/v1/apk 884603 字节逐字节全一致；裸域 xxmuhelper.top 未接 DNS 不计入验收）。真机项一律没声称验证：真·重绑后学生端 deactivate→重登教务网抓真号→回填的端到端链路、点「发起全员重绑」后老票据陆续 bad_ticket 的实时节奏、「撤销」还原后老票据重新有效、`rebind:backup` 在真实 KV 大数据量下的读写。
+
+---
+
+### v1.1.64（2026-11-11）—— 名单双号三态（方案 C）：教务真号单独记 + 双行显示 + 汇总/开关/手动录真号（**已上线 1.1.64 / 1164**）
+
+用户原话与触发：m01607「学号这里还是没做好我感觉，现在显示的都是未绑定教务了，但第一次登录肯定绑定教务了，就是要他们绑定教务的学号记录下来。或者改成双行上下行显示，上面粗的大体是软件登录时填的，下面细的小字是绑定教务网，确认是教务网登录所抓取到的学号」；给了 A/B/C 三方案后 m01658「c」（选方案 C：B 的数据与双行 + 卡头三态汇总 + 「只看已确认」开关 + 待补录行灰度 + 校准每行「手动录真号」按钮）。m01729「我让你做项目，你都可以自己组建团队做」。
+
+- **根因**：服务端 `idx` 从头只存「进门手填号」，教务网抓到的真号只在每台手机本机 `web/license.js K_ACCT_KB`、从不上报；v1.1.63 判据 `kb === 1 && isKbId(e.id)` 让存量行整批落「校准」被错标「未绑教务」，而第一次登录其实必然绑过教务。真号只在学生本机 → 服务端记下只能靠「本人再开一次 App 自动补报」（`auth.js reportKb/alignKbAccount` + `sync.js __onLoginDone` 三路已铺）或「管理台手动录真号」。v1.1.63 `bindKbRow` 新建真号行 + 删手填行，双号结构不存在。方案 C 部分推翻 m00336「隐藏手填号」口径，改为两个号都留、都显示。
+- **服务端（`server/worker.js` 四处）**：① 新增两顶层函数 `function kbRealOf(e)`（v1.1.64 `typeof e.kb==='string' && isKbId(e.kb)` 返回真号；v1.1.63 遗留 `e.kb===1 && isKbId(e.id)` 认 id；否则 ''）与 `function kbClassOf(e, seen)`（confirmed/pending/conflict 三态，kb 脏数据或真号撞车判 conflict）。② `async function bindKbRow(env, gateId, kb)` 签名保留，改成「按 gateId 找行、**不删行**、同行写 `row.kb = kb`(真号字符串) + `row.kbAt = now()`」；找不到 gateId 行但有 v1.1.63 遗留 `id===kb && kb===1` 幂等留用；都没有才 push `{id: gateId||kb, at, note:'', kb, kbAt}`。③ `async function handleList(env)` 签名保留，`seen` 计数 + `tagged = idx.map(e => ({e, c: kbClassOf(e, seen)}))` + `bound = confirmed 补集` / `odd = 其余`；rows/oddRows 都带 `kb: kbRealOf(e)`，oddRows `reason: conflict ? 'conflict' : 'pending'`；返回体加 `confirmedCount/pendingCount/conflictCount` 三数分开，保留 `hidden: idx.length - bound.length, oddCount: oddRows.length, oddRows: oddRows` 与两处同款 at 降序 sort 字面量。④ 新增 `async function handleKbFix(req, env)`（admin 鉴权块内 `/v1/admin/kbfix`，读 {id,kb}、校验 `^\d{6,20}$` + isKbId、`bindKbRow` + `audit(env,'kbfix',[id],kb)`）。`handleActivate` / `/v1/kbbind` / 客户端上报链路全不动。
+- **前端**：`web/auth.js` 的 `Admin` 加 `kbFix(id, kb)`；`web/index.html` 名单卡加 `#admKbSummary` 汇总 + `#admOnlyConfirmed`「只看已确认」开关，`#admListTip` 改双行说明；`web/app.js` 加 `ONLY_CONFIRMED`、`renderList()` 双行 `.adm-kbline`（「教务网 {真号} · 已确认」/「教务网：待补录」）+ 待补录行 `.is-pending` 灰度 + 合并 pending 行、`renderOdd()` 三态文案（待补录教务学号/两号冲突）+ 每行「录真号」按钮、新增 `openKbFix(r)`（#sheet 半框收输入，校验 `^20\d{2}\d{7}$`，`AUTH.Admin.kbFix` 后刷新）与 `renderKbSummary(res)`（三色块），refreshStats/refreshList 都写汇总；`web/app.css` 加上粗下细/灰度/三色汇总/开关/录真号按钮六组样式，全走 `var()` 自动适配浅/深/经典三档。
+- **门禁三处同步到双号契约**：`tools/test_kb_bind.js` 全量重写（grabDecl 抽 `isKbId/kbRealOf/kbClassOf/bindKbRow/handleList` 五段真跑 vm，59→87 passed：kbRealOf/kbClassOf 单元、bindKbRow 不删行、handleList 三态含 v1.1.63 遗留升级/撞车全 conflict、kbfix 路由、方案 C 前端锁；两条正则修 `adm-kbline` 换行与 `$('admOnlyConfirmed')`）；`tools/check_web.js` v1.1.64 checkpoint 整块换（kbRealOf/kbClassOf/bound=tagged.filter confirmed/odd=补集/三态计数/handleKbFix/ONLY_CONFIRMED/adm-kbline/renderKbSummary/openKbFix/Admin.kbFix/CSS 新类 has，保留 `admListCnt').textContent = LIST.length + ' 人'` 反查）；`tools/verify_apk.py` 三处符号锁加双号符号（app.js 加 ONLY_CONFIRMED/renderKbSummary/openKbFix/adm-kbline/is-pending，index.html 加 admKbSummary/admOnlyConfirmed，WORKER_SYMBOLS 加 kbRealOf/kbClassOf/bound=tagged.filter/三态计数/kbfix，保留 `kb === 1`）。门禁死代码字面量（`listNewFirst/looksOddId/'adm-odd','格式异常（手填）'/'adm-at'/LIST.slice().sort(listNewFirst)/'还没有人通过教务网绑定'/已隐去 /ODD.slice().sort(listNewFirst)/.adm-subtabs{/@keyframes admFadeIn`）全部原处保留，`tools/test_admin_list.js` 未改。
+- **两档 390px 实拍逐块核对通过**（YG 外观交付硬要求）：`design/sketch/make_nova_real.js` 新增 `organ==="admin"` 分支（`_patch_admin_organ.js` 三处补丁：organEarly 早设 `data-shot-admin`、QA CSS 显示管理台名单 pane 并去 `.adm-out` max-height、覆盖 `AUTH.Admin.list` 为同步 thenable 假三态数据后点真 `#admListBtn` 触发真 renderList/renderOdd/renderKbSummary，`shoot-nova-one.ps1` 无头 Edge 390x1500 出图）。产物 `design/sketch/shots/admin-list-light.png` 390x1500 / 148132 字节 / SHA-256 `cee109b7dd61316bfe02753438e8fbb6c37d09906f4d300b165b087f44335299`、`admin-list-dark.png` 390x1500 / 149304 字节 / SHA-256 `354a45c8060f9b96bf5339fc6f70d28be50cb6d83a1447ddbc921f87427dc7ab`。逐块核对：卡头「使用名单 3 人」+ 二级菜单（正常名单 3 人 / 校准·异常 3 个）+ 汇总三色块（已确认 3 绿 / 待补录 2 橙 / 冲突 1 红）+ 双行说明 + 开关 + 主列表 5 行（3 行上粗学号 + 下细绿字真号 + 「教务已绑定」徽章，2 行灰度 + 橙字「教务网：待补录」）+ 校准表 3 行（待补录/两号冲突 + 绿色「录真号」按钮）+ 刷新按钮；浅色米白与深色紫夜舱均无溢出、无白字压白底、三色块与双行对比度够。
+- **验证与出包**：`node --check` 六个文件全 OK、`python ast.parse` verify_apk.py OK；六项门禁全绿（`check_web.js` PASS、`check_site_skin.js` 47/0、`check_notes.js` 6/6、`check_tutorial.js` 38/38、`test_kb_bind.js` 87/0、`verify_apk.py` 五件套）；`python tools/build_apk.py` 同步 assets 45 文件、aapt2/javac(11)/d8(105)/zipalign/apksigner，成品 `apk/xxmu-helper-v1.1.64.apk` **884603 字节 / SHA-256 `f8f0d535c26ec4ea352c2994b15d12718f00b5075a20929a205eaa7020001d6c`**，签名 `0e684845…11157799` 与 v1.1.1 一致可覆盖升级，deliver.py 送桌面 `xxmuhelper\` 字节校验通过。学生版 `apk/v1.1.64.notes.txt`「教务网绑定更稳了，学号记得更准」只写学生可感知的「绑好的学号这回记牢了」，管理员侧功能一字未提。官网正文一字不改（v1.1.64 是后端/管理员侧改动，沿用「官网正文不写管理员侧功能」纪律），只把 `server/pages/dist/_worker.js:73` BUILD 切 `v1.1.64-kb-dual` 供 check_site_skin 版本门禁。
+- **已上线（选 C 后按长任务授权自主跑完，2026-11-11 01:00）**：Worker `npx wrangler deploy`（版本 ID `07056544-6710-4d6f-bc20-be348a5a89bd`，`https://xxmu-auth.yg-xxmu.workers.dev`）→ Pages `npx wrangler pages deploy <dist 绝对路径> --project-name xxmu-auth --commit-dirty=true`（`https://31aea648.xxmu-auth.pages.dev`）→ `python -X utf8 tools/publish_apk.py --notes-file apk/v1.1.64.notes.txt`（网络抖动 2× URLError 退避重试后完成）切 `cfg.latest` 到 1.1.64 / 1164。双入口验收 `design/sketch/_verify_live_v1164.py`（两入口 /v1/config、官网首页 21 项、三张水墨 SVG、/v1/apk 884603 字节逐字节）结果记在 `docs/handoff/qa-v1.1.64.md`。真机项一律没声称验证：真机 WebView 里双行换行与灰度对比、手动录真号半框在矮视口的手感、存量用户开机补报后真号回填的实时刷新。
+
+---
+
+### v1.1.63（2026-11-10）—— WIKI 相册横滑翻页 + 名单只认教务绑定号 + 名单「校准」二级菜单（**已上线 1.1.63 / 1163**）
+
+三件一起做完，同一版 1.1.63 / 1163 出包。用户原话与触发：m00002「照片墙/留言板改左右横滑，一次展示四个/三条，两侧预览一点点上一页下一页，一定要美观」，给了 A/B/C 三方案后 m00085「a吧，但是做的美观一点，就像老式洗相片的店里那样，有夹子夹着照片的那种」；m00336「只显示他们教务网绑定的账号，不显示软件登录时输入的学号，不然这种乱填的不好管理，把之前有问题的都改了」；m00914「就是在名单那里加一个校准，把有异常的单独挑出来在一个二级菜单里面，主菜单列表那就显示正常的，计数也分开计数」。
+
+1. **WIKI 横滑（选 A + 暗房晾相绳 / 木夹 / 雾紫圆点）**：`web/wiki.js` 新增 `railPages/makeRail/railDots/photoHang`；`photosSection()` 用 `makeRail(PHOTOS,4,{ph-rail>ph-page>ph-grid,cell:photoCard,hang:photoHang}) + railDots`，`fbSection()` 用 `makeRail(FBS,3,{fb-rail>fb-page>fb-list,cell:fbCard}) + railDots`。保留 `.ph-grid/.ph-sec` 类名与 photoCard/fbCard 原结构、刷新/上传/审核/分页轮询全部不动。`web/app.css` v1.1.63 段：`:root`/深色 `--cord/--clip/--clip-line`、`.ph-rail/.fb-rail` flex + overflow-x + snap + 露边（22px/18px）、`.ph-page` flex:0 0 100%、`.rail-dots` 雾紫圆点、`.ph-hang::after` 麻绳 / `::before` 木夹、`.ph-sec::before` 雾光紫渐变、经典西部档覆盖。`web/nova-organs.js` `sync()` 改 `querySelectorAll('.ph-grid')` 全挂 `.nv-polaroid-grid`（保留 `querySelector('.ph-grid')` 字面量给 `test_nova_organs.js:292` 门禁）；`nova-organs.css` `:nth-child(even)→.ph-hang`、`touch-action:pan-y→pan-x pan-y`（pan-y 会挡横滑）。
+2. **名单只认教务绑定号（kb:1）**：根因 `server/worker.js handleList` 此前无过滤全回 idx（idx=进门手填号），v1.1.62 `renameFrom` 只按 oddShape 放行，11 位 20xx 开头的乱填号 `20291100411/20241100927/20261100411` 漏过；教务真号只存本机 LICENSE `K_ACCT_KB` 从不上报。改法：worker 加 `isKbId(/^20\d{2}\d{7}$/)`、`bindKbRow`（真号行置 kb:1 清手填残留）、`handleKbBind` + `/v1/kbbind`、`handleActivate` 接 b.kb 放宽 renameFrom 护栏、`handleList` 只回 `kb===1 && isKbId` 的行 + hidden；`auth.js` 加 `kbAccount()/reportKb()`、activate 带 kb、`alignKbAccount` 放宽护栏、开机兜底静默补报；`sync.js __onLoginDone` 补报；`app.js` 加 `adm-kb`「教务已绑定」徽章 + `#admListHidden`；`index.html` 加 `#admListTip/#admListHidden`；`app.css` 加 `.adm-kb/.adm-tip/.adm-hidden`。老用户靠开机兜底/align/登录三路回填，纯乱填号永不打标自然消失。
+3. **名单「校准」二级菜单（m00914）**：服务端 `handleList` 加 `const odd = idx.filter(e => !e || e.kb !== 1 || !isKbId(e.id));`（bound 补集整批回传），`oddRows` map 带 `reason: (!e || !isKbId(e.id)) ? 'odd' : 'unbound'` + 同款 at 降序，返回体加 `oddCount: oddRows.length, oddRows: oddRows`（hidden 保留兼容门禁）。前端 `index.html` 名单卡加 `.chips.adm-subtabs#admListTab` 两按钮「正常名单 #admNormalCnt」/「校准·异常 #admOddCnt」，把原 admFind/admFilter/admList 包进 `#admNormalPane`，新增 `#admOddPane`（默认 none）内 `#admOddList`；`app.js` 加 `let ODD=[]` / `let LIST_TAB='normal'`，refreshStats/refreshList 都收 `ODD = res.oddRows || []`、分别写两个计数徽章、`renderList()` 后加 `renderOdd()`，新增 `renderOdd()`（ODD.slice().sort(listNewFirst)，每行带 `.adm-odd`「格式异常（手填）」/「未绑教务」+ 停用/解封 + 详情）与 `switchListTab(t)`，init 绑 `#admListTab button`；`app.css` 加 `.adm-subtabs/.adm-tab-cnt/#admOddPane admFadeIn`（两档皮肤 .chips button.on 都已有覆盖）。`auth.js` 未改（getJson 全字段透传）。
+4. **门禁三处补锁**：`tools/test_kb_bind.js` 39→59 passed（4 组 20 条：服务端补集 / 计数分开 / reason 两值真跑混合样本 / 前端二级菜单与样式；含 `res.count + res.oddCount === 4 && res.hidden === res.oddCount` 无重复无遗漏约束）；`tools/verify_apk.py` 三处符号锁（assets/app.js 加 renderOdd/switchListTab/ODD/admOddCnt，assets/index.html 加 4 个校准 id，WORKER_SYMBOLS 加 `const odd = idx.filter(` / `oddCount` / `oddRows`）；`tools/check_web.js` 在 v1.1.63 段后插「名单校准二级菜单」块，用 `cssTxt2/idx2` 避免与已有 `appCss/cssTxt/idx` 变量冲突，14 条 has() + 1 条反查 `admListCnt').textContent = LIST.length + ' 人'`（校准不能污染 test_admin_list 依赖）。**门禁死代码字面量全部原处保留**：`listNewFirst/looksOddId/'adm-odd','格式异常（手填）'/'adm-at'/LIST.slice().sort(listNewFirst)/'还没有人通过教务网绑定'/已隐去 `；`check_web.js:1550` 禁后端退回 id 字典序。
+5. **两档 390px 实拍逐块核对通过**（YG 外观交付硬要求）：夹具 `design/sketch/make_nova_real.js` 的 `organ==="polaroid"` 分支重写为 `.ph-rail>3×.ph-page>.ph-grid>4×.ph-hang>.ph-card`（12 张 3 页）+ `.fb-rail>3×.fb-page>.fb-list>.fb-card`（9 条 3 页）+ 各 3 圆点中间 .on；`shoot-nova-one.ps1` 无头 Edge 390x1500 出图。产物 `design/sketch/shots/wiki-rail-nova-light.png` 390x1500 / 269211 字节 / SHA-256 `105bcc9b430083d6…acb6473f`、`wiki-rail-nova-dark.png` 390x1500 / 184806 字节 / SHA-256 `e2e2f47f41a236c2…ae430`。逐块核对：中间页 2×2 四张白相纸、歪角 rotate、木夹 ::before、晾相麻绳 ::after、图注、左右各露相邻页约 22px、3 圆点中间拉长胶囊 .on；留言板中间页 3 条、后两条带「管理员回复」绿框；顶栏/搜索/CAMPUS WIKI 标签条/POLAROID MALL 器官条/资料卡齐全。浅色米白雾光紫 `#EBEDE9/#DDDFDA/#E9EBE6`，深色紫夜舱 `#1A1430/#2A234B/#302620` 紫色木夹与圆点明显，深色 HTML 硬写 `data-theme="dark"` 独立复核。`--dump-dom` 实测 ph-page=3/fb-page=3、ph-hang=12/fb-card=9、nv-polaroid-grid=3、data-shot-scroll=346/354。
+   - **夹具机制教训**：virtual-time 下 `scroll-snap-type:x mandatory` 会回卷 scrollLeft、`scroll-behavior:smooth` 在静态帧不推进，是「露边拍不出来」的真因；`railCss` 关成 none/auto + `peek()` 把两 rail 精确设到中间页（scrollLeft=一页宽）解决。真实 `web/wiki.js` 首屏 scrollLeft=0 天然只有右侧露下一页，滑到中间页才左右都露，交互本身满足需求，`web/` 未因夹具而改。harness 是 JS 字符串数组 join 后进内联 `<script>`，中文 `\uXXXX` 要在补丁里再转义一层 `c.replace(/\\/g,'\\\\')`。多行大块 edit 常因缩进不符失败 → 用唯一单行锚点或行级 splice。`node -e` 含 `\x00` 报 null bytes → 写 .js 文件跑。
+6. **验证与出包**：`node --check` 三个文件全 OK；`node tools/test_kb_bind.js` 59 passed 0 failed；`python tools/build_apk.py` 同步 assets 45 文件、aapt2/javac(11)/d8(105)/zipalign/apksigner，成品 `apk/xxmu-helper-v1.1.63.apk` **880507 字节 / SHA-256 `4f2c61f54133c832…6c96474d`**，deliver.py 送桌面 `xxmuhelper\` 字节校验通过；`python tools/verify_apk.py apk/xxmu-helper-v1.1.63.apk` → 五件套全部通过（badging 1163/1.1.63，证书 `0e684845…11157799` 与 v1.1.1 一致可覆盖升级，worker 三个校准符号都在）；`node tools/check_web.js` → 静态体检全部通过；`node tools/check_notes.js --file apk/v1.1.63.notes.txt` → 6 项全过（学生视角、467 字、末尾群号、无 Markdown 项目符号）；学生版 `apk/v1.1.63.notes.txt` 只写照片墙/留言板翻页与两档观感，管理员功能一字未提。
+7. **已上线（YG 说「上线」后三步一起做，2026-11-10 22:35）**：Worker `npx wrangler deploy`（版本 ID `b339b5cb-6f9d-4d84-855e-bd95a1b2f985`）→ Pages `npx wrangler pages deploy <dist 绝对路径> --project-name xxmu-auth --commit-dirty=true`（`https://57ae7cfc.xxmu-auth.pages.dev`，`_worker.js` BUILD 切 `v1.1.63-polaroid-rail`）→ `python -X utf8 tools/publish_apk.py --notes-file apk/v1.1.63.notes.txt` 切 `cfg.latest` 到 1.1.63 / 1163。官网正文同步到 v1.1.63（#fresh 三卡 + hero lead + FAQ 补翻页），浅色 `site-nova-light.png` 1100x2400 / 1078929 字节、深色 `site-nova-dark.png` 1100x2400 / 805842 字节两档逐块核对通过。双入口验收 `design/sketch/_verify_live_v1163.py` → `RESULT: PASS`（主域名 www.xxmuhelper.top + 回滚口 xxmu-auth.pages.dev 的 /v1/config、首页 21 项、三张水墨 SVG、/v1/apk 880507 字节逐字节一致；裸域 xxmuhelper.top 未接 DNS 不计入验收）。真机项一律没声称验证：横滑拖拽手感与回弹、Webview 里 snap 与木夹 ::before/::after 的层叠、校准二级菜单在矮视口的手感、异常号停用/解封后的实时刷新。
+
+---
+
 ### v1.1.56（2026-11-08）—— NOVA「万象舱」：完全抛开原版骨架的全新界面（**未上线，只出了本地包**）
 
 用户原话：「为什么你给我生成的图片还是 1.1.48 那种我说的涂鸦风格，我说了完全抛开原版，大胆融合所有。就像保留目前有的功能基础上重新设计开发一款全新的软件一样」；此前又定过「像所有人的乌托邦」「不要单一让一个风格的元素过于堆砌」「动态传送带 / 磁带机放大时空穿越」「整体 UI、操作逻辑、按钮布局、体验都可以根据风格定制改动」「不断搜索灵感资料素材」「模型到上线了你要自己切换到适合此项目的模型（xdpool 国内版）」。这一版按这些话重做。

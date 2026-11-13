@@ -507,5 +507,12 @@ window.__onLoginDone = function (ok, acct) {
      * 说明要么填错了，要么在拿别人的号用。不给同步，直接说清楚怎么办。 */
     XXMU.toast('登录的学号（' + chk.acct + '）和软件里填的（' + chk.id + '）不一样');
   }
+  /* v1.1.63：教务登录读回真号后，顺手把「教务已绑定」这个事实补报给服务端。
+   * 名单现在只认 kb:1 的行；乱填的号永远拿不到 GOOD 真号，自然不进名单。
+   * 对齐成功时 chk 已被复核成 ok=true、acct 就是真号；两号一致时 acct 同样是真号。
+   * 失败静默：开机兜底 / 下次复检还会再补，不打断登录流程。 */
+  if (!chk.unknown && chk.acct && typeof AUTH !== 'undefined' && AUTH.reportKb) {
+    try { AUTH.reportKb(chk.acct); } catch (e) {}
+  }
   if (window.__onLoginSuccess) window.__onLoginSuccess(chk);
 };

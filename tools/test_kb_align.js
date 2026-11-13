@@ -48,7 +48,8 @@ console.log('服务端：renameFrom 改名护栏:');
 ok(/function oddShape\(id\) \{/.test(worker), 'oddShape 存在');
 ok(/const renameFrom = String\(b\.renameFrom \|\| ''\)\.trim\(\);/.test(worker), 'handleActivate 读 renameFrom');
 ok(/let dels = \[\];/.test(worker) && /dels = \[renameFrom\];/.test(worker), 'dels 收集旧畸形号');
-ok(/oddShape\(renameFrom\) && !oddShape\(id\)/.test(worker), '只有「旧畸形 + 新正常」才改名');
+ok(/isKbId\(id\) &&.*\.test\(renameFrom\)/.test(worker), 'v1.1.63：真号在册形状 + 旧号是纯数字就改名（不再只看 oddShape）');
+ok(/function isKbId\(id\) \{/.test(worker), 'v1.1.63：服务端有教务在册学号判据 isKbId');
 ok(/!\(\s*await env\.AUTH\.get\('rev:' \+ renameFrom\)\s*\)/.test(worker), '管理员已修订过的号不自动删（rev: 护栏）');
 ok(/idxApply\(env, \[\{ id: id, note: '' \}\], dels\)/.test(worker), 'adds 先加真号 + dels 删畸形行');
 /* 门禁锁不能碰 */
@@ -83,12 +84,18 @@ if (goodM) {
   cases.forEach(c => { if (GOOD.test(c[0]) !== c[1]) gBad++; });
   ok(gBad === 0, 'GOOD 只认 11 位 20 开头的正常号', gBad);
 }
-ok(/if \(!GOOD\.test\(real\) \|\| GOOD\.test\(from\) \|\| !from \|\| real === from\) return false;/.test(auth),
-  '护栏：两个正常号不一致 / 真号不合法一律不覆盖（保留人工弹窗）');
+ok(/if \(!GOOD\.test\(real\) \|\| !from \|\| real === from\) return false;/.test(auth),
+  'v1.1.63：真号在册 + 两号不同即对齐（形状正常的乱填号也纠正）；真号不合法 / 相同 / 空号不动');
 ok(/LICENSE\.activate\(real, ''\)/.test(auth), '用真号重新激活');
 ok(/Host\.setPref\('xxmu_user', real\)/.test(auth) && /localStorage\.setItem\('xxmu_user', real\)/.test(auth), 'Java 侧 + 本地学号一起改');
 ok(/LICENSE\.noteKbAccount\(real\)/.test(auth), '复核 noteKbAccount，保证教务号与软件号一致');
 ok(/renameFrom: from,/.test(auth), 'activate 请求带 renameFrom');
+ok(/renameFrom: from, kb: real,/.test(auth), 'v1.1.63：对齐补发的 activate 带 kb 真号');
+ok(/kb: kb,/.test(auth) && /const kb = kbAccount\(\);/.test(auth), 'v1.1.63：进门激活带 kbAccount() 真号');
+ok(/function kbAccount\(\)/.test(auth) && /function reportKb\(kb\)/.test(auth) && /\/v1\/kbbind/.test(auth),
+  'v1.1.63：kbAccount / reportKb / kbbind 补报口都在');
+ok(/reportKb, localValid/.test(auth), 'api 导出 reportKb');
+ok(/if \(real\) reportKb\(real\);/.test(auth), '开机兜底：两号一致也静默补报 kb:1');
 ok(/\fingerprint, activate, alignKbAccount, check,/.test(auth.replace(/\s+/g, ' ')) || /activate, alignKbAccount, check/.test(auth), 'api 导出 alignKbAccount');
 ok(/setTimeout\(function \(\) \{/.test(auth) && /alignKbAccount\(a\.kb, a\.id\)/.test(auth), '开机兜底：老用户下次进 App 自动对齐');
 
@@ -96,6 +103,7 @@ console.log('sync：登录教务后触发对齐:');
 ok(/AUTH\.alignKbAccount/.test(sync), '__onLoginDone 里调 alignKbAccount');
 ok(/!chk\.unknown && chk\.ok === false/.test(sync), '只在「两号不一致」这一支触发');
 ok(/chk = LICENSE\.noteKbAccount\(chk\.acct\)/.test(sync), '对齐成功复核 chk，不弹两号不一样、直接同步课表');
+ok(/AUTH\.reportKb\(chk\.acct\)/.test(sync), 'v1.1.63：教务登录成功顺手补报 kb:1');
 ok(/function looksOddId\(id\) \{/.test(appjs) && /格式异常（手填）/.test(appjs), 'app.js looksOddId 与「格式异常（手填）」字面串仍在（三处门禁锁）');
 
 console.log('');

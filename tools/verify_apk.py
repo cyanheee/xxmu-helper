@@ -92,6 +92,17 @@ NEW_JS_SYMBOLS = {
                       # v1.1.45 管理名单
                       "function listNewFirst(a, b)", "function looksOddId(id)",
                       "格式异常（手填）", "LIST.slice().sort(listNewFirst)",
+                      # v1.1.63 名单只认教务绑定号
+                      "教务已绑定", "admListHidden",
+                       # v1.1.63 校准：异常号单独进二级菜单、计数分开
+                       "function renderOdd()", "function switchListTab(t)",
+                       "ODD = res.oddRows || []", "admOddCnt",
+                        # v1.1.64 方案 C：双行 / 三态汇总 / 只看已确认 / 手动录真号
+                        "let ONLY_CONFIRMED = false;", "function renderKbSummary(res)",
+                        "function openKbFix(r)", "AUTH.Admin.kbFix(",
+                        "adm-kbline", "is-pending",
+                         # v1.1.65 方案 A：全员重绑二次确认半框
+                         "function openRebind(all)", "AUTH.Admin.rebindAll(", "AUTH.Admin.rebindUndo(",
                       # v1.1.46 检查更新提速
                       "function checkUpdateOnFirstPaint()",
                       "requestAnimationFrame(() => window.requestAnimationFrame(fire))",
@@ -116,7 +127,9 @@ NEW_JS_SYMBOLS = {
                       # 这里长期留着一条教训：**删功能时要顺手删它的锚点**，
                       # 否则 verify 会在下一个版本开始无缘无故 FAIL，看起来像包坏了。
                       "function showDetail(id)", "DETAIL_OPEN",
-                      "document.getElementById('sheet').classList.add('on')"],
+                      "document.getElementById('sheet').classList.add('on')",
+                       # v1.1.78 知到卡片：A/B 切换 + 打开作业页 + 登录文案分流
+                       "act === 'zhsmode'", "act === 'zhsopen'", "登录 / 重新登录知到"],
     "assets/about.js": ["btnClearCheck", "btnShowHwRaw", "Tut.afterUnlock",
                         "已过期，重新登录一次",
                         # v1.1.13 课表抓取原文
@@ -125,6 +138,19 @@ NEW_JS_SYMBOLS = {
                            "diagReset", "未批阅",
                            # v1.1.9：缓存坏了要说出来，不能当成「没同步过」
                            "LAST_READ_ERR", "readErr"],
+    # v1.1.78 方案 C：知到（智慧树）双探针接入。这些符号在 = 适配器真进了包，
+    # 不是那个 51 行的 alwaysDegraded 降级桩。缺一条就说明 assets 没同步。
+    "assets/zhihuishu.js": ["方案 C 双探针诊断版", "function fetchA", "function fetchB",
+                            "function secretStr", "getStudentHomework",
+                            "queryShareCourseInfo", "__onZhsFind", "MODE_KEY",
+                            "loginUrl: LOGIN_URL", "一律不碰",
+                            # v1.1.79 登录链路修复：哨兵 + 独立真登录判据 + 覆盖回跳
+                            "v1.1.79", "OK_SENTINEL", "AUTH_KEY", "window[CB]",
+                            "不再自动秒关",
+                            # v1.1.80 定 B 主线：课程列表字段名修正 / 删 CAS / 诚实分层
+                            "v1.1.80", "function courseIdOf", "result.courseOpenDtos",
+                            "totalCount", "function hwResponseOk", "pageNo: p",
+                            "平台确认当前没有待交作业", "本学期没抽到课程"],
     "assets/index.html": ["btnShowHwRaw", "fbHw",
                           # v1.1.6
                           'id="tut"', 'id="rowTut"', 'id="revPhotoList"',
@@ -143,7 +169,11 @@ NEW_JS_SYMBOLS = {
                           # —— v1.1.23 起详情改走全局半框 #sheet，卡片本身不存在了。
                           # 现在的等价约束：半框必须存在，且 sh-body / sh-name 都在
                           # （少一个，showDetail 会静默 return，点详情毫无反应）。
-                          'id="sheet"', 'id="sh-body"', 'id="sh-name"'],
+                          'id="sheet"', 'id="sh-body"', 'id="sh-name"',
+                          # v1.1.63 校准：名单卡二级菜单 + 两个独立 pane
+                          'id="admListTab"', 'id="admNormalPane"',
+                          'id="admOddPane"', 'id="admOddList"', 'id="admKbSummary"', 'id="admOnlyConfirmed"',
+                          'id="admRebindGo"', 'id="admRebindUndo"', 'id="admRebindState"'],
     # v1.1.11：声明必须能独立工作（不联网、读不到 pref 当没看过）
     "assets/disc.js": ["xxmu_disc_done", "function afterUnlock", "function replay",
                        "replayMode", "function gateLocked"],
@@ -162,7 +192,11 @@ NEW_JS_SYMBOLS = {
                        # v1.1.8 服务器拒绝分档：别把「限流」当成「你被封了」
                        "const HARD =", "const KEEP =", "photoRaw",
                        # v1.1.47 双入口回退时下载 URL 归一
-                       "function localizeUrl(url)", "localizeUrl,"],
+                       "function localizeUrl(url)", "localizeUrl,",
+                        # v1.1.63 教务绑定真号上报
+                        "reportKb", "/v1/kbbind", "function kbAccount()",
+                         # v1.1.65 方案 A：管理员全员重绑出口
+                         "rebindAll(", "rebindUndo("],
     "assets/sync.js": ["showable", "bad_weeks",
                        # v1.1.13 解析器两个洞 + 诊断留样
                        "k(\\d)(\\d{1,2})",
@@ -182,13 +216,16 @@ NEW_JS_SYMBOLS = {
     "assets/app.css": ["html[data-theme=\"dark\"]{", "color-scheme:dark;",
                        "--bg:#0e1320", ".th-opt{", ".th-inline{"],
     "assets/index.html": ["id=\"tab-settings\"", "id=\"rowSettings\"",
-                          "id=\"themeInline\"", "src=\"theme.js\"", "THEME.init()"],
+                          "id=\"themeInline\"", "src=\"theme.js\"", "THEME.init()",
+                          'id="admRebindGo"', 'id="admRebindUndo"', 'id="admRebindState"'],
     "assets/theme.js": ["function mount(containerId)", "dropTransient",
                         "data-theme-state", "transient: !!transient"],
     # v1.1.41 课程提醒三档
     "assets/reminder.js": ["xxmu_remind_mode", "MODES = ['alarm', 'silent', 'sms']",
                            "mode: md", "rmPreview", "Host.previewReminder",
-                           "Host.openSmsDraft"],
+                           "Host.openSmsDraft",
+                           # v1.1.78 连堂去重：一门课一周只留最早一节
+                           "连堂只留最早一节", "if (at === null || t < at) at = t"],
     "assets/app.css": [".rm-mode{", ".rm-mode.on{",
                        # v1.1.42 教程裁切层
                        ".tut-view{",
@@ -285,6 +322,19 @@ WORKER_SYMBOLS = [
     "xxmu-pages-proxy-v1",
     # v1.1.9：名单条数上限（假学号无限新增会把全站 KV 写额度刷爆）
     "const IDX_CAP = 5000;",
+    # v1.1.63：名单只认教务绑定号；v1.1.64 方案 C 升级为双号三态
+    "function isKbId(", "/v1/kbbind", "kb === 1", "async function bindKbRow(",
+    "function kbRealOf(", "function kbClassOf(",
+    # v1.1.64 方案 C：handleList 三态分类 + 手动录真号
+    "const bound = tagged.filter(", "const odd = tagged.filter(",
+    "confirmedCount: confirmedCount", "/v1/admin/kbfix", "async function handleKbFix(",
+    # 保留：handleList 把 confirmed 补集整批回传 oddRows / oddCount
+    "oddCount: oddRows.length", "oddRows: oddRows",
+    # v1.1.65 方案 A：全员下线重绑（cfg.rebindAt 可逆，不写 rev: 免死锁）
+    "function rebindKicks(", "async function handleRebindAll(",
+    "async function handleRebindUndo(", "rebind:backup",
+    "rebindKicks(cfg.rebindAt, t1.exp)",
+    "/v1/admin/rebind-all", "/v1/admin/rebind-undo",
     # v1.1.9：cfg 解析失败不许把默认值缓存成事实
     "cfg 解析失败，本次不缓存",
     # v1.1.9：激活时的管理员口令也要定长比较

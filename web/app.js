@@ -499,10 +499,13 @@ function openSheet(b) {
   sheet.classList.add('on');
 }
 
-document.getElementById('sh-close').onclick = () =>
-  document.getElementById('sheet').classList.remove('on');
+/* v1.1.66 / m00638：关闭统一走 closeSheet()。原来这里只 remove('on')，
+ * 会把搬进 .sh-box 的账号绑定卡组留在半框里（隐藏但仍是 .sh-box 子级），
+ * 下一次课表详情 openSheet 打开半框时它就跟着一起显出来叠在详情下面。
+ * closeSheet 会 parkTools() 把卡搬回停车场并清掉 sh-body，才是干净收尾。 */
+document.getElementById('sh-close').onclick = () => closeSheet();
 document.getElementById('sheet').onclick = e => {
-  if (e.target.id === 'sheet') document.getElementById('sheet').classList.remove('on');
+  if (e.target.id === 'sheet') closeSheet();
 };
 
 /* 读取课表，优先级：
@@ -680,6 +683,31 @@ function fmtLeft(h) {
   return '还剩 ' + Math.floor(h / 24) + ' 天';
 }
 
+/** 一条条目该归哪一堆（v1.1.77）。
+ * 抽成纯函数是为了能被 tools/test_hwsort.js 直接钉住 —— 分桶错了会让人
+ * 看见「交不了的东西占满首屏」，而这种事只有真机才看得出来，测试必须能覆盖。
+ *    done      平台明确说做完了（去「已完成」视图）
+ *    expired   截止时间已过、又没判完成 → 单独一段折叠，不占「待完成」
+ *    notstart  还没开放（考试未开考 / 作业未开始）
+ *    todo      还能做 → 进「待完成」，按截止时间从近到远
+ *    unknown   状态没读到、也没过截止（宁可信其有，留在待完成侧）
+ * expired 优先于 notstart：一条「未开放」的作业如果截止都过了，那它已经废了。 */
+/* @testable:hwBucket */
+function hwBucket(x) {
+  if (!x) return 'unknown';
+  if (typeof isDoneStatus === 'function' && isDoneStatus(x.status)) return 'done';
+  /* expired 既认外部标志位，也自己按剩余时间算一遍：
+   * 别的地方（旧缓存回放、测试、别的调用点）不一定都填了这个字段，
+   * 而「left 是负数」本身就是过期，不需要谁来告诉我。 */
+  const passed = (x.expired === true)
+    || (x.left != null && x.left < 0);
+  if (passed) return 'expired';
+  if (x.notStart) return 'notstart';
+  if (x.open) return 'todo';
+  return 'unknown';
+}
+/* @end */
+
 /* ===== 学习页：作业与考试待办 =====
  *
  * 两种排法，用户自己选（存在 pref 里，下次进来还是这个排法）：
@@ -692,6 +720,8 @@ function fmtLeft(h) {
 
 const SORT_K = 'xxmu_sort';
 const FILT_K = 'xxmu_filter';
+const SRCF_K = 'xxmu_src_filter';   // v1.1.66：多平台来源筛选
+const DVIEW_K = 'xxmu_done_view';   // v1.1.66：待完成 / 已完成 视图切换
 const SORTS = ['urgent', 'course'];
 const FILTERS = ['all', 'work', 'exam'];
 
@@ -715,6 +745,19 @@ function curFilter() {
   const f = prefGet(FILT_K, 'all');
   return FILTERS.indexOf(f) >= 0 ? f : 'all';
 }
+/* v1.1.66：多平台来源筛选。返回 'all' 或某来源 id；SOURCES 不存在时恒为 all，
+ * 保证老版本行为一字不变。 */
+function curSrcFilter() {
+  if (typeof SOURCES === 'undefined') return 'all';
+  const s = prefGet(SRCF_K, 'all');
+  if (s === 'all') return 'all';
+  return SOURCES.get(s) ? s : 'all';
+}
+/* v1.1.66：待完成 / 已完成 视图。默认看待完成（老用户升级后行为一字不变），
+ * 存的值只认 'done'，别的（含没存过）一律落到 'todo'。 */
+function curDoneView() {
+  return prefGet(DVIEW_K, 'todo') === 'done' ? 'done' : 'todo';
+}
 
 function renderHomework() {
   /* 数据优先级：
@@ -723,15 +766,29 @@ function renderHomework() {
    *   3. 旧版留下的文件缓存
    *   4. 内置兜底（现在是空的）
    */
-  const live = (typeof CX !== 'undefined') ? CX.cached() : null;
+  /* v1.1.66：多来源聚合。SOURCES.live() 已把学习通（builtin）连同新平台
+   * 合并成单一 d，形状与旧 CX.cached() 完全一致；一个都没抓到时返回 null，
+   * 让下面原有优先级链继续往下走（外部 JSON → 旧缓存 → 内置兜底）。 */
+  const live = (typeof SOURCES !== 'undefined') ? SOURCES.live()
+    : ((typeof CX !== 'undefined') ? CX.cached() : null);
   /* 每次重画都重新读一遍来源，所以先把上一轮的读取错误清掉 ——
    * 否则修好之后那行「作业数据读不出来」会一直挂在页面上。 */
   READ_ERR.homework = '';
-  /* 学习通那份缓存的读取失败由 CX 自己记（见 chaoxing.js 的 cached()），
-   * 这里取回来 —— 不然「缓存坏了」和「没同步过」在界面上还是一模一样。 */
-  if (!live && typeof CX !== 'undefined' && CX.readErr) {
-    const ce = String(CX.readErr() || '');
-    if (ce) READ_ERR.homework = ce;
+  /* 各来源缓存的读取失败由各自 cached() 记（学习通见 chaoxing.js，
+   * 新平台见 sources.js 的 define），这里汇总回来 —— 不然「缓存坏了」
+   * 和「没同步过」在界面上还是一模一样。 */
+  if (!live) {
+    const errs = [];
+    if (typeof SOURCES !== 'undefined') {
+      SOURCES.list().forEach(s => {
+        try { const e = String(s.readErr ? s.readErr() : ''); if (e) errs.push(e); }
+        catch (err) {}
+      });
+    } else if (typeof CX !== 'undefined' && CX.readErr) {
+      const ce = String(CX.readErr() || '');
+      if (ce) errs.push(ce);
+    }
+    if (errs.length) READ_ERR.homework = errs.join('；');
   }
   const d = (window.__HW = readExternalHomework() || live || readCachedHomework()
     || window.HOMEWORK || { works: [] });
@@ -784,6 +841,11 @@ function renderHomework() {
       kind: 'work', raw: w, course: clean(w.course) || '未标注课程',
       name: w.name || '(未命名作业)', status: shown,
       open: w._open, notStart: k === 'notstart', left: left,
+      /* v1.1.77（m04098）：截止时间已经过去、又不算完成 → 单独归「已过截止」。
+       * 以前这类条目 open 仍是 true（"待做"就是没交，这是事实），于是
+       * 一股脑堆在「待完成」里，而且 left 是负数，越老的过期越负、
+       * 按紧急度排序时全跑到最上面 —— 待完成被一堆交不了的东西占满。 */
+      expired: (left != null && left < 0),
     });
   }
 
@@ -823,16 +885,27 @@ function renderHomework() {
       open: e._open, notStart: notStarted,
       left: due != null ? (due - now) / 3600 : null,
       leftStart: e._leftStart,
+      /* v1.1.77：结束时间已过、又没判完成 → 归「已过截止」，不占「待完成」。
+       * 判据是结束时间而不是状态：状态没读到也不能一直挂在待完成顶上。 */
+      expired: (due != null && due < now),
     });
   }
 
-  /* ---- 2. 顶部统计（不受筛选影响，永远是全量） ---- */
-  const openWorks = items.filter(x => x.kind === 'work' && x.open);
-  const openExams = items.filter(x => x.kind === 'exam' && x.open);
+  /* ---- 2. 顶部统计（不受筛选影响，永远是全量） ----
+   * v1.1.77：已过截止的不再算「待做」——交不了了，堆在待做里只会把数字撑大、
+   * 把真正还有时间的东西挤下去。单独数一份，够诚实也不误导。 */
+  const openWorks = items.filter(x => x.kind === 'work' && x.open && !x.expired);
+  const openExams = items.filter(x => x.kind === 'exam' && x.open && !x.expired);
+  const expWorks = items.filter(x => x.kind === 'work' && x.expired
+    && !isDoneStatus(x.status));
+  const expExams = items.filter(x => x.kind === 'exam' && x.expired
+    && !isDoneStatus(x.status));
+  const expN = expWorks.length + expExams.length;
 
   document.getElementById('hwcount').textContent =
     (openWorks.length ? openWorks.length + ' 条待做' : '作业全清') +
-    (openExams.length ? ' · ' + openExams.length + ' 场考试待考' : '');
+    (openExams.length ? ' · ' + openExams.length + ' 场考试待考' : '') +
+    (expN ? ' · ' + expN + ' 条已过截止' : '');
 
   const fmtTs = ts => ts ? new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }) : '未同步';
   const st = document.getElementById('hwStat');
@@ -841,8 +914,15 @@ function renderHomework() {
   if (hsa) hsa.textContent = fmtTs(d.synced_at);
   const src = document.getElementById('srcTag');
   if (src) {
-    const label = s => s === 'external' ? '外部JSON' : s === 'app' ? '教务同步' : '内置';
-    src.textContent = label(DATA._source) + '（课表） / ' + label(d._source) + '（作业）';
+    const label = s => s === 'external' ? '外部JSON' : s === 'app' ? '教务同步'
+      : s === 'multi' ? '多平台' : '内置';
+    /* v1.1.66：多平台时把「已并入几路」写出来，用户一眼知道数据不是单一来源。 */
+    let hwLabel = label(d._source);
+    if (d._source === 'multi' && Array.isArray(d.sources)) {
+      const okN = d.sources.filter(s => s && s.state === 'ok').length;
+      if (okN) hwLabel = '多平台 · ' + okN + ' 路';
+    }
+    src.textContent = label(DATA._source) + '（课表） / ' + hwLabel + '（作业）';
   }
 
   /* ---- 3. 筛选 ---- */
@@ -850,6 +930,12 @@ function renderHomework() {
   let pool = items;
   if (filt === 'work') pool = items.filter(x => x.kind === 'work');
   else if (filt === 'exam') pool = items.filter(x => x.kind === 'exam');
+  /* v1.1.66：来源筛选叠加在类型筛选之上。x.raw.source 由 SOURCES.tag 打上，
+   * 只有 ok 来源的数据才带；外部 JSON / 旧缓存没有 source，归到「全部」。 */
+  const sf = curSrcFilter();
+  if (sf !== 'all') {
+    pool = pool.filter(x => x.raw && (x.raw.source === sf || x.raw._src === sf));
+  }
 
   /* ---- 4. 排序 ---- */
   const byDue = (a, b) => {
@@ -883,17 +969,26 @@ function renderHomework() {
       return;
     }
     const cxOn = (typeof CX !== 'undefined') && CX.loggedIn();
+    /* v1.1.66：学习通没数据，也可能是「别的平台还没绑」。只要注册了新平台，
+     * 就顺手指一条路，别让人对着空白页以为只支持学习通。 */
+    const hasOther = (typeof SOURCES !== 'undefined')
+      && SOURCES.list().some(s => s && !s.builtin);
     if (!cxOn) {
       const tip = el('div', 'empty');
       tip.appendChild(el('b', '', '还没有作业数据'));
-      tip.appendChild(el('p', '', '学习通里登录一次，之后作业和考试会自动同步。'));
-      const b = el('button', 'btn', '登录学习通');
-      b.onclick = () => CxUI.login();
+      /* v1.1.66 / m00638：连接卡已收进二级半框，空态别再指「下方」，
+       * 改成直接把人送进「账号绑定」半框（学习通登录卡就在里面第一张）。 */
+      tip.appendChild(el('p', '',
+        '在「账号绑定」里登录学习通，作业和考试会自动同步。'
+        + (hasOther ? '\n喜鹊儿、雨课堂、知到也在同一个入口里绑定。' : '')));
+      const b = el('button', 'btn', '账号绑定');
+      b.onclick = () => openToolCard('bindCard');
       tip.appendChild(b);
       box.appendChild(tip);
     } else {
       box.appendChild(el('p', 'hint',
-        '学习通里没有待做的作业和考试。\n如果确实有，点上面的「刷新」重新抓一次。'));
+        '学习通里没有待做的作业和考试。\n如果确实有，点上面的「刷新」重新抓一次。'
+        + (hasOther ? '\n其他平台可在「账号绑定」里连接。' : '')));
     }
     return;
   }
@@ -905,6 +1000,35 @@ function renderHomework() {
 
   const sort = curSort();
 
+  /* v1.1.66：待完成 / 已完成 视图切换（点顶部 #doneSeg 换下面整块内容）。
+   * 「已完成」只平铺平台明确判 done 的条目（isDoneStatus），按截止时间倒序，
+   * 最近做完的在最前；状态没读到、未开考、还没到开考时间的一律留在「待完成」，
+   * 绝不冒充完成——这是本项目从 v1.1.5 起就没松过的红线。
+   * 切到「已完成」时不再套用按课程分组/底部折叠：回看做过什么就是要一眼看全。 */
+  const dview = curDoneView();
+  if (dview === 'done') {
+    const doneOnly = pool.filter(x => isDoneStatus(x.status))
+      .sort((a, b) => (b.left ?? -1e9) - (a.left ?? -1e9));
+    if (!doneOnly.length) {
+      box.appendChild(el('p', 'hint',
+        '还没有已完成的作业和考试。\n状态没读到的条目不算「已完成」，仍留在「待完成」里。'));
+      return;
+    }
+    box.appendChild(el('div', 'hwsec', '已完成 · ' + doneOnly.length));
+    const wrap = el('div');
+    doneOnly.forEach(x => wrap.appendChild(cardOf(x)));
+    box.appendChild(wrap);
+    return;
+  }
+  /* 待完成视图：把「明确已完成」的条目摘出去（它们去上面的「已完成」视图看），
+   * 状态没读到 / 未开考 / 还没做的都留下，保持老版本分组与折叠一字不变。 */
+  pool = pool.filter(x => !isDoneStatus(x.status));
+  if (!pool.length) {
+    box.appendChild(el('p', 'hint',
+      '待完成里暂时没有条目。\n做过的可以点上面的「已完成」回看。'));
+    return;
+  }
+
   if (sort === 'course') {
     /* 按课程分组：先按「这门课最紧急的一条」排课程顺序，组内再按截止时间。
      * 这样最该动手的课永远在最上面，而不是按拼音把「大学英语」排到最前。 */
@@ -914,8 +1038,13 @@ function renderHomework() {
       groups.get(x.course).push(x);
     });
     const order = Array.from(groups.keys()).sort((a, b) => {
-      const amin = Math.min.apply(null, groups.get(a).map(x => (x.left == null ? 1e9 : x.left)));
-      const bmin = Math.min.apply(null, groups.get(b).map(x => (x.left == null ? 1e9 : x.left)));
+      /* v1.1.77：只有「还能做的」才算紧急；整门课都过截止了，就沉到最后，
+       * 别拿负数剩余时间去抢最上面的位置。 */
+      const urg = g => groups.get(g)
+        .filter(x => !x.expired)
+        .map(x => (x.left == null ? 1e9 : x.left));
+      const amin = Math.min.apply(null, urg(a).concat([1e9]));
+      const bmin = Math.min.apply(null, urg(b).concat([1e9]));
       return amin - bmin;
     });
     order.forEach(course => {
@@ -923,22 +1052,27 @@ function renderHomework() {
        * 不能整体 byDue —— 已完成/已过期的 left 是负数或很小，会全跑到
        * 最上面去，看起来像「这门课的活都干完了」。 */
       const list = groups.get(course).slice().sort((a, b) => {
-        /* v1.1.28：待做排最前（先看到要动的），未开始其次，已完成沉底 */
-        const ra = x => x.open ? 0 : (x.notStart ? 1 : 2);
+        /* v1.1.28：待做排最前（先看到要动的），未开始其次，已完成沉底。
+         * v1.1.77：已过截止的插在「未开始」之后、已完成之前——它已经做不了，
+         * 但也不能跟已完成混在一起。 */
+        const ra = x => (x.open && !x.expired) ? 0 : (x.expired ? 1 : (x.notStart ? 2 : 3));
         if (ra(a) !== ra(b)) return ra(a) - ra(b);
         const av = a.left == null ? Infinity : a.left;
         const bv = b.left == null ? Infinity : b.left;
         return av - bv;
       });
-      const todo = list.filter(x => x.open).length;
-      const ns = list.filter(x => !x.open && x.notStart).length;
-      const unk = list.filter(x => !x.open && !x.notStart && !isDoneStatus(x.status)).length;
+      const todo = list.filter(x => x.open && !x.expired).length;
+      const exp = list.filter(x => x.expired).length;
+      const ns = list.filter(x => !x.open && !x.expired && x.notStart).length;
+      const unk = list.filter(x => !x.open && !x.expired && !x.notStart
+        && !isDoneStatus(x.status)).length;
       const head = el('div', 'grp-head', course);
       /* 组头也不能说「全部完成」而里面躺着状态没读到的条目——
        * 同样是「拿我们的解析失败冒充他的进度」。 */
       const parts = [];
-      if (ns) parts.push(ns + ' 项未开始');
       if (todo) parts.push(todo + ' 项未完成');
+      if (ns) parts.push(ns + ' 项未开始');
+      if (exp) parts.push(exp + ' 项已过截止');
       if (unk) parts.push('情况不明 ' + unk + ' 项');
       head.appendChild(el('span', '',
         parts.length ? parts.join(' · ') + ' · 共 ' + list.length : '全部完成 · 共 ' + list.length));
@@ -948,24 +1082,37 @@ function renderHomework() {
       box.appendChild(wrap);
     });
   } else {
-    /* 按紧急度：未完成的全在最前，收尾的折叠收起。
+    /* 按紧急度：能做的按截止时间从近到远排在「待完成」，已过截止的单独折叠。
      *
      * v1.1.5：收尾的那一堆拆成两段。以前不管状态读没读到，只要 not open
      * 就一律写「已完成 · N」——用户看到「内脏学」躺在「已完成」里，
      * 而他明明没交。读不到状态是**我们**的问题，不能拿它冒充事实。
      *   已完成   = 学习通明确说了做完了（已完成/已提交/待批阅…）
      *   状态未知 = 状态没读到，且已过截止时间（既不能算待做，也不能算做完）
-     */
+     *
+     * v1.1.77（m04098 原话「已过期的不显示在待完成里，这个按时间从近到远排序，
+     * 就是按紧急程度排序」）：已过截止的条目以前 open 仍为 true（"待做"是事实），
+     * 于是全堆进「待完成」，而 left 是负数、越老的过期越负，按 byDue 排就全跑到
+     * 最上面 —— 交不了的东西占满首屏，真正还有时间的被挤到看不见。
+     * 现在按截止是否过去先分成两堆，只有「还能做的」进待完成。 */
     /* v1.1.28：「未开始」组从最前挪到「待完成」之后——用户看着页面时，
      * 眼睛先要看到「现在就得做」的东西（待完成），「还没开放」的排后面，
      * 它反正做不了，放最前只会把真正紧急的往下挤。 */
-    const notstart = pool.filter(x => !x.open && x.notStart)
+    const notstart = pool.filter(x => hwBucket(x) === 'notstart')
       .sort(byDue);
-    const open = pool.filter(x => x.open).sort(byDue);
-    const closed = pool.filter(x => !x.open && !x.notStart);
-    const done = closed.filter(x => isDoneStatus(x.status))
+    const open = pool.filter(x => hwBucket(x) === 'todo').sort(byDue);
+    /* 已过截止：按「越接近现在越靠前」排（left 降序）。用 byDue 升序会把
+     * 最老的过期项顶到这段最上面——虽然都交不了了，但翻的时候第一眼该看到
+     * 的是刚过期那条，不是上学期九月的。 */
+    const expired = pool.filter(x => hwBucket(x) === 'expired')
       .sort((a, b) => (b.left ?? -1e9) - (a.left ?? -1e9));
-    const unknown = closed.filter(x => !isDoneStatus(x.status))
+    const closed = pool.filter(x => {
+      const b = hwBucket(x);
+      return b === 'done' || b === 'unknown';
+    });
+    const done = closed.filter(x => hwBucket(x) === 'done')
+      .sort((a, b) => (b.left ?? -1e9) - (a.left ?? -1e9));
+    const unknown = closed.filter(x => hwBucket(x) === 'unknown')
       .sort((a, b) => (b.left ?? -1e9) - (a.left ?? -1e9));
 
     if (open.length) {
@@ -973,6 +1120,9 @@ function renderHomework() {
       const wrap = el('div');
       open.forEach(x => wrap.appendChild(cardOf(x)));
       box.appendChild(wrap);
+    } else {
+      box.appendChild(el('p', 'hint',
+        '现在没有还要交的。\n已过截止的在下面，想回看可以展开。'));
     }
     if (notstart.length) {
       box.appendChild(el('div', 'hwsec', '未开始 · ' + notstart.length));
@@ -984,6 +1134,13 @@ function renderHomework() {
       const wrap = el('div');
       done.forEach(x => wrap.appendChild(cardOf(x)));
       box.appendChild(foldSec('已完成 · ' + done.length, wrap, false));
+    }
+    /* v1.1.77：已过截止单独一段、默认收起。文案只说「已过截止」，
+     * 不说「已完成」——他没交，是我们没资格替他结案。 */
+    if (expired.length) {
+      const wrap = el('div');
+      expired.forEach(x => wrap.appendChild(cardOf(x)));
+      box.appendChild(foldSec('已过截止 · ' + expired.length, wrap, false));
     }
     if (unknown.length) {
       const wrap = el('div');
@@ -1021,10 +1178,22 @@ function cardOf(x) {
   badge.style.color = color;
   badge.style.borderColor = color + '55';
   top.appendChild(badge);
+  /* v1.1.66：来源徽标。条目带了 source 才显示，旧缓存 / 外部 JSON 不带就不画，
+   * 免得把「不知道哪来的」硬说成某个平台。短名由 SOURCES.get() 提供；
+   * 经过 SOURCES.live() 合并的条目（含学习通「超星」）都会带来源，逐条可辨。 */
+  if (x.raw && (x.raw.source || x.raw._src) && typeof SOURCES !== 'undefined') {
+    const s = SOURCES.get(x.raw.source || x.raw._src);
+    if (s) top.appendChild(el('span', 'src-badge', s.short || s.label));
+  }
   main.appendChild(top);
 
+  /* v1.1.73：考试卡片的标题已经是课程名，副行再写一遍课程名等于重复
+   * （真机 m03292：标题两行、副行又「考试 · 高等数学B1 5.0」）。副行改用
+   * 轮次——「期中考试」比课程名有信息量；没有轮次才退回课程名。
+   * 前缀 '考试 · ' 保留：nova-organs.js 分面靠它认考试。 */
+  const examRound = String((x.kind === 'exam' && x.raw && x.raw.round) || '').trim();
   main.appendChild(el('span', 'hwcourse',
-    (x.kind === 'exam' ? '考试 · ' : '') + x.course));
+    (x.kind === 'exam' ? '考试 · ' + (examRound || x.course) : x.course)));
 
   const meta = el('div', 'hwmeta');
   if (x.open) {
@@ -1055,9 +1224,14 @@ function cardOf(x) {
   if (x.kind === 'exam' && x.raw.score) {
     meta.appendChild(el('span', 'hwleft', x.raw.score + ' 分'));
   }
+  /* v1.1.72：时间两栏都空时不再印「— ~ —」那种像坏掉的占位，
+   * 直接说「时间未读到」，让人知道是没解析出来、不是考试没时间。 */
+  const examWhen = (x.raw.start || x.raw.end)
+    ? (x.raw.start || '—') + ' ~ ' + (x.raw.end || '—')
+    : '时间未读到';
   meta.appendChild(el('span', 'hwdate',
     x.kind === 'exam'
-      ? (x.raw.start || '—') + ' ~ ' + (x.raw.end || '—')
+      ? examWhen
       : '截止 ' + (x.raw.end || '—')));
   main.appendChild(meta);
   it.appendChild(main);
@@ -1071,6 +1245,30 @@ function cardOf(x) {
 
 /* 排序与筛选的 UI 绑定 */
 function initLearnUI() {
+  /* v1.1.66：待完成 / 已完成 视图切换。点一下换整块列表，存进 Host 偏好里；
+   * 切换后把滚动拉回顶部，否则会停在半截列表里。语义红线由 renderHomework
+   * 兜住（状态没读到的不算完成），这里只管换视图。 */
+  const dseg = document.getElementById('doneSeg');
+  if (dseg) {
+    const paint = () => {
+      const v = curDoneView();
+      dseg.querySelectorAll('button').forEach(b => {
+        b.classList.toggle('on', b.dataset.dview === v);
+      });
+    };
+    dseg.querySelectorAll('button').forEach(b => {
+      b.onclick = () => {
+        if (b.dataset.dview === curDoneView()) return;
+        prefSet(DVIEW_K, b.dataset.dview);
+        paint();
+        renderHomework();
+        const m = document.querySelector('main');
+        if (m) m.scrollTop = 0;
+      };
+    });
+    paint();
+  }
+
   const seg = document.getElementById('sortSeg');
   if (seg) {
     const paint = () => {
@@ -1181,6 +1379,9 @@ const CxUI = (() => {
         return;
       }
       renderHomework();
+      /* v1.1.66：学习通是「多平台」里的第 0 路，它的数据一变，连接卡上的
+       * 状态字/条数也得跟着变，否则「全部」筛选里数字对不上。只在成功分支画。 */
+      if (typeof SrcUI !== 'undefined' && SrcUI.paint) SrcUI.paint();
       if (!silent) {
         XXMU.toast('学习通同步完成：' + r.data.works.length + ' 条作业 / '
           + r.data.exams.length + ' 场考试');
@@ -1213,6 +1414,409 @@ const CxUI = (() => {
   return { init, paint, login, sync };
 })();
 
+/* ===== 多平台来源连接卡（v1.1.66） =====
+ *
+ * 为什么单独一个 UI 模块：学习通那张卡（cxCard）是静态 DOM + CxUI 硬绑死的
+ * 三个按钮；新平台是「按注册来源动态生成」的，数量、登录入口、状态都不同。
+ * 这里只读 SOURCES.status() 渲染 #srcCards / #srcChips，事件用一张委托表挂在
+ * #srcCards 上，卡片重画不会丢监听。所有动作都转发给 SOURCES，自己不碰网络、
+ * 不碰缓存 —— 与 sources.js 的「聚合器只管合并」分工对齐。
+ *
+ * 诚实口径：degraded / stale 的来源不贡献任何条目（sources.js 的 live() 已
+ * 保证），连接卡上也只写清「暂不可用 / 需重新登录 + 原因」，绝不显示 0 条
+ * 冒充「这平台没作业」。 */
+const SrcUI = (() => {
+  const $ = id => document.getElementById(id);
+  const busy = {};                       // 按来源 id 记，避免重复点刷新
+
+  function fmtAt(ts) {
+    if (!ts) return '--';
+    return new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false });
+  }
+
+  /* 状态 → 卡片右上角那行字 + 颜色类。
+   * ok=绿，其余=橙（nologin/idle 也带 warn，见 ui-css 的默认橙口径）。 */
+  function stateText(s) {
+    switch (s.state) {
+      case 'ok': return { txt: '已同步 ' + s.count + ' 条', cls: 'ok' };
+      case 'stale': return { txt: '需重新登录', cls: 'warn' };
+      case 'degraded': return { txt: '暂不可用', cls: 'warn' };
+      case 'nologin': return { txt: '未登录', cls: 'warn' };
+      default: return { txt: '已绑定，未刷新', cls: 'warn' };   // idle
+    }
+  }
+
+  /* 一张来源卡片。data-src 供委托表定位；data-role 那几个节点被 ui-css 的
+   * .src-state / [data-role="note"] 选中。 */
+  function cardNode(s) {
+    const wrap = el('div', 'card src-card');
+    wrap.setAttribute('data-src', s.id);
+
+    const head = el('div', 'row');
+    head.appendChild(el('span', '', s.label));
+    const stx = stateText(s);
+    const st = el('span', 'v src-state ' + stx.cls, stx.txt);
+    st.setAttribute('data-role', 'state');
+    head.appendChild(st);
+    wrap.appendChild(head);
+
+    /* 上次成功同步时间：只对真的抓到过数据的来源显示。 */
+    const atRow = el('div', 'row');
+    atRow.setAttribute('data-role', 'atRow');
+    atRow.style.display = (s.state === 'ok' && s.synced_at) ? 'flex' : 'none';
+    atRow.appendChild(el('span', '', '上次同步'));
+    const at = el('span', 'v dim', fmtAt(s.synced_at));
+    at.setAttribute('data-role', 'at');
+    atRow.appendChild(at);
+    wrap.appendChild(atRow);
+
+    /* 说明文字：降级/失效时把原因原样写出来，这是「诚实降级」的落点。
+     * 正常态给一句能力边界；四个新平台都强调只读、登录态在这台手机。 */
+    const note = el('p', 'hint tight');
+    note.setAttribute('data-role', 'note');
+    if (s.state === 'degraded' || s.state === 'stale') {
+      note.textContent = s.error || '暂未读到数据，请到官方 App / 网页查看。';
+    } else {
+      const kind = s.kinds && s.kinds.indexOf('exam') >= 0 && s.kinds.indexOf('work') < 0
+        ? '考试安排' : '作业与考试';
+      note.textContent = '只读接入' + kind + '，不会替你交作业、不会点开考试。登录态只存在这台手机上。';
+    }
+    wrap.appendChild(note);
+
+    /* v1.1.71（方案 C）：主按钮是「自动同步一次」——双探记住报表地址后
+     * 像课表一样全自动；剪贴板 / 粘贴留作兜底，界面不撒谎。 */
+    if (s.id === 'xiqueer') {
+      const hint2 = el('p', 'hint tight');
+      hint2.textContent = '点「自动同步一次」，进教务「课程考试 → 考试安排表」选好学年学期按「检索」（或点「导出」）让表出来，再按右上角「完成」；程序记住那条地址后就像课表一样全自动刷新，不用再复制。学校把地址挡了才用「从剪贴板导入」或粘贴兜底。';
+      wrap.appendChild(hint2);
+      const bProbe = el('button', 'btn', '自动同步一次');
+      bProbe.setAttribute('data-act', 'probe');
+      wrap.appendChild(bProbe);
+      const bClip = el('button', 'btn soft', '从剪贴板导入（兜底）');
+      bClip.setAttribute('data-act', 'paste');
+      wrap.appendChild(bClip);
+      const bFind = el('button', 'btn ghost', '打开教务网');
+      bFind.setAttribute('data-act', 'find');
+      wrap.appendChild(bFind);
+      const ta = el('textarea', 'src-paste');
+      ta.setAttribute('placeholder', '把考试安排表的文字粘贴到这里；没认出时读回的原文会摊进这个框，可改后再导入');
+      /* v1.1.69：paint() 重建卡片后，把上次「没认出」读回的原文带回来。 */
+      let lastRaw = '';
+      try { lastRaw = (window.XQ && XQ.lastRaw) ? String(XQ.lastRaw() || '') : ''; }
+      catch (e) { lastRaw = ''; }
+      ta.value = lastRaw.slice(0, 20000);
+      ta.setAttribute('rows', lastRaw ? '5' : '3');
+      wrap.appendChild(ta);
+      const bImport = el('button', 'btn soft', '导入这段');
+      bImport.setAttribute('data-act', 'import');
+      wrap.appendChild(bImport);
+    }
+
+    /* v1.1.75：雨课堂四个区域会话互不通用，必须让用户点一下选对自家那套
+     * （YG m03730「我用的是长江雨课堂，不是这个雨课堂」）。默认长江，
+     * 选过就记在 pref 里；切区等于换了套账号，要重新扫码。 */
+    if (s.id === 'yuketang' && window.YKT && YKT.regions) {
+      const cur = YKT.region();
+      const rRow = el('div', 'ykt-region');
+      rRow.setAttribute('data-role', 'region');
+      rRow.appendChild(el('span', 'ykt-region-label', '区域'));
+      (YKT.regions() || []).forEach(function (r) {
+        const b = el('button', (r.id === cur ? 'on' : '') + ' ykt-r', r.name);
+        b.setAttribute('data-act', 'region');
+        b.setAttribute('data-region', r.id);
+        rRow.appendChild(b);
+      });
+      wrap.appendChild(rRow);
+      const rHint = el('p', 'hint tight');
+      rHint.textContent = '用哪套就选哪个（本校一般是「长江」）。换区等于换一套账号，'
+        + '要重新扫码；换完先点「登录 / 绑定雨课堂」。';
+      wrap.appendChild(rHint);
+    }
+
+    /* v1.1.78 起：知到两条接入主线做成可切探针（方案 C）。A 读官方作业页 DOM、
+     * B 直连只读接口。v1.1.80 真机 B 诊断坐实接口链路活，默认切到 B（接口直连）
+     * 作主线，A 留作兜底；换模式清旧快照逼一次重抓。用现成的
+     * .ykt-region / .ykt-r 类名，不新增 CSS。 */
+    if (s.id === 'zhihuishu' && window.ZHS && ZHS.mode) {
+      const cur = ZHS.mode();
+      const mRow = el('div', 'ykt-region');
+      mRow.setAttribute('data-role', 'zhs-mode');
+      mRow.appendChild(el('span', 'ykt-region-label', '接入'));
+      ['B', 'A'].forEach(function (m) {
+        const b = el('button', (m === cur ? 'on ' : '') + 'ykt-r', ZHS.modeName(m));
+        b.setAttribute('data-act', 'zhsmode');
+        b.setAttribute('data-mode', m);
+        mRow.appendChild(b);
+      });
+      wrap.appendChild(mRow);
+      const mHint = el('p', 'hint tight');
+      mHint.textContent = '默认「接口直连」：先点「登录 / 重新登录知到」，用学校账号或扫码'
+        + '登进去后，点右上角「完成」再回来，点「重新抓一次」就能读作业考试清单，'
+        + '不用另外打开网页。若这学期课程/接口读不到，再切「读作业页」兜底：'
+        + '点「打开知到作业页」看到清单回来重抓一次。两条都只读取清单，不会替你交作业。';
+      wrap.appendChild(mHint);
+      const bOpen = el('button', 'btn soft', '打开知到作业页');
+      bOpen.setAttribute('data-act', 'zhsopen');
+      wrap.appendChild(bOpen);
+    }
+
+    /* v1.1.67：登录按钮不再只在 nologin/stale 出现。喜鹊这类「有真实登录
+     * 入口、但自动定位考试页失败」的来源是 degraded，之前 degraded 把登录
+     * 按钮藏了，用户想重新登录教务都没地方点（m01034「喜鹊还是没用」）。
+     * 放宽到「只要不是 ok 且有登录入口」都给按钮。v1.1.78 起知到也接了
+     * 真实登录入口，文案按来源分流：喜鹊复用教务、雨课堂扫码、知到自有账号。 */
+    const bLogin = el('button', 'btn',
+      s.id === 'zhihuishu' ? '登录 / 重新登录知到'
+        : (s.id === 'yuketang' ? '登录 / 绑定雨课堂' : '登录 / 重新登录教务'));
+    bLogin.setAttribute('data-act', 'login');
+    bLogin.style.display = (s.hasLogin && s.state !== 'ok') ? 'block' : 'none';
+
+    const bSync = el('button', 'btn soft', '重新抓一次');
+    bSync.setAttribute('data-act', 'sync');
+    bSync.style.display = (s.state === 'ok' || s.state === 'idle'
+      || s.state === 'degraded') ? 'block' : 'none';
+    if (busy[s.id]) { bSync.disabled = true; bSync.textContent = '抓取中…'; }
+
+    /* v1.1.67：动态发现考试页没命中时，给一条「复制诊断」的路。诊断里记了
+     * 抓过哪些教务菜单页、每页多大、挖到哪些 jsp 链接、每个候选为什么不算
+     * 考试表——用户复制发回来，下一版就能钉死真地址，不用再硬猜。只对有
+     * 登录入口且降级/失效的来源显示（v1.1.78 起知到的双探针诊断也走这里）。 */
+    const bDiag = el('button', 'btn ghost', '复制诊断');
+    bDiag.setAttribute('data-act', 'diag');
+    bDiag.style.display = (s.hasLogin && (s.state === 'degraded' || s.state === 'stale'))
+      ? 'block' : 'none';
+
+    /* v1.1.68：喜鹊的「断开」不能真的清教务 Cookie（那会连课表一起登出），
+     * 只清掉导入的考试安排，所以换个不会误导的文案。 */
+    const bOut = el('button', 'btn ghost',
+      s.id === 'xiqueer' ? '清掉考试与自动地址' : '断开' + s.short);
+    bOut.setAttribute('data-act', 'out');
+    bOut.style.display = (s.id === 'xiqueer')
+      ? (window.XQ && XQ.has() ? 'block' : 'none')
+      : (s.loggedIn ? 'block' : 'none');
+    /* v1.1.66 / m00638：按钮各自作为 wrap 的兄弟节点纵向堆叠，不再塞进
+     * 同一个 .row。为什么：.btn 是 width:100%，多个挤进 display:flex 的 .row
+     * 会按 min-content 把整张 .card 撑过 390px 视口（首轮两档实拍都复现）。 */
+    wrap.appendChild(bLogin);
+    wrap.appendChild(bSync);
+    wrap.appendChild(bDiag);
+    wrap.appendChild(bOut);
+
+    return wrap;
+  }
+
+  /* 来源筛选 chips：全部 + 每个已注册来源（学习通也列，short=超星）。
+   * 选中类沿用项目既有 .on，ui-css 只补了个 #srcChips 上边距。 */
+  function paintChips() {
+    const box = $('srcChips');
+    if (!box || typeof SOURCES === 'undefined') return;
+    box.innerHTML = '';
+    const cur = curSrcFilter();
+    const mk = (id, label) => {
+      const b = el('button', cur === id ? 'on' : '', label);
+      b.setAttribute('data-srcf', id);
+      b.onclick = () => {
+        if (id === curSrcFilter()) return;
+        prefSet(SRCF_K, id);
+        paintChips();
+        renderHomework();
+      };
+      box.appendChild(b);
+    };
+    mk('all', '全部');
+    SOURCES.list().forEach(s => mk(s.id, s.short || s.label));
+  }
+
+  function paint() {
+    if (typeof SOURCES === 'undefined') return;
+    const cards = $('srcCards');
+    if (cards) {
+      cards.innerHTML = '';
+      /* 内置学习通已有 cxCard 单独一张，这里只画其余来源，避免两张重复卡。 */
+      SOURCES.status().forEach(s => {
+        if (s.builtin) return;
+        cards.appendChild(cardNode(s));
+      });
+    }
+    paintChips();
+  }
+
+  function sync(id, silent) {
+    if (busy[id] || typeof SOURCES === 'undefined') return;
+    const s = SOURCES.get(id);
+    if (!s) return;
+    /* 不做「未登录就转去登录」的前置拦截：每个适配器自己的 fetch 都会
+     * 诚实返回 stale/degraded 并写清原因，刷新本身就是一次验真探针。
+     * 真要登录，用户点卡片上的「登录/绑定」按钮（按 hasLogin 显隐）。 */
+    busy[id] = true;
+    paint();
+    SOURCES.refresh(id, () => {}).then(r => {
+      busy[id] = false;
+      paint();
+      renderHomework();
+      if (!silent && typeof XXMU !== 'undefined' && XXMU.toast) {
+        if (r && r.state === 'ok') {
+          XXMU.toast((SOURCES.get(id).label || '该平台') + '同步完成');
+        } else if (r && r.error) {
+          showTip((SOURCES.get(id).label || '该平台') + '暂不可用\n\n' + r.error);
+        }
+      }
+    }).catch(e => {
+      busy[id] = false;
+      paint();
+      if (!silent) showTip('抓取出错\n\n' + ((e && e.message) || e));
+    });
+  }
+
+  function init() {
+    const cards = $('srcCards');
+    if (!cards || typeof SOURCES === 'undefined') return;
+    /* 一张委托表覆盖所有卡片的三个动作，卡片重画后依然生效。 */
+    cards.onclick = async ev => {
+      let btn = ev.target;
+      while (btn && btn !== cards && !btn.getAttribute('data-act')) btn = btn.parentNode;
+      if (!btn || btn === cards || btn.disabled) return;
+      const cardHost = btn.closest ? btn.closest('[data-src]') : null;
+      const id = cardHost ? cardHost.getAttribute('data-src') : null;
+      if (!id) return;
+      const act = btn.getAttribute('data-act');
+      if (act === 'region') {
+        /* v1.1.75：换区域 = 换一套账号。切完把这家来源的缓存与登录标记清掉，
+         * 界面立刻回到「未登录」，逼人重新扫码，绝不让旧区的数据继续显示。 */
+        const rid = btn.getAttribute('data-region');
+        if (!window.YKT || !YKT.setRegion) return;
+        if (!YKT.setRegion(rid)) return;
+        try {
+          if (typeof Host !== 'undefined' && Host.setPref) {
+            Host.setPref('xxmu_ykt_todo', '');
+            Host.setPref('xxmu_ykt_todo__bound', '');
+          }
+        } catch (e) {}
+        paint();
+        renderHomework();
+        const nm = YKT.regionName ? YKT.regionName() : rid;
+        if (typeof XXMU !== 'undefined' && XXMU.toast) {
+          XXMU.toast('已切到「' + nm + '」雨课堂，先点登录扫码');
+        }
+        return;
+      }
+      if (act === 'zhsmode') {
+        /* v1.1.78：切知到接入探针（A 读页 / B 直连）。换模式清旧快照，
+         * 立刻重画并静默重抓一次，让用户看到新模式的诊断。 */
+        if (!window.ZHS || !ZHS.setMode) return;
+        const m = btn.getAttribute('data-mode');
+        if (!ZHS.setMode(m)) return;
+        paint();
+        renderHomework();
+        if (typeof XXMU !== 'undefined' && XXMU.toast) {
+          XXMU.toast('已切到「' + ZHS.modeName(m) + '」，正在重新抓一次');
+        }
+        sync(id, true);
+        return;
+      }
+      if (act === 'zhsopen') {
+        /* v1.1.78：打开官方作业考试页（真实 WebView），看到清单后按返回，
+         * WebActivity 的 FIND_JS 回跳把页面结构存进快照。 */
+        if (window.ZHS && ZHS.openA) ZHS.openA();
+        return;
+      }
+      if (act === 'probe') {
+        /* v1.1.71：开双探视图，人按一次检索/导出 + 完成，程序记住报表地址。
+         * 之后 SrcUI.sync → SOURCES.refresh → fetchExams 全自动重放，零复制。 */
+        if (window.XQ && XQ.probe) XQ.probe();
+        else if (window.XQ && XQ.find) XQ.find();
+      } else if (act === 'paste') {
+        /* v1.1.70：从系统剪贴板读考试表文字 → 解析 → 一步导入。
+         * 认不出时把原文摊进框（XQ 已写 RAW_KEY），人能看见、改一改再导入。 */
+        if (!window.XQ) return;
+        const r = XQ.importClip ? XQ.importClip() : { count: 0, error: '这个版本还没有剪贴板导入。' };
+        const ta0 = cardHost && cardHost.querySelector
+          ? cardHost.querySelector('textarea.src-paste') : null;
+        if (r && r.raw && ta0) { ta0.value = r.raw; ta0.setAttribute('rows', '5'); }
+        if (!r || !r.count) { showTip((r && r.error) || '剪贴板里没认出考试条目。'); return; }
+        paint();
+        renderHomework();
+        if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('已从剪贴板导入 ' + r.count + ' 场考试');
+        sync(id, true);
+      } else if (act === 'find') {
+        /* v1.1.70：只把教务门户打开，方便人在页面里长按复制考试表；
+         * 不再承诺按「完成」自动读页（四轮真机都被业务页防直链挡住）。 */
+        if (window.XQ) XQ.find();
+      } else if (act === 'import') {
+        /* v1.1.68：粘贴兜底。用户把喜鹊儿考试安排那页文字粘进卡里的框，
+         * 同一个解析器认；认不出就说实话，绝不落一份空快照冒充同步成功。 */
+        if (!window.XQ) return;
+        const ta = cardHost && cardHost.querySelector
+          ? cardHost.querySelector('textarea.src-paste') : null;
+        const txt = ta ? String(ta.value || '') : '';
+        if (!txt.trim()) {
+          showTip('先把喜鹊儿「考试安排」那页的文字粘贴到框里，再点「导入这段」。');
+          return;
+        }
+        const r = XQ.importText(txt);
+        if (!r.count) { showTip(r.error || '没认出考试条目。'); return; }
+        paint();
+        renderHomework();
+        if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('已导入 ' + r.count + ' 场考试');
+        /* v1.1.68：快照落盘后必须重建聚合缓存，否则 live() 读的还是旧的降级态，
+         * 用户会看到「导入成功」但待办里空空如也。silent=true，上面已 toast 过。 */
+        sync(id, true);
+      } else if (act === 'login') {
+        SOURCES.openLogin(id);
+      } else if (act === 'sync') {
+        sync(id, false);
+      } else if (act === 'diag') {
+        /* v1.1.67：喜鹊没定位到考试页时，把这次翻过哪些教务页、挖到哪些
+         * 链接、每个候选为何不算考试表复制出来发群里，下一版直接钉死真地址。
+         * 复制走 Host.clip（WebView 里最可靠），失败再退到可长按的提示框，
+         * 不依赖 AdminUI 里那个私有的 copyText，也不谎报「已复制」。 */
+        const txt = SOURCES.diag(id) || '这次还没抓过：先点「重新抓一次」，再回来复制诊断。';
+        const done = () => {
+          if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('诊断已复制，发到群里就能定位');
+        };
+        try {
+          if (typeof Host !== 'undefined' && Host.clip) { Host.clip(txt); done(); return; }
+        } catch (e) {}
+        try {
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(txt).then(done,
+              () => showTip('诊断（长按复制）\n\n' + txt));
+            return;
+          }
+        } catch (e) {}
+        showTip('诊断（长按复制）\n\n' + txt);
+      } else if (act === 'out') {
+        const s = SOURCES.get(id);
+        /* v1.1.68：喜鹊只清导入快照 + 刷一遍让来源缓存回到诚实降级，
+         * 绝不调 SOURCES.logout —— 那会 clearCookieFor(教务) 把课表一起登出。 */
+        const isXq = (id === 'xiqueer' && window.XQ);
+        if (!await askConfirm(isXq
+          ? '清掉已经读到的考试和记住的自动地址？教务登录不会受影响。'
+          : '断开' + (s ? s.label : '该平台') + '？下次要看数据需要重新登录。',
+          { danger: !isXq })) return;
+        if (isXq) {
+          XQ.clear();
+          paint();
+          renderHomework();
+          SOURCES.refresh('xiqueer', function () {}).then(function () {
+            paint(); renderHomework();
+          });
+          if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('已清掉导入的考试安排');
+          return;
+        }
+        SOURCES.logout(id);
+        paint();
+        renderHomework();
+        if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('已断开' + (s ? s.label : ''));
+      }
+    };
+    paint();
+  }
+
+  return { init, paint, sync, paintChips };
+})();
+window.SrcUI = SrcUI;
+
 /* 学习通登录成功：立刻抓一次 */
 window.__onCxLoggedIn = function () {
   CxUI.paint();
@@ -1242,7 +1846,21 @@ function openExamSheet(e) {
   document.getElementById('sh-name').textContent = e.name || '考试详情';
   const body = document.getElementById('sh-body');
   body.innerHTML = '';
-  const stTxtE = String(e.status || '').trim() || '未读到（学习通页面里没找到状态位）';
+  /* v1.1.72：状态文案要按来源说。之前不管哪来的考试都写「学习通页面里没找到
+   * 状态位」，喜鹊导入的也这么写，等于指着教务说学习通，人一眼就觉得坏了。 */
+  const examSrcName = (() => {
+    const id = e.source || e._src || '';
+    try {
+      if (id && typeof SOURCES !== 'undefined' && SOURCES.get) {
+        const s = SOURCES.get(id);
+        if (s) return s.short || s.label || '';
+      }
+    } catch (err) {}
+    return id === 'xiqueer' ? '喜鹊' : '';
+  })();
+  const stTxtE = String(e.status || '').trim()
+    || ('未读到' + (examSrcName ? '（' + examSrcName + '页面里没有状态这一列）'
+      : '（学习通页面里没找到状态位）'));
   [['课程', e.course || '—'],
    ['开始', e.start || '—'],
    ['结束', e.end || '—'],
@@ -1250,6 +1868,17 @@ function openExamSheet(e) {
     const r = el('div', 'row');
     r.appendChild(el('span', '', k));
     r.appendChild(el('span', 'v', v));
+    body.appendChild(r);
+  });
+  /* v1.1.68：喜鹊导入的考试带考场 / 学分 / 轮次等卡片式字段，详情里一并显示；
+   * 没有的字段整行不画，不用「—」占位冒充读到了。 */
+  [['考场', e.place], ['学分', e.credit], ['轮次', e.round],
+   ['考试性质', e.nature], ['座位号', e.seat]].forEach(([k, v]) => {
+    const t = String(v == null ? '' : v).trim();
+    if (!t) return;
+    const r = el('div', 'row');
+    r.appendChild(el('span', '', k));
+    r.appendChild(el('span', 'v', t));
     body.appendChild(r);
   });
   if (e.score) {
@@ -2104,12 +2733,21 @@ function openToolCard(id) {
   TOOL_PARK.card = card;
   card.style.display = '';
   box.appendChild(card);
-  const name = id === 'myTodoCard' ? '我的待办' : '专注计时';
+  /* v1.1.66 / m00638：标题按 id 查表，别再写死「二选一」。加了 bindCard
+   * 这张「账号绑定」卡组后三元式会把它也叫成「专注计时」。 */
+  const NAMES = { myTodoCard: '我的待办', focusCard: '专注计时', bindCard: '账号绑定' };
   const nm = document.getElementById('sh-name');
-  if (nm) nm.textContent = name;
+  if (nm) nm.textContent = NAMES[id] || '';
   sheet.classList.add('on');
   if (id === 'myTodoCard' && typeof MYTODO !== 'undefined') MYTODO.render();
   if (id === 'focusCard' && typeof FOCUS !== 'undefined') FOCUS.paint();
+  /* 卡组搬进半框后才刷新两张连接卡：CxUI 按 id 找静态节点、SrcUI 往
+   * #srcCards 里画动态卡，节点被「搬」不丢绑定，paint 一次把最新状态/
+   * 时间/降级原因填进去，避免用户看到搬进来之前的旧文案。 */
+  if (id === 'bindCard') {
+    if (typeof CxUI !== 'undefined') CxUI.paint();
+    if (typeof SrcUI !== 'undefined') SrcUI.paint();
+  }
 }
 
 /* 顶部小按钮的状态字：待办条数 + 计时当前值 */
@@ -2291,9 +2929,14 @@ const APKDL = (() => {
 const AdminUI = (() => {
   const K_KEY = 'xxmu_admin_key';
   const PANES = ['grant', 'list', 'dev', 'ver', 'rev', 'notice', 'log'];
-  let LIST = [];          // 服务端名单缓存
+  let LIST = [];          // 服务端名单缓存（已确认真号，对应 confirmed 行）
+  let ODD = [];           // 校准·异常名单（pending 待补录 / conflict 冲突）
+  let LIST_TAB = 'normal';// 名单卡二级菜单：normal=正常名单 / cal=校准·异常
   let FILTER = 'all';
   let FIND = '';
+  /* v1.1.64 方案 C：只看已确认开关。默认关=主列表把待补录的行也灰度带出来，
+   * 开=主列表只显 confirmed；校准里始终能看见 pending / conflict。 */
+  let ONLY_CONFIRMED = false;
   /* 刚选中的安装包：{name, size, path}。path 是 Java 侧私有目录里的绝对路径，
    * 字节从不经过 JS —— 见 MainActivity.Host.pickApk 的注释。 */
   let PICKED = null;
@@ -2525,12 +3168,22 @@ const AdminUI = (() => {
       }
       statMsg('', false);
       LIST = res.rows || [];
+      ODD = res.oddRows || [];
       const g = LIST.filter(r => !r.revoked).length;
       const rv = LIST.length - g;
       if ($('admStatGranted')) $('admStatGranted').textContent = String(g);
       if ($('admStatRevoked')) $('admStatRevoked').textContent = String(rv);
       if ($('admListCnt')) $('admListCnt').textContent = LIST.length + ' 人';
+      /* v1.1.63 校准：正常 / 异常分开计数（用户原话「计数也分开计数」）。
+       * 卡头只数正常号；两个二级菜单各自带自己的计数；「已隐去 N」保留原提示
+       * 口径并指去「校准 · 异常」，异常明细在 renderOdd() 单独成表。 */
+      if ($('admNormalCnt')) $('admNormalCnt').textContent = LIST.length + ' 人';
+      const oddN = (res.oddCount != null ? res.oddCount : ODD.length);
+      if ($('admOddCnt')) $('admOddCnt').textContent = oddN + ' 个';
+      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未绑定号码，见「校准 · 异常」') : '';
+      renderKbSummary(res);
       renderList();
+      renderOdd();
     }, e => {
       if ($('admStatGranted')) $('admStatGranted').textContent = '--';
       if ($('admStatRevoked')) $('admStatRevoked').textContent = '--';
@@ -2569,6 +3222,14 @@ const AdminUI = (() => {
     const box = $('admList');
     if (!box) return;
     let rows = LIST.slice().sort(listNewFirst);
+    /* v1.1.64 方案 C：默认把「待补录」的手填行也灰度带进主列表，
+     * 上面粗的是进门填的号，下面细的小字写教务网状态；勾了「只看已确认」
+     * 就只剩服务端 confirmed 的行。conflict（脏数据/真号撞车）只进校准。 */
+    if (!ONLY_CONFIRMED) {
+      const pending = ODD.filter(r => r.reason === 'pending')
+        .map(r => Object.assign({}, r, { _pending: true }));
+      rows = rows.concat(pending).sort(listNewFirst);
+    }
     if (FILTER === 'granted') rows = rows.filter(r => !r.revoked);
     if (FILTER === 'revoked') rows = rows.filter(r => r.revoked);
     if (FIND) rows = rows.filter(r => r.id.indexOf(FIND) >= 0);
@@ -2583,19 +3244,25 @@ const AdminUI = (() => {
     const keepTop = box.scrollTop;
     box.innerHTML = '';
     if (!rows.length) {
-      box.appendChild(el('p', 'hint', LIST.length ? '没有符合条件的学号。' : '还没有人用过。名单会在有人进入后自动出现。'));
+      box.appendChild(el('p', 'hint', LIST.length ? '没有符合条件的学号。' : '还没有人通过教务网绑定，乱填的学号不会进名单。'));
       return;
     }
     rows.forEach(r => {
-      const row = el('div', 'adm-item');
+      const row = el('div', 'adm-item' + (r._pending ? ' is-pending' : ''));
       const idWrap = el('div', 'adm-id-wrap');
       idWrap.appendChild(el('span', 'adm-id', r.id));
+      /* v1.1.64：下面细的小字 = 教务网登录读回的真号（用户原话「下面细的小字
+       * 是绑定教务网，确认是教务网登录所抓取到的学号」）；没抓到就写待补录。 */
+      idWrap.appendChild(el('span', 'adm-kbline',
+        r._pending ? '教务网：待补录' : ('教务网 ' + (r.kb || '') + ' · 已确认')));
       const when = fmtAt(r.at);
       if (when) idWrap.appendChild(el('span', 'adm-at', when));
       else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
       row.appendChild(idWrap);
       const tags = el('span', 'adm-tags');
       tags.appendChild(el('span', r.revoked ? 'adm-bad' : 'adm-ok', r.revoked ? '已停用' : '正常'));
+      /* v1.1.64：只有已确认行才挂「教务已绑定」；待补录靠灰度 + 细行说明 */
+      if (!r._pending) tags.appendChild(el('span', 'adm-kb', '教务已绑定'));
       /* 形状异常的号只标出来，说明为什么它跟别人不一样，不做任何拦截 */
       if (looksOddId(r.id)) {
         tags.appendChild(el('span', 'adm-odd', '格式异常（手填）'));
@@ -2616,6 +3283,152 @@ const AdminUI = (() => {
     });
     /* 还回滚动位置（见函数开头）。放在最后一行，元素都在 DOM 里才生效。 */
     try { box.scrollTop = keepTop; } catch (e) {}
+  }
+
+  /* v1.1.63 校准：异常名单单独成表（用户原话「把有异常的单独挑出来在一个
+   * 二级菜单里面，主菜单列表那就显示正常的」）。
+   * ODD 来自 /v1/admin/list 的 oddRows —— 服务端把 bound 的补集整批回传，
+   * 这里只负责渲染，判据在 worker.js 的 isKbId / kb 标记，不在前端重判。
+   * 顺序与主列表同一套 listNewFirst，两处时间口径一致。 */
+  function renderOdd() {
+    const box = $('admOddList');
+    if (!box) return;
+    const rows = ODD.slice().sort(listNewFirst);
+    const keepTop = box.scrollTop;
+    box.innerHTML = '';
+    if (!rows.length) {
+      box.appendChild(el('p', 'hint', '校准里暂时没有异常号；手填和没绑教务的号都会单独归到这里。'));
+      return;
+    }
+    rows.forEach(r => {
+      const row = el('div', 'adm-item');
+      const idWrap = el('div', 'adm-id-wrap');
+      idWrap.appendChild(el('span', 'adm-id', r.id || '（空号）'));
+      const when = fmtAt(r.at);
+      if (when) idWrap.appendChild(el('span', 'adm-at', when));
+      else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
+      row.appendChild(idWrap);
+      const tags = el('span', 'adm-tags');
+      if (r.revoked) tags.appendChild(el('span', 'adm-bad', '已停用'));
+      /* reason 由服务端定：pending=还没补报真号，conflict=kb 脏数据/真号撞车 */
+      tags.appendChild(el('span', 'adm-odd', r.reason === 'conflict' ? '两号冲突' : '待补录教务学号'));
+      if (r.note) tags.appendChild(el('span', 'adm-note', r.note));
+      row.appendChild(tags);
+      const tg = el('button', 'adm-cp', r.revoked ? '解封' : '停用');
+      tg.onclick = () => toggleRow(r);
+      row.appendChild(tg);
+      const btn = el('button', 'adm-cp', '详情');
+      btn.onclick = () => showDetail(r.id);
+      row.appendChild(btn);
+      /* v1.1.64 方案 C：不等对方再开 App，管理员直接补教务网真号 */
+      const fix = el('button', 'adm-cp adm-fix', '录真号');
+      fix.onclick = () => openKbFix(r);
+      row.appendChild(fix);
+      box.appendChild(row);
+    });
+    try { box.scrollTop = keepTop; } catch (e) {}
+  }
+
+  /* v1.1.64 方案 C：校准里「手动录真号」。真号只在学生本机，等对方再开一次
+   * App 自动补报不总是可行；管理员拿教务网查到的号直接补。用现成的 #sheet
+   * 半框收输入，不依赖 window.prompt（WebView 里常被宿主拦掉）。 */
+  /* v1.1.65 方案 A：全员重绑 / 撤销。破坏性动作跟 openKbFix 一样走 #sheet 半框
+   * 二次确认，避免误点一下把全校票据都废掉；成功后刷新名单看回流。 */
+  function openRebind(all) {
+    const body = $('sh-body'), name = $('sh-name'), sheet = document.getElementById('sheet');
+    if (!body || !name || !sheet) return;
+    name.textContent = all ? '发起全员重绑教务网' : '撤销上次重绑';
+    body.innerHTML = '';
+    body.appendChild(el('p', 'hint', all
+      ? '这会让所有人现有票据失效、名单里的教务真号标记清空，学生重开 App 后要重新登录一次教务网确认学号。动手前会先自动备份整份名单，随时可用「撤销」还原。'
+      : '把名单与公告还原到发起全员重绑之前的样子，老票据重新有效。'));
+    const msg = el('p', 'adm-tip', '');
+    body.appendChild(msg);
+    const go = el('button', 'btn ghost', all ? '确认发起' : '确认撤销');
+    go.style.marginTop = '10px';
+    go.onclick = () => {
+      msg.style.color = '';
+      msg.textContent = '正在处理…';
+      go.disabled = true;
+      const call = all ? AUTH.Admin.rebindAll() : AUTH.Admin.rebindUndo();
+      call.then(res => {
+        go.disabled = false;
+        if (!res || !res.ok) { msg.textContent = (res && res.msg) || '操作失败'; msg.style.color = 'var(--danger)'; return; }
+        sheet.classList.remove('on');
+        const st = $('admRebindState');
+        if (st) st.textContent = all
+          ? ('已发起全员重绑：共 ' + (res.rows || 0) + ' 行名单回到待补录，老票据将陆续失效。')
+          : ('已撤销：名单与公告还原完毕（' + (res.rows || 0) + ' 行）。');
+        refreshList();
+      }, e => {
+        go.disabled = false;
+        msg.textContent = '连不上服务器：' + errText(e);
+        msg.style.color = 'var(--danger)';
+      });
+    };
+    body.appendChild(go);
+    sheet.classList.add('on');
+  }
+
+  function openKbFix(r) {
+    const body = $('sh-body'), name = $('sh-name'), sheet = document.getElementById('sheet');
+    if (!body || !name || !sheet) return;
+    name.textContent = '补录教务学号 · ' + (r.id || '空号');
+    body.innerHTML = '';
+    body.appendChild(el('p', 'hint', '上面这行是进门时填的号；把教务网登录读回的 11 位真号填在下面，确认后它会变成「已确认」。'));
+    const inp = document.createElement('input');
+    inp.className = 'adm-in one';
+    inp.type = 'text';
+    inp.inputMode = 'numeric';
+    inp.placeholder = '教务网学号（20 开头，11 位）';
+    body.appendChild(inp);
+    const msg = el('p', 'adm-tip', '');
+    body.appendChild(msg);
+    const go = el('button', 'btn ghost', '确认补录');
+    go.style.marginTop = '10px';
+    go.onclick = () => {
+      const real = String(inp.value || '').trim();
+      if (!/^20\d{2}\d{7}$/.test(real)) {
+        msg.textContent = '学号形状不对：要 20 开头、11 位数字。';
+        msg.style.color = 'var(--danger)';
+        return;
+      }
+      msg.style.color = '';
+      msg.textContent = '正在补录…';
+      AUTH.Admin.kbFix(r.id, real).then(res => {
+        if (!res || !res.ok) { msg.textContent = (res && res.msg) || '补录失败'; return; }
+        sheet.classList.remove('on');
+        refreshList();
+      }, e => { msg.textContent = '连不上服务器：' + errText(e); });
+    };
+    body.appendChild(go);
+    sheet.classList.add('on');
+    try { inp.focus(); } catch (e) {}
+  }
+
+  /* v1.1.64 方案 C：卡头三态计数（用户原话「计数也分开计数」）。
+   * 服务端给 confirmedCount / pendingCount / conflictCount；老服务端没有时
+   * 用 LIST / ODD 本地兜底，升级过渡期也不会显示 undefined。 */
+  function renderKbSummary(res) {
+    const sum = $('admKbSummary');
+    if (!sum) return;
+    const cc = (res && res.confirmedCount != null) ? res.confirmedCount : LIST.length;
+    const pc = (res && res.pendingCount != null) ? res.pendingCount : ODD.filter(r => r.reason === 'pending').length;
+    const fc = (res && res.conflictCount != null) ? res.conflictCount : ODD.filter(r => r.reason === 'conflict').length;
+    sum.textContent = '';
+    sum.appendChild(el('span', 'adm-sum-ok', '已确认 ' + cc));
+    sum.appendChild(el('span', 'adm-sum-pending', '待补录 ' + pc));
+    sum.appendChild(el('span', 'adm-sum-conflict', '冲突 ' + fc));
+  }
+  /* 名单卡二级菜单：正常名单 / 校准·异常，各自成表、各自计数。 */
+  function switchListTab(t) {
+    LIST_TAB = (t === 'cal') ? 'cal' : 'normal';
+    const np = $('admNormalPane'), op = $('admOddPane');
+    if (np) np.style.display = LIST_TAB === 'normal' ? '' : 'none';
+    if (op) op.style.display = LIST_TAB === 'cal' ? '' : 'none';
+    document.querySelectorAll('#admListTab button').forEach(b => {
+      b.classList.toggle('on', b.dataset.t === LIST_TAB);
+    });
   }
 
   /* v1.1.23：详情从内嵌卡片改成 #sheet 半屏弹窗。
@@ -2723,11 +3536,18 @@ const AdminUI = (() => {
         return;
       }
       LIST = res.rows || [];
+      ODD = res.oddRows || [];
       const g = LIST.filter(r => !r.revoked).length;
       if ($('admStatGranted')) $('admStatGranted').textContent = String(g);
       if ($('admStatRevoked')) $('admStatRevoked').textContent = String(LIST.length - g);
       if ($('admListCnt')) $('admListCnt').textContent = LIST.length + ' 人';
+      if ($('admNormalCnt')) $('admNormalCnt').textContent = LIST.length + ' 人';
+      const oddN = (res.oddCount != null ? res.oddCount : ODD.length);
+      if ($('admOddCnt')) $('admOddCnt').textContent = oddN + ' 个';
+      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未绑定号码，见「校准 · 异常」') : '';
+      renderKbSummary(res);
       renderList();
+      renderOdd();
     }, e => {
       busy(btn, false);
       hintInto($('admList'), '连不上服务器：' + errText(e));
@@ -3517,6 +4337,8 @@ const AdminUI = (() => {
     on('admUnrevoke', unrevoke);
     on('admUngrant', ungrant);
     on('admListBtn', refreshList);
+    on('admRebindGo', () => openRebind(true));
+    on('admRebindUndo', () => openRebind(false));
     on('admDevQuery', queryDevs);
     on('admDevClear', clearDevs);
     on('cfgSave', saveCfg);
@@ -3552,6 +4374,11 @@ const AdminUI = (() => {
       b.onclick = () => seg(b.dataset.adm);
     });
 
+    /* v1.1.63 校准：名单卡二级菜单（正常名单 / 校准·异常） */
+    document.querySelectorAll('#admListTab button').forEach(b => {
+      b.onclick = () => switchListTab(b.dataset.t);
+    });
+
     document.querySelectorAll('#admFilter button').forEach(b => {
       b.onclick = () => {
         FILTER = b.dataset.f || 'all';
@@ -3564,6 +4391,14 @@ const AdminUI = (() => {
     if (find) {
       find.oninput = () => {
         FIND = find.value.trim();
+        renderList();
+      };
+    }
+    /* v1.1.64 方案 C：只看已确认开关 */
+    const only = $('admOnlyConfirmed');
+    if (only) {
+      only.onchange = () => {
+        ONLY_CONFIRMED = !!only.checked;
         renderList();
       };
     }
@@ -5261,6 +6096,10 @@ CampusUI.init();
 CampusUI.refresh();
 AdminUI.init();
 CxUI.init();
+/* v1.1.66：多平台来源连接卡 + 来源筛选。SOURCES 与各适配器 script 都在
+ * app.js 之前加载，这里 init 时注册已完成；若某个 js 没加载也只是空卡，
+ * 不会拖垮这一串初始化（SrcUI.init 自带 typeof 守卫）。 */
+if (typeof SrcUI !== 'undefined') SrcUI.init();
 if (typeof MYTODO !== 'undefined') MYTODO.init();
 if (typeof FOCUS !== 'undefined') FOCUS.init();
 if (typeof REMINDER !== 'undefined') REMINDER.init();
@@ -5271,6 +6110,9 @@ if (typeof ELEC !== 'undefined') ELEC.init();
   if (t) t.onclick = () => openToolCard('myTodoCard');
   const f = document.getElementById('focusEntry');
   if (f) f.onclick = () => openToolCard('focusCard');
+  /* v1.1.66 / m00638：账号绑定细入口条，点开就是四张连接卡那组半框。 */
+  const b = document.getElementById('bindEntry');
+  if (b) b.onclick = () => openToolCard('bindCard');
   paintToolEntries();
   // 计时进行中时每秒刷入口小字；没在跑不占定时器
   setInterval(() => {

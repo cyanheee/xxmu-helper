@@ -47,6 +47,12 @@ public class WebActivity extends Activity {
     public static final String EXTRA_DETECT_LOGIN = "detect_login";
     public static final String EXTRA_CAPTURE = "capture";
     public static final String EXTRA_RESULT = "capture_result";
+    /** v1.1.68：带着活登录态打开教务页，让用户自己点进「考试安排」，
+     *  按「完成」把整页文字/表格回传给前端解析（见 FIND_JS）。 */
+    public static final String EXTRA_FIND = "find";
+    /** v1.1.71：双探模式——拦「检索」发出的请求 URL + 钩「导出/打印」下载 URL，
+     *  按「完成」把候选地址连同整页一起回传，之后照课表用带 Cookie 的桥全自动重放。 */
+    public static final String EXTRA_PROBE = "probe";
     /** 登录成功的判据（URL 里出现任一子串即算），用 "||" 分隔；不传则用教务的默认规则 */
     public static final String EXTRA_OK_HINTS = "ok_hints";
     /** 登录页的判据（出现任一即算没登录），用 "||" 分隔 */
@@ -101,6 +107,59 @@ public class WebActivity extends Activity {
             + "t:(function(){try{return localStorage.getItem('token')"
             + "||localStorage.getItem('TOKEN')||''}catch(e){return ''}})(),"
             + "ls:(function(){try{return JSON.stringify(localStorage)}catch(e){return '{}'}})()})";
+
+    /**
+     * v1.1.69：把当前页 + 递归到的每个 <frame>/<iframe> 的正文、表格、
+     * 表格行、下拉已选值整体回传。
+     *
+     * 为什么返回对象而不是 JSON 字符串：evaluateJavascript 对「对象结果」
+     * 直接给出 JSON 文本，省掉 CAPTURE_JS 那种「字符串结果还带一层引号」
+     * 的二次解析，前端 __onXqFind 一次 JSON.parse 就能拿到整包。
+     *
+     * 为什么改（m01910 第三轮真机）：v1.1.68 只读 iframe，青果 V17 的
+     * 「课程考试 → 考试安排表」是 <frameset>/<frame> 布局，检索出来的表在
+     * 子 frame 里，顶层 document.body 近空 → 回传一片空白 → 报「没认出」。
+     * window.frames 同时覆盖 <frame> 与 <iframe>，逐个取 .document 读，
+     * 同源才读得到（跨域抛 SecurityError 就留空，诊断里看得见）。
+     * raw 是上面那些块拼起来的人能读的原文：认不出时前端把它摊进粘贴框，
+     * 让人能看见读到了什么、改一改再导入，而不是对着一句 toast 干瞪眼。
+     */
+    private static final String FIND_JS =
+            "(function(){"
+            + "var o={u:String(location.href),text:'',rows:[],tables:[],sels:[],frames:[],raw:''};"
+            + "function T(s){return String(s==null?'':s)}"
+            + "function A(p,s){s=T(s);if(s)p.push(s)}"
+            + "function grabDoc(d){"
+            + "var r={text:'',rows:[],tables:[],sels:[]};if(!d)return r;"
+            + "try{r.text=T((d.body&&(d.body.innerText||d.body.textContent))||(d.documentElement&&d.documentElement.innerText)||'').slice(0,30000)}catch(e){}"
+            + "try{var tr=d.getElementsByTagName('tr');for(var i=0;i<tr.length&&i<400;i++){A(r.rows,tr[i].innerText||tr[i].textContent||'')}}catch(e){}"
+            + "try{var tb=d.getElementsByTagName('table');for(var j=0;j<tb.length&&j<20;j++){A(r.tables,T(tb[j].innerText||tb[j].textContent||'').slice(0,6000))}}catch(e){}"
+            + "try{var se=d.getElementsByTagName('select');for(var k=0;k<se.length&&k<20;k++){var s=se[k],v='';try{var op=s.options[s.selectedIndex];v=op?(op.text||op.value):''}catch(x){}A(r.sels,v)}}catch(e){}"
+            + "return r}"
+            + "var top=grabDoc(document);"
+            + "o.text=top.text;o.rows=top.rows;o.tables=top.tables;o.sels=top.sels;"
+            /* v1.1.72：框架是嵌套的（门户 frameset 一层、业务页里再 iframe 一层）。
+             * 只读 window.frames 一层会漏掉最里面那张表，改成逐层往下走，深度限 3。 */
+            + "function walk(w,depth){"
+            + "if(depth>3||!w)return;"
+            + "var W=null;try{W=w.frames}catch(x){W=null}"
+            + "if(!W)return;"
+            + "for(var f=0;f<W.length&&f<20;f++){"
+            + "var fr={u:'',text:'',rows:[],tables:[],sels:[]};"
+            + "var cw=null;try{cw=W[f]}catch(x){cw=null}"
+            + "if(!cw)continue;"
+            + "try{fr.u=T(cw.location&&cw.location.href)}catch(x){}"
+            + "var dd=null;try{dd=cw.document}catch(x){dd=null}"
+            + "if(dd){var g=grabDoc(dd);fr.text=g.text;fr.rows=g.rows;fr.tables=g.tables;fr.sels=g.sels}"
+            + "o.frames.push(fr);"
+            + "walk(cw,depth+1)}}"
+            + "try{walk(window,1)}catch(e){}"
+            + "var parts=[];"
+            + "A(parts,o.text);o.rows.forEach(function(x){A(parts,x)});o.tables.forEach(function(x){A(parts,x)});"
+            + "if(o.sels.length)A(parts,o.sels.join('  '));"
+            + "o.frames.forEach(function(fr){A(parts,fr.text);fr.rows.forEach(function(x){A(parts,x)});fr.tables.forEach(function(x){A(parts,x)});if(fr.sels&&fr.sels.length)A(parts,fr.sels.join('  '))});"
+            + "o.raw=parts.join('\\n').slice(0,60000);"
+            + "return o})()";
 
     /**
      * 登录页里那些「看起来有值、其实是装饰」的字符串。
@@ -207,6 +266,13 @@ public class WebActivity extends Activity {
     private ProgressBar bar;
     private boolean detectLogin = false;
     private boolean capture = false;
+    /** v1.1.68：找考试安排模式：复用 capture 的「完成」按钮/轮询，但读整页文字而非账号框 */
+    private boolean find = false;
+    /** v1.1.71：双探模式。shouldInterceptRequest 拦「检索」发出的数据请求，
+     *  DownloadListener 钩「导出/打印」的报表 URL，按「完成」一并回传。 */
+    private boolean probe = false;
+    /** 记到的候选请求，每条是一个 JSON 字符串 {url,method,kind}。 */
+    private final java.util.ArrayList<String> probes = new java.util.ArrayList<String>();
     private boolean finishedOk = false;
     private String okHints = null;
     private String badHints = null;
@@ -235,6 +301,14 @@ public class WebActivity extends Activity {
         String title = it.getStringExtra(EXTRA_TITLE);
         detectLogin = it.getBooleanExtra(EXTRA_DETECT_LOGIN, false);
         capture = it.getBooleanExtra(EXTRA_CAPTURE, false);
+        find = it.getBooleanExtra(EXTRA_FIND, false);
+        // find 复用 capture 的「完成」按钮与轮询，但页面不按 URL 自动收工：
+        // 用户要在教务框架里自己点进考试安排，最后按「完成」交回当前页文字。
+        if (find) capture = true;
+        probe = it.getBooleanExtra(EXTRA_PROBE, false);
+        // 双探复用 find 的整页读取 + capture 的「完成」按钮/轮询，
+        // completeCapture 会把拦到的候选地址并进回传对象。
+        if (probe) { find = true; capture = true; }
         okHints = it.getStringExtra(EXTRA_OK_HINTS);
         badHints = it.getStringExtra(EXTRA_BAD_HINTS);
         grabSel = it.getStringExtra(EXTRA_GRAB);
@@ -356,6 +430,29 @@ public class WebActivity extends Activity {
         }
 
         web.setWebViewClient(new WebViewClient() {
+            /* v1.1.71 双探 A：旁路记下「检索」那一刻页面发出的数据请求 URL。
+             * 只记地址、返回 null 让 WebView 照常加载，不改页面行为；
+             * 像课表那样的 GET 报表地址随后由前端带 Cookie 全自动重放。 */
+            @Override
+            public android.webkit.WebResourceResponse shouldInterceptRequest(
+                    WebView v, android.webkit.WebResourceRequest req) {
+                try {
+                    if (probe && req != null && req.getUrl() != null) {
+                        String m = "GET";
+                        try { m = req.getMethod(); } catch (Throwable ignored) {}
+                        recordProbe(req.getUrl().toString(), m, "request");
+                    }
+                } catch (Throwable ignored) {}
+                return null;
+            }
+
+            @Override
+            public android.webkit.WebResourceResponse shouldInterceptRequest(
+                    WebView v, String u) {
+                try { if (probe) recordProbe(u, "GET", "request"); } catch (Throwable ignored) {}
+                return null;
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView v, String u) {
                 return false;
@@ -386,11 +483,71 @@ public class WebActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient() {
+            /* v1.1.72：把「新窗口」接回同一个 WebView。
+             *
+             * 五轮真机的共同症结在这里：青果「考试安排表」按「检索」之后，
+             * 结果是用 window.open / target=_blank 弹出来的。WebView 默认
+             * supportMultipleWindows=true，而我们没覆写 onCreateWindow，
+             * 于是每个新窗口都成了一个没内容的 about:blank —— 这正好对上
+             * m02177 诊断里的「#1 about:blank 0字/0表」，也解释了为什么
+             * 人明明看到表了、程序按「完成」却只读到门户框架页。
+             *
+             * 做法：临时开一个 WebView 接住这个窗口，它的首个真实地址一到，
+             * 立刻交给主 WebView 加载，然后销毁临时的那个。用户看起来就是
+             * 检索结果直接在眼前展开，按「完成」时读到的就是这张表。 */
+            @Override
+            public boolean onCreateWindow(WebView view, boolean isDialog,
+                    boolean isUserGesture, android.os.Message resultMsg) {
+                try {
+                    if (resultMsg == null || !(resultMsg.obj instanceof WebView.WebViewTransport)) {
+                        return false;
+                    }
+                    final WebView tmp = new WebView(WebActivity.this);
+                    WebSettings ts = tmp.getSettings();
+                    ts.setJavaScriptEnabled(true);
+                    ts.setDomStorageEnabled(true);
+                    ts.setLoadWithOverviewMode(true);
+                    ts.setUseWideViewPort(true);
+                    tmp.setWebViewClient(new WebViewClient() {
+                        private void take(String u) {
+                            if (u == null || u.length() < 8 || u.startsWith("about:")) return;
+                            try { tmp.stopLoading(); } catch (Throwable ignored) {}
+                            try { tmp.destroy(); } catch (Throwable ignored) {}
+                            if (web != null) web.loadUrl(u);
+                        }
+                        @Override
+                        public boolean shouldOverrideUrlLoading(WebView v, String u) {
+                            take(u);
+                            return true;
+                        }
+                        @Override
+                        public void onPageStarted(WebView v, String u, android.graphics.Bitmap f) {
+                            take(u);
+                        }
+                    });
+                    WebView.WebViewTransport t = (WebView.WebViewTransport) resultMsg.obj;
+                    t.setWebView(tmp);
+                    resultMsg.sendToTarget();
+                    return true;
+                } catch (Throwable e) {
+                    return false;
+                }
+            }
+
             @Override
             public void onProgressChanged(WebView v, int p) {
                 if (bar == null) return;
                 if (p >= 100) bar.setVisibility(View.GONE);
                 else { bar.setVisibility(View.VISIBLE); bar.setProgress(p); }
+            }
+        });
+        /* v1.1.71 双探 B：钩住「导出 / 打印」触发的下载——这类按钮最像课表的
+         * *_excel*.jsp?params= 报表地址，是全自动重放最稳的一路。
+         * 只记 URL，不真正下载文件（不落盘、不打断用户操作）。 */
+        web.setDownloadListener(new android.webkit.DownloadListener() {
+            public void onDownloadStart(String u, String userAgent,
+                    String contentDisposition, String mimetype, long contentLength) {
+                try { if (probe) recordProbe(u, "GET", "download"); } catch (Throwable ignored) {}
             }
         });
 
@@ -448,6 +605,7 @@ public class WebActivity extends Activity {
      */
     private void grabAccount(final boolean finishAfter) {
         if (web == null) return;
+        if (find) { grabFind(finishAfter); return; }
         try {
             web.evaluateJavascript(CAPTURE_JS, new ValueCallback<String>() {
                 public void onReceiveValue(String v) {
@@ -475,6 +633,23 @@ public class WebActivity extends Activity {
         }
     }
 
+    /** v1.1.68：找考试安排模式的一轮读取。
+     *  FIND_JS 返回对象，evaluateJavascript 直接给 JSON 文本，存进 lastCap，
+     *  由 completeCapture 原样放进 EXTRA_RESULT；不走账号框、不按 machineId 自动收工。 */
+    private void grabFind(final boolean finishAfter) {
+        if (web == null) { if (finishAfter) completeCapture(); return; }
+        try {
+            web.evaluateJavascript(FIND_JS, new ValueCallback<String>() {
+                public void onReceiveValue(String v) {
+                    if (v != null && v.length() > 4 && !"null".equals(v)) lastCap = v;
+                    if (finishAfter) completeCapture();
+                }
+            });
+        } catch (Throwable e) {
+            if (finishAfter) completeCapture();
+        }
+    }
+
     /** 一轮读完之后：要么收工，要么判断是否该自动收工 */
     private void afterRead(boolean finishAfter) {
         if (finishAfter) { completeCapture(); return; }
@@ -493,12 +668,57 @@ public class WebActivity extends Activity {
         // readPageState(true) 的回调里会 completeCapture()，这里不重复 finish
     }
 
+    /** v1.1.71：把一条候选请求记进 probes（去重、限量、滤掉明显静态资源）。
+     *  注意别用 low.indexOf(".js") 过滤脚本——".jsp" 会被它误伤。 */
+    private void recordProbe(String url, String method, String kind) {
+        if (!probe || url == null) return;
+        String u = url.trim();
+        if (u.length() < 8 || u.length() > 2000) return;
+        String low = u.toLowerCase();
+        if (u.startsWith("about:") || u.startsWith("data:")
+                || low.indexOf(".css") >= 0 || low.indexOf(".png") >= 0
+                || low.indexOf(".jpg") >= 0 || low.indexOf(".gif") >= 0
+                || low.indexOf(".woff") >= 0 || low.indexOf(".ico") >= 0
+                || low.indexOf(".svg") >= 0) return;
+        try {
+            org.json.JSONObject o = new org.json.JSONObject();
+            o.put("url", u);
+            o.put("method", method == null ? "GET" : method);
+            o.put("kind", kind == null ? "request" : kind);
+            String s = o.toString();
+            synchronized (probes) {
+                for (int i = 0; i < probes.size(); i++) {
+                    if (probes.get(i).equals(s)) return;
+                }
+                if (probes.size() < 80) probes.add(s);
+            }
+        } catch (Throwable ignored) {}
+    }
+
     private void completeCapture() {
         if (finishedOk) return;
         finishedOk = true;
         try {
             Intent r = new Intent();
-            r.putExtra(EXTRA_RESULT, lastCap == null ? "null" : lastCap);
+            String payload = (lastCap == null) ? "null" : lastCap;
+            if (probe) {
+                try {
+                    org.json.JSONObject o = null;
+                    try { o = new org.json.JSONObject(payload); } catch (Throwable ignored) {}
+                    if (o == null) o = new org.json.JSONObject();
+                    org.json.JSONArray arr = new org.json.JSONArray();
+                    synchronized (probes) {
+                        for (int i = 0; i < probes.size(); i++) {
+                            try { arr.put(new org.json.JSONObject(probes.get(i))); }
+                            catch (Throwable ignored) {}
+                        }
+                    }
+                    o.put("probes", arr);
+                    o.put("probe", true);
+                    payload = o.toString();
+                } catch (Throwable ignored) {}
+            }
+            r.putExtra(EXTRA_RESULT, payload);
             r.putExtra(EXTRA_ACCOUNT, lastUn == null ? "" : lastUn);
             setResult(RESULT_OK, r);
         } catch (Throwable ignored) {
