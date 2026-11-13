@@ -158,7 +158,12 @@ NEW_JS_SYMBOLS = {
                           "autoSync, autoDiag, autoGap"],
     "assets/yuketang.js": ["v1.1.81", "OK_SENTINEL", "var AUTH_KEY = 'xxmu_ykt_auth'",
                            "function authed()", "window[CB] = function (ok, acct)",
-                           "当前区域：", "两条最可能的原因", "state: 'stale'"],
+                           "当前区域：", "两条最可能的原因", "state: 'stale'",
+                           # v1.1.82 修「雨课堂作业重复」：upcomingExam 混进作业 → 适配器层去重
+                           "v1.1.82", "function dedupExams(works, exams)",
+                           "var ded = dedupExams(works, exams);",
+                           "var emptyDed = dedupExams([], exams);",
+                           "Math.abs(wt - et) > 60000", "去重：删掉 "],
     "assets/index.html": ["btnShowHwRaw", "fbHw",
                           # v1.1.6
                           'id="tut"', 'id="rowTut"', 'id="revPhotoList"',

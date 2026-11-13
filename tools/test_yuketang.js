@@ -122,7 +122,7 @@ function load(routes, opts) {
 const P_LOGIN = { '/api/v3/user/basic-info': { code: 0, data: { name: '张与目' } } };
 
 async function main() {
-  console.log('\n[v1.1.81] 雨课堂适配器（方案 C 真接活清单 + 登录链路修复）离线断言');
+  console.log('\n[v1.1.82] 雨课堂适配器（方案 C 真接活清单 + 登录链路修复 + 作业去重）离线断言');
 
   /* ---------- ① 注册契约 ---------- */
   const A = load({});
@@ -501,6 +501,153 @@ async function main() {
     ok('⑬ logout 清秒关遗留的假 __bound', out.prefs['xxmu_ykt_todo__bound'] === '',
       JSON.stringify(out.prefs['xxmu_ykt_todo__bound']));
     ok('⑬ logout 清区域 Cookie', /yuketang\.cn/.test(String(out.calls.cleared || '')), out.calls.cleared);
+  }
+
+  /* ---------- ⑭ v1.1.82 去重：upcomingExam 把带截止的作业又塞一遍 ----------
+   * 真机截图：同一条「第十四次作业」列了两张卡（作业卡 + 📝 考试卡），
+   * 截止同为 2026-11-15 20:00。根因＝雨课堂 upcomingExam 里混进了作业。
+   * 钉死：撞作业名的假考试丢掉、真考试不动、自身重复推送合成一条、
+   * 诊断写清删了几张，作业卡（带课程名与状态）信息更全要留着。 */
+  {
+    const hwName = '第十四次作业 学号尾号为4和9的同学提交(1)';
+    const hwEnd = new Date(2026, 10, 15, 20, 0).getTime();   // 2026-11-15 20:00
+    const hwEndSec = Math.floor(hwEnd / 1000);
+    const examStart2 = new Date(2026, 11, 1, 9, 0).getTime();
+    const examEnd2 = new Date(2026, 11, 1, 11, 0).getTime();
+    const DUP = Object.assign({}, FULL, {
+      '/api/v3/classroom/on-lesson-upcoming-exam': {
+        code: 0,
+        data: {
+          onLessonClassrooms: [{ classroomId: 'c1', courseId: 'k1', courseName: '高等数学B1' }],
+          upcomingExam: [
+            /* 平台把这条作业又塞进 upcomingExam：名字、截止都与作业一致 → 丢掉 */
+            { examName: hwName, courseName: '高等数学B1',
+              startTime: new Date(2026, 10, 13, 9, 40).getTime(), endTime: hwEnd },
+            /* 真考试：名字不同，一张不动 */
+            { examName: '期末考试', courseName: '高等数学B1',
+              startTime: examStart2, endTime: examEnd2, classroomName: '第三教学楼3102' },
+            /* 同一场真考试被重复推送两次 → 合成一张 */
+            { examName: '期末考试', courseName: '高等数学B1',
+              startTime: examStart2, endTime: examEnd2, classroomName: '第三教学楼3102' },
+          ],
+        },
+      },
+      '/v2/api/web/logs/learn/101': {
+        code: 0,
+        data: { activities: [{ id: 'a1', type: 19, title: hwName, is_finished: false }] },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0,
+        data: { course_progress: [{ section_leaf_list: [
+          { id: 'l1', name: hwName, leaf_type: 19, score_deadline: hwEndSec,
+            progress: { status: '', done: 0, total: 1 } },
+        ] }] },
+      },
+    });
+    const T = load(DUP);
+    const steps = [];
+    const r = await T.spec.fetch(function (s) { steps.push(String(s)); });
+
+    ok('⑭ 去重后整体 state=ok（作业 1 条 + 真考试 1 场）', r.state === 'ok', JSON.stringify(r).slice(0, 200));
+    const works = r.works || [], exams = r.exams || [];
+    ok('⑭ 作业卡只剩 1 条，没被拆成两张', works.length === 1, JSON.stringify(works).slice(0, 200));
+    ok('⑭ 留下的是作业卡，名字与截图一致', works[0] && works[0].name === hwName, works[0] && works[0].name);
+    ok('⑭ 作业卡带截止时间 2026-11-15 20:00', works[0] && works[0].end === fmtLocal(hwEndSec), works[0] && works[0].end);
+    ok('⑭ 作业卡信息更全（课程名 + 状态都留着）',
+      works[0] && works[0].course === '高等数学B1' && works[0].status === '待做',
+      works[0] && (works[0].course + '|' + works[0].status));
+    ok('⑭ 假考试删掉、自身重复合并后只剩 1 场考试', exams.length === 1, JSON.stringify(exams).slice(0, 200));
+    ok('⑭ 留下的是真考试「期末考试」', exams[0] && exams[0].name === '期末考试', exams[0] && exams[0].name);
+    ok('⑭ 撞作业名的 📝 假考试不再出现',
+      exams.every(e => e.name !== hwName), exams.map(e => e.name).join('|'));
+    ok('⑭ 真考试的考场信息完好', exams[0] && /3102/.test(String(exams[0].place)), exams[0] && exams[0].place);
+    ok('⑭ 诊断写明删掉 1 张重复作业卡',
+      String(r.diag || '').indexOf('去重：删掉 1 张重复作业卡') >= 0, r.diag);
+    ok('⑭ 诊断写明合并 1 张重复考试卡',
+      String(r.diag || '').indexOf('合并 1 张重复考试卡') >= 0, r.diag);
+    ok('⑭ 整理计数按去重后算（1 条作业 / 1 场考试）',
+      steps.join('|').indexOf('整理 1 条作业 / 1 场考试') >= 0, steps.join('|'));
+  }
+
+  /* ---------- ⑮ v1.1.82 去重边界：截止差大是真考试 / 名字归一化 ---------- */
+  {
+    const wk = '第三章 章节测验';
+    const d1 = new Date(2026, 11, 20, 23, 59).getTime();    // 作业截止 2026-12-20 23:59
+    const d1Sec = Math.floor(d1 / 1000);
+    const d2 = new Date(2026, 10, 15, 20, 0).getTime();     // 考试截止 2026-11-15 20:00
+    const EDGE = Object.assign({}, FULL, {
+      '/api/v3/classroom/on-lesson-upcoming-exam': {
+        code: 0,
+        data: {
+          onLessonClassrooms: [],
+          upcomingExam: [
+            /* 同名但截止与作业差 > 60s → 判真考试，一张不动 */
+            { examName: wk, courseName: '高等数学B1',
+              startTime: new Date(2026, 10, 13, 9, 40).getTime(), endTime: d2,
+              classroomName: '第三教学楼3102' },
+            /* 名字只差空格，归一化后撞作业名且没给截止 → 判重复丢掉 */
+            { examName: '第三章  章节测验 ', courseName: '', startTime: 0, endTime: 0 },
+          ],
+        },
+      },
+      '/v2/api/web/logs/learn/101': {
+        code: 0, data: { activities: [{ id: 'a1', type: 5, title: wk, is_finished: false }] },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0,
+        data: { course_progress: [{ section_leaf_list: [
+          { id: 'l1', name: wk, leaf_type: 5, score_deadline: d1Sec,
+            progress: { status: '', done: 0, total: 10 } },
+        ] }] },
+      },
+    });
+    const T = load(EDGE);
+    const steps = [];
+    const r = await T.spec.fetch(function (s) { steps.push(String(s)); });
+    const works = r.works || [], exams = r.exams || [];
+    ok('⑮ 同名但截止差大：整体 state=ok', r.state === 'ok', JSON.stringify(r).slice(0, 200));
+    ok('⑮ 作业仍是 1 条', works.length === 1, works.map(w => w.name).join('|'));
+    ok('⑮ 作业截止时间没被考试卡覆盖', works[0] && works[0].end === fmtLocal(d1Sec), works[0] && works[0].end);
+    ok('⑮ 截止差 > 60s 的真考试保留（不误删）', exams.length === 1, JSON.stringify(exams).slice(0, 200));
+    ok('⑮ 保留下来的考试截止是 2026-11-15 20:00',
+      exams[0] && exams[0].end === fmtLocal(d2), exams[0] && exams[0].end);
+    ok('⑮ 名字归一化（空格差异）那条被删',
+      String(r.diag || '').indexOf('去重：删掉 1 张重复作业卡') >= 0, r.diag);
+    ok('⑮ 整理计数 1 条作业 / 1 场考试',
+      steps.join('|').indexOf('整理 1 条作业 / 1 场考试') >= 0, steps.join('|'));
+  }
+
+  /* ---------- ⑯ v1.1.82 去重边界：作业卡没截止时把考试卡的截止补回来 ---------- */
+  {
+    const backEnd = new Date(2026, 10, 15, 20, 0).getTime();
+    const BACK = Object.assign({}, FULL, {
+      '/api/v3/classroom/on-lesson-upcoming-exam': {
+        code: 0,
+        data: {
+          onLessonClassrooms: [],
+          upcomingExam: [
+            { examName: '作业二', courseName: '高等数学B1',
+              startTime: new Date(2026, 10, 13, 9, 40).getTime(), endTime: backEnd },
+          ],
+        },
+      },
+      '/v2/api/web/logs/learn/101': {
+        code: 0, data: { activities: [{ id: 'a1', type: 19, title: '作业二', is_finished: false }] },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0, data: { course_progress: [{ section_leaf_list: [] }] },
+      },
+    });
+    const T = load(BACK);
+    const r = await T.spec.fetch(function () {});
+    const works = r.works || [], exams = r.exams || [];
+    ok('⑯ 补回截止后整体 state=ok（作业 1 条，考试 0 场）', r.state === 'ok', JSON.stringify(r).slice(0, 200));
+    ok('⑯ 作业卡 1 条', works.length === 1, JSON.stringify(works).slice(0, 200));
+    ok('⑯ 假考试被删光', exams.length === 0, JSON.stringify(exams).slice(0, 200));
+    ok('⑯ 作业卡原本没截止，补回了考试卡读到的 2026-11-15 20:00',
+      works[0] && works[0].end === fmtLocal(backEnd), works[0] && works[0].end);
+    ok('⑯ 诊断写明删掉 1 张重复作业卡',
+      String(r.diag || '').indexOf('去重：删掉 1 张重复作业卡') >= 0, r.diag);
   }
 
   console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  ' + (pass + fail) + ' assertions: pass=' + pass + ' fail=' + fail);

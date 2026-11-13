@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.xxmu.helper"
-    android:versionCode="1181"
-    android:versionName="1.1.81">
+    android:versionCode="1182"
+    android:versionName="1.1.82">
 
     <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="33" />
     <uses-permission android:name="android.permission.INTERNET" />

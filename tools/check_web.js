@@ -2210,5 +2210,39 @@ if (ykt81.indexOf("'/web/course||/web/student") >= 0) fail('v1.1.81 雨课堂仍
     ((r2.stdout || '') + (r2.stderr || '')).trim().split('\n').slice(-6).join(' | '));
 }
 
+/* ---- v1.1.82：修「雨课堂的作业有重复出现」----
+ * YG m02148 真机截图：同一条「第十四次作业」列了两张卡（作业卡 + 📝 考试卡），
+ * 截止同为 2026-11-15 20:00。根因＝雨课堂 upcomingExam 里混进了带截止的作业，
+ * examsOf() 无差别收成考试，同一条又从时间轴/章节叶进 works。
+ * 修法＝适配器层 dedupExams()：归一化名字 + 截止不冲突判重复，留信息更全的
+ * 作业卡，撞名假考试丢掉、exams 自身同名同起止合成一条；截止差 >60s 的真考试
+ * 不动。去重必须源特异放适配器，不能放 renderHomework（跨来源同名是合法条目）。 */
+console.log('\nv1.1.82 checkpoints（雨课堂作业去重 / 适配器层 / 只读）:');
+const ykt82 = read('web/yuketang.js');
+has(ykt82, 'v1.1.82', '头注释标出 v1.1.82 作业去重');
+has(ykt82, 'function dedupName(s)', '名字归一化 dedupName（去空格标点大小写）');
+has(ykt82, 'function dedupTime(s)', '截止时间解析 dedupTime');
+has(ykt82, 'function dedupExams(works, exams)', '适配器层去重函数 dedupExams');
+has(ykt82, 'Math.abs(wt - et) > 60000', '截止差 >60s 才判真考试、不误删');
+has(ykt82, 'if (!ws[i].end && e.end) ws[i].end = e.end;', '作业卡没截止时补回考试卡读到的时间');
+has(ykt82, 'if (seen[sk])', 'exams 自身同名同起止重复推送合成一条');
+has(ykt82, 'var ded = dedupExams(works, exams);', '主流程 works 建成后调去重');
+has(ykt82, 'exams = ded.exams;', '用去重后的 exams 继续（计数/降级判据都对）');
+has(ykt82, 'var emptyDed = dedupExams([], exams);', '零课程早退分支也合一下 exams 自身重复');
+has(ykt82, '去重：删掉 ', '诊断写明删掉几张重复作业卡');
+has(ykt82, '只读：不代签到、不代作答、不代发帖', '保留只读不代交红线');
+/* 反向：去重绝不能写进渲染层（跨来源同名是不同条目，会误删别的平台）。 */
+{
+  const ap1182 = read('web/app.js');
+  if (/dedupExams|dedupName\(/.test(ap1182)) fail('v1.1.82 去重误写进 app.js 渲染层（跨来源同名会误删）');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_yuketang.js')], { encoding: 'utf8' });
+  console.log('  雨课堂作业去重离线测试      =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('雨课堂作业去重离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
 console.log('\n' + (bad === 0 ? '[PASS] 静态体检全部通过' : '[FAIL] ' + bad + ' 项未过'));
 process.exit(bad === 0 ? 0 : 1);

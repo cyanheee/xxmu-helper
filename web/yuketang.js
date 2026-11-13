@@ -1,4 +1,17 @@
-/* 河医大助手 · 雨课堂适配器（v1.1.81 · 方案 C 真接活清单 + 方案 B 登录链路修复）
+/* 河医大助手 · 雨课堂适配器（v1.1.82 · 方案 C 真接活清单 + 方案 B 登录链路修复 + 作业去重）
+ *
+ * ================== v1.1.82 修「雨课堂作业重复出现」====================
+ * 真机截图：同一条「第十四次作业 学号尾号为4和9的同学提交(1)」列了两遍——
+ * 一张走作业卡（高等数学B1 / 待做 / 截止 2026-11-15 20:00），
+ * 一张带 📝 走考试卡（考试·未标注课程 / 状态未知 / 起止 09:40~20:00）。
+ * 根因：雨课堂把「带截止时间的作业」也塞进了
+ * /api/v3/classroom/on-lesson-upcoming-exam 的 upcomingExam，examsOf() 无差别
+ * 收成考试；同一条又从时间轴/章节叶进 works，于是 works 一张 + exams 一张。
+ * 修法：works 整理完后调 dedupExams()，按「归一化名字 + 截止时间不冲突」
+ * 把 exams 里撞名的重复项去掉（作业卡带课程名与状态，信息更全，留它）；
+ * exams 自身同名同起止也合成一条。名字不同 / 截止差大的是真考试，一张不动。
+ * 去重放在适配器层（源特异、统计与计数才对），不放渲染层：别平台合法同名。
+ * ====================================================================
  *
  * ================== v1.1.81 修「扫码登录了没成功」====================
  * 根因和知到 v1.1.78 同款（lesson 0mweebrn）：okHints 里那串业务页片段会被
@@ -432,6 +445,58 @@
     return out;
   }
 
+  /* ---------------- v1.1.82 去重：作业被 upcomingExam 又塞了一遍 ---------------- */
+
+  /* 名字归一化：只留字母/数字/汉字，去掉空格、标点、emoji、大小写差异。
+   * 「第十四次作业 学号尾号为4和9的同学提交(1)」两张卡会归一成同一个 key。
+   * 用白名单而非 \p{P}，兼容老 WebView（这套前端跑在 file:// 的 Android WebView 上）。 */
+  function dedupName(s) {
+    return String(s || '').toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]/g, '');
+  }
+
+  /* 'YYYY-MM-DD HH:mm' → 毫秒；读不出返回 0（与 app.js 的 replace(/-/g,'/') 口径一致）。 */
+  function dedupTime(s) {
+    var t = new Date(String(s || '').replace(/-/g, '/')).getTime();
+    return isNaN(t) ? 0 : t;
+  }
+
+  /* works 整理完后调用。返回 {exams, dropped, merged}：
+   *   dropped = 撞作业名、判定是同一条作业而丢掉的「假考试」张数；
+   *   merged  = exams 自身同名同起止重复推送合成一张的张数。
+   * 判定「不冲突」＝两边都有 end 且差 > 60s 才算真考试（保留）；
+   * 任一方没 end 或时间一致 → 判重复，留信息更全的作业卡。 */
+  function dedupExams(works, exams) {
+    var wNames = {};
+    arr(works).forEach(function (w) {
+      var k = dedupName(w && w.name);
+      if (!k) return;
+      if (!wNames[k]) wNames[k] = [];
+      wNames[k].push(w);
+    });
+
+    var seen = {}, out = [], dropped = 0, merged = 0;
+    arr(exams).forEach(function (e) {
+      var k = dedupName(e && e.name);
+      if (!k) { out.push(e); return; }
+      var ws = wNames[k] || [], dup = false, i;
+      for (i = 0; i < ws.length; i++) {
+        var wt = dedupTime(ws[i].end), et = dedupTime(e.end);
+        if (wt > 0 && et > 0 && Math.abs(wt - et) > 60000) continue; /* 截止差大 = 真考试 */
+        dup = true;
+        /* 作业卡没读到截止、考试卡读到了：把时间补回作业卡再丢掉考试卡。 */
+        if (!ws[i].end && e.end) ws[i].end = e.end;
+        break;
+      }
+      if (dup) { dropped++; return; }
+
+      var sk = k + '|' + String(e.start || '') + '|' + String(e.end || '');
+      if (seen[sk]) { merged++; return; }
+      seen[sk] = 1;
+      out.push(e);
+    });
+    return { exams: out, dropped: dropped, merged: merged };
+  }
+
   /* ---------------- 主流程 ---------------- */
 
   function fetchTodo(onStep) {
@@ -488,6 +553,9 @@
         }
 
         if (!courses.length) {
+          /* 没课也可能 upcomingExam 里重复推送同一场考试，先合一下再返回。 */
+          var emptyDed = dedupExams([], exams);
+          exams = emptyDed.exams;
           return {
             state: 'ok', works: [], exams: exams, synced_at: 0,
             diag: diag.join('；') + '；课程列表为空（这学期没选课，或 identity 口径变了）'
@@ -581,6 +649,16 @@
 
           var works = [];
           order.forEach(function (k) { works.push(map[k]); });
+
+          /* v1.1.82：upcomingExam 会把带截止时间的作业又塞一遍，
+           * 撞作业名的「假考试」丢掉（作业卡带课程名与状态，信息更全，留它）；
+           * exams 自身同名同起止的重复推送也合成一条。 */
+          var ded = dedupExams(works, exams);
+          exams = ded.exams;
+          if (ded.dropped || ded.merged) {
+            diag.push('去重：删掉 ' + ded.dropped + ' 张重复作业卡（已在作业里）、合并 '
+              + ded.merged + ' 张重复考试卡');
+          }
 
           diag.push('时间轴条目 ' + actCount + '，章节叶 ' + leafCount
             + (failed ? '，' + failed + ' 门课读取失败' : ''));
