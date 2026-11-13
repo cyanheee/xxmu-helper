@@ -11,7 +11,7 @@
 Timetable · Assignment countdown · Free classrooms · Water dispenser · Campus info
 
 [![Platform](https://img.shields.io/badge/platform-Android%207.0%2B-3ddc84?logo=android&logoColor=white)](#)
-[![Version](https://img.shields.io/badge/version-1.1.80-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
+[![Version](https://img.shields.io/badge/version-1.1.81-2563eb)](https://github.com/cyanheee/xxmu-helper/releases)
 [![License](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
 [![QQ](https://img.shields.io/badge/QQ-692962849-12b7f5?logo=tencentqq&logoColor=white)](https://wpa.qq.com/msgrd?v=3&uin=692962849&site=qq&menu=yes)
 
@@ -23,7 +23,7 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 <img src="docs/shots/shot-learn.svg" width="24%" alt="学习">
 <img src="docs/shots/shot-water.svg" width="24%" alt="饮水机">
 
-<sub>界面示意图（按 App 真实结构绘制，非真机截图）· 当前 v1.1.80：学习通与知到的作业考试合到一份清单，「水墨云图」浅色皮肤之外另有深色与最初的经典皮肤可切换</sub>
+<sub>界面示意图（按 App 真实结构绘制，非真机截图）·当前 v1.1.81：四个平台的作业考试清单打开就自己更新，「水墨云图」浅色皮肤之外另有深色与最初的经典皮肤可切换</sub>
 
 </div>
 
@@ -45,7 +45,7 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 - 想**接杯水**，得先扫码再在机器上按
 - 想看**宿舍空调还剩多少度电**，得进完美校园一层层找自己那间房
 
-这几个动作本身不难，但一天要做好几次。课表、作业、空教室、接水、空调、校园资料现在都在同一个界面里。学习通和知到上的作业、考试也归进了同一份倒计时清单，不用再来回切平台；「水墨云图」浅色皮肤、课表角落那两位会动会说话的像素小伙伴都还在。
+这几个动作本身不难，但一天要做好几次。课表、作业、空教室、接水、空调、校园资料现在都在同一个界面里。学习通、雨课堂、喜鹊儿和知到上的作业、考试都归进同一份倒计时清单，打开就自己悄悄更新，不用再来回切平台、也不用每次手动点；「水墨云图」浅色皮肤、课表角落那两位会动会说话的像素小伙伴都还在。
 
 **它不是学校的官方产品**，是在校学生自己写了自己用的工具。数据全部来自学校官方系统，一切正式事务（成绩、选课、评教、缴费）请以官方系统为准。
 
@@ -58,7 +58,7 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 | 直连下载 | <https://xxmu-auth.pages.dev/v1/apk> |
 | 更新群 | QQ `1097668324` |
 
-当前版本 **v1.1.80 / 1180**（2026-11-13）：知到上的作业和考试现在默认直接读清单，登进去点完右上角「完成」、回「学习」页点一下「重新抓一次」，就和学习通的内容排进同一份倒计时；哪门课没读通、平台数据没认出来都会写明原因，不会把「没读到」当成「没作业」。知到登录页不再一闪就关；课前提醒连堂课只响一次、到点更准。此前的水墨云图浅色皮肤、像素小伙伴、能翻页的相册和留言板、空调房间防呆都还在。
+当前版本 **v1.1.81 / 1181**（2026-11-13）：四个平台的作业、考试清单现在打开 App 或切回前台就自己悄悄重对一遍，前台放着每半小时再刷一次，十分钟内的重复打开不反复打、退到后台不刷；哪个平台登录掉了，只在它的连接卡上写清原因、给一键重登，不弹满屏提示，也不拿空清单冒充「没作业」，已读到的旧数据照旧留着。雨课堂扫码页不再一闪就关，扫完进课程页点右上角「完成」才算登好，失效时写清当前区域和两种原因。扫码、登录过期仍要本人来，App 只读取清单不代签到、不代交作业。此前知到作业考试接入、水墨云图浅色皮肤、像素小伙伴、能翻页的相册和留言板、空调房间防呆、课前提醒连堂只响一次都还在。
 
 > 在微信里打开会提示无法下载安装包，这是微信的限制。点右上角「···」→「在浏览器打开」，再点一次下载即可。
 
@@ -83,9 +83,9 @@ Timetable · Assignment countdown · Free classrooms · Water dispenser · Campu
 
 **作业与考试**
 
-从学习通和知到读取作业和考试，归进同一份清单，按紧急程度排序。知到默认走「接口直连」直接读数据，读不到时也可以切「读作业页」兜底；两条都只读取清单，不代交作业。
+从学习通、雨课堂、喜鹊儿和知到读取作业和考试，归进同一份清单，按紧急程度排序。清单打开 App、切回前台或前台放到点会自己重对一遍，一门一门串行刷、十分钟内的重复打开不反复打、退到后台不刷。知到默认走「接口直连」直接读数据，读不到时也可以切「读作业页」兜底；四个平台都只读取清单，不代签到、不代交作业、不代发帖。
 
-状态处理是这里最要紧的部分：平台返回的状态文案有很多种写法，能识别的归类为「待做 / 待批阅 / 已完成 / 已过期」，**认不出来的一律标成「未知」，绝不判成「已完成」**。因为判成已完成会让你错过截止且不可恢复，判成未知最多让你多点开看一次，代价可逆。同理，课程没读通、平台数据没解析出来时一律标降级写明原因，绝不冒充「没作业」。
+状态处理是这里最要紧的部分：平台返回的状态文案有很多种写法，能识别的归类为「待做 / 待批阅 / 已完成 / 已过期」，**认不出来的一律标成「未知」，绝不判成「已完成」**。因为判成已完成会让你错过截止且不可恢复，判成未知最多让你多点开看一次，代价可逆。同理，课程没读通、平台数据没解析出来时一律标降级写明原因，绝不冒充「没作业」。登录态过期（如雨课堂扫码失效）会收敛到对应连接卡写清原因、给一键重登，不弹满屏提示，已读到的旧数据照旧留着。
 
 **空教室**
 
@@ -252,7 +252,7 @@ None of these is hard on its own, but you do them several times a day. This app 
 | Direct APK | <https://xxmu-auth.pages.dev/v1/apk> |
 | Update group | QQ `1097668324` |
 
-Current release **v1.1.80 / 1180** (2026-11-13): assignments and exams on Zhidao (智慧树 / zhihuishu) now read their list directly by default — sign in, tap "Done" in the top-right corner, return to the Learning page and tap "Refresh", and they join the Chaoxing items in one shared countdown. When a course could not be read or the platform data could not be parsed, the app states the reason instead of quietly showing an empty "no homework" list. The Zhidao login page no longer closes itself; class reminders fire once for back-to-back periods and land on time. The ink-wash light skin, pixel companions, page-flipping album and message board, and the air-conditioning room anti-mistakes from earlier releases are all still there.
+Current release **v1.1.81 / 1181** (2026-11-13): homework and exam lists from all four platforms now quietly refresh themselves when you open the app or switch back to it, and again every half hour while it stays in the foreground — repeated opens inside ten minutes do not hammer the servers, and nothing runs in the background. If any platform login has expired, the app states the reason on the connection card for that platform with a one-tap re-login, instead of popping toasts everywhere or quietly showing an empty "no homework" list; data already read is kept. The Yuketang (雨课堂) QR sign-in page no longer closes itself: scan, reach the course page and tap "Done" in the top-right corner to finish signing in, and when it expires the card shows the current region and the two most likely causes. Scanning a QR code and re-signing in after a session expires still need you; the app only reads lists, never signs in, submits homework or posts for you. Earlier work — direct Zhidao homework/exam reading, the ink-wash light skin, pixel companions, page-flipping album and message board, air-conditioning room anti-mistakes, and one reminder for back-to-back periods — is all still there.
 
 > Opening the page inside WeChat will refuse to download the APK — that is WeChat's own restriction. Tap "···" in the top-right corner → "Open in browser", then tap download again.
 
@@ -277,9 +277,9 @@ A status bar at the top distinguishes four situations: **not synced yet / genuin
 
 **Assignments and exams**
 
-Read from both Chaoxing (学习通) and Zhidao (智慧树 / zhihuishu), merged into one list and sorted by urgency. Zhidao defaults to a direct API read, with a "read the homework page" fallback; both paths only read the list, never submit homework for you.
+Read from Chaoxing (学习通), Yuketang (雨课堂), Xiqueer (喜鹊儿) and Zhidao (智慧树 / zhihuishu), merged into one list and sorted by urgency. The list quietly refreshes itself on open, on returning to the foreground, or on a timer while in the foreground — one course at a time in series, no repeat hits within ten minutes, nothing in the background. Zhidao defaults to a direct API read, with a "read the homework page" fallback; all four platforms only read the list, never sign in, submit homework or post for you.
 
-Status handling is the most important part here: the platform returns many different phrasings for a status, so anything recognisable is grouped into "to do / awaiting grading / done / expired", and **anything unrecognised is marked "unknown" — never "done"**. Marking an unknown as "done" makes you miss a deadline irreversibly; marking it "unknown" costs you one extra tap. The cost is reversible. By the same rule, a course that could not be read or a response that could not be parsed is reported as degraded with a reason, never disguised as "no homework".
+Status handling is the most important part here: the platform returns many different phrasings for a status, so anything recognisable is grouped into "to do / awaiting grading / done / expired", and **anything unrecognised is marked "unknown" — never "done"**. Marking an unknown as "done" makes you miss a deadline irreversibly; marking it "unknown" costs you one extra tap. The cost is reversible.By the same rule, a course that could not be read or a response that could not be parsed is reported as degraded with a reason, never disguised as "no homework". An expired login (for example a Yuketang QR session) is reported on the connection card for that platform with a one-tap re-login instead of toasts everywhere, and data already read is kept.
 
 **Free classrooms**
 

@@ -70,7 +70,7 @@ const HOME_TTL = 86400;
 const IMG_TTL = 86400;
 /* v1.1.54: 换皮肤后边缘缓存里的旧首页与旧 SVG 会顶一天。
  * 缓存键里带上这个 BUILD 串，改一次 BUILD 就等于整批失效。 */
-const BUILD = 'v1.1.80-zhs-live';
+const BUILD = 'v1.1.81-autosync';
 
 async function cacheMatch(key) {
   try { return await caches.default.match(key); } catch (e) { return null; }

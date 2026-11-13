@@ -151,6 +151,14 @@ NEW_JS_SYMBOLS = {
                             "v1.1.80", "function courseIdOf", "result.courseOpenDtos",
                             "totalCount", "function hwResponseOk", "pageNo: p",
                             "平台确认当前没有待交作业", "本学期没抽到课程"],
+    # v1.1.81 方案 B：多来源自动刷新调度器（sources.js）+ 雨课堂扫码登录修复（yuketang.js）
+    "assets/sources.js": ["function autoSync", "AUTO_RUNNING", "AUTO_GAP = 600",
+                          "function statusFingerprint", "function fingerprintChanged",
+                          "function autoDiag", "function autoGap", "s.refresh(function () {})",
+                          "autoSync, autoDiag, autoGap"],
+    "assets/yuketang.js": ["v1.1.81", "OK_SENTINEL", "var AUTH_KEY = 'xxmu_ykt_auth'",
+                           "function authed()", "window[CB] = function (ok, acct)",
+                           "当前区域：", "两条最可能的原因", "state: 'stale'"],
     "assets/index.html": ["btnShowHwRaw", "fbHw",
                           # v1.1.6
                           'id="tut"', 'id="rowTut"', 'id="revPhotoList"',

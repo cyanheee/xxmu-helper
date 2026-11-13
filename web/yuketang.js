@@ -1,4 +1,19 @@
-/* 河医大助手 · 雨课堂适配器（v1.1.74 · 方案 C：真接活清单）
+/* 河医大助手 · 雨课堂适配器（v1.1.81 · 方案 C 真接活清单 + 方案 B 登录链路修复）
+ *
+ * ================== v1.1.81 修「扫码登录了没成功」====================
+ * 根因和知到 v1.1.78 同款（lesson 0mweebrn）：okHints 里那串业务页片段会被
+ * WebActivity.isLoggedInUrl 用 `u.contains(h)` 命中扫码后跳的中间页，
+ * onPageFinished 就自动秒关，回跳还写下假 __bound —— 没拿到 sessionid 却判
+ * 「已登录」，盲发探针全 50000。这版：
+ *   ① okHints 换成永不命中的哨兵 OK_SENTINEL（登录完成只认点右上角「完成」）；
+ *   ② 真登录判据独立成 AUTH_KEY，只有点完成且验到区域 cookie 才写，
+ *      curLoggedIn = authed() && hasCookie()，不再认秒关留下的假 __bound；
+ *   ③ 覆盖 __onSrcDone_yuketang 回跳，取消 / 没验到 cookie 一律清掉登录态；
+ *   ④ basic-info 报 50000 时状态收成 stale、诊断写明当前区域与两条疑似原因
+ *      （区域不匹配 / 没拿到 sessionid），连接卡显示「需重新登录」+ 一键直达重扫，
+ *      自动刷新会跳过失效来源，不弹满屏 toast、不对着失效接口反复打。
+ * 天花板：微信扫码必须人来做，机器代不了；这里只把「失效」说清并给一键重登。
+ * ====================================================================
  *
  * ================== 这一版和上一版的区别 ==================
  * v1.1.66 只留了框架 + 诚实降级，因为当时没有 sessionid、也没有可信端点。
@@ -91,6 +106,13 @@
   var NEED_LOGIN = '还没登录雨课堂。点「登录 / 绑定雨课堂」，用微信扫码后回到这里再同步一次。';
   var EXPIRED = '雨课堂说登录失效了（code 50000）。重新扫一次码就行，已读到的作业和考试不会丢。';
   var NO_PARSE = '雨课堂接口返回了，但没认出作业条目。可能是平台改版了，把卡片上的诊断发我再修。';
+
+  /* v1.1.81 登录链路修复（仿知到 v1.1.79）：真登录判据独立成 AUTH_KEY，
+   * okHints 用永不命中的哨兵，登录完成只认用户点右上角「完成」。 */
+  var AUTH_KEY = 'xxmu_ykt_auth';
+  var OK_SENTINEL = '/__xxmu_ykt_manual_done__/';
+  var CB = '__onSrcDone_yuketang';
+  var BAD_HINTS = '/login||/passport||/signin||/qrcode||/bind';
 
   /* ---------------- 基础设施 ---------------- */
 
@@ -420,6 +442,18 @@
     return api('/api/v3/user/basic-info').then(function (r) {
       var p = parse(r);
       if (!p.ok) {
+        /* v1.1.81：登录失效（50000 / 401002 / 10005）单独收成 stale，
+         * 诊断写明当前区域与两条疑似原因，连接卡才好给人指路重扫；
+         * 自动刷新会跳过 stale 来源，不对着失效接口反复打。 */
+        if (p.code === '50000' || p.code === '401002' || p.code === '10005') {
+          try { if (typeof XXMU !== 'undefined' && XXMU.pref) XXMU.pref(AUTH_KEY, ''); } catch (e) {}
+          diag.push('当前区域：' + curRegion().name + '（' + curRegion().host + '）');
+          diag.push('两条最可能的原因：① 区域选错，本校一般是「长江」，'
+            + '四套雨课堂会话互不通用，换区要重新扫码；② 扫完没真拿到登录态，'
+            + '二维码约 5 分钟过期，要进到课程页、再点右上角「完成」才算数。');
+          diag.push('basic-info 失败：' + p.err);
+          return { state: 'stale', error: p.err, diag: diag.join('；') };
+        }
         return { state: 'degraded', error: p.err, diag: 'basic-info 失败：' + p.err };
       }
       var who = rec(p.data);
@@ -582,28 +616,26 @@
   /* 登录态 / 登录入口 / 断开 三件事都按**当前区域**走。
    * 不能交给 define 的默认实现：那三个默认值在读 spec 时就把 host 与
    * loginUrl 定死了，用户换了区域仍旧判旧域的 Cookie（v1.1.74 的死因）。 */
-  function curLoggedIn() {
+  function authed() { try { return XXMU.pref(AUTH_KEY) === '1'; } catch (e) { return false; } }
+  function hasCookie() {
     try {
       if (typeof Host !== 'undefined' && Host && Host.hasCookieFor) {
         return !!Host.hasCookieFor(hostNow() + '/');
       }
     } catch (e) {}
-    try {
-      if (typeof XXMU !== 'undefined' && XXMU.pref) {
-        return !!XXMU.pref('xxmu_ykt_todo__bound');
-      }
-    } catch (e) {}
     return false;
   }
+  /* 只认「点完成 + 验到 cookie」双重判据。旧版认 xxmu_ykt_todo__bound，
+   * 而扫码中间页被 WebActivity 秒关时也会写那个假 __bound —— 没拿到
+   * sessionid 却判已登录，盲发探针全 50000（知到 v1.1.78 同款坑）。 */
+  function curLoggedIn() { return authed() && hasCookie(); }
 
   function curOpenLogin() {
     try {
       if (typeof Host === 'undefined' || !Host || !Host.openLoginFor) return false;
       Host.openLoginFor(loginNow(),
         '登录 / 绑定雨课堂 · ' + curRegion().name,
-        '/login||/passport||/signin||/qrcode||/bind',
-        '/web/course||/web/student||/web/index||/web/learn||/web/my||/course/',
-        '', '__onSrcDone_yuketang');
+        BAD_HINTS, OK_SENTINEL, '', CB);
       return true;
     } catch (e) { return false; }
   }
@@ -614,6 +646,8 @@
         Host.clearCookieFor(hostNow() + '/');
       }
     } catch (e) {}
+    try { XXMU.pref(AUTH_KEY, ''); } catch (e) {}
+    try { XXMU.pref('xxmu_ykt_todo__bound', ''); } catch (e) {}
   }
 
   SOURCES.define({
@@ -627,14 +661,32 @@
     host: curRegion().host,
     loginUrl: curRegion().host + '/web',
     loginTitle: '登录 / 绑定雨课堂',
-    badHints: '/login||/passport||/signin||/qrcode||/bind',
-    okHints: '/web/course||/web/student||/web/index||/web/learn||/web/my||/course/',
+    badHints: BAD_HINTS,
+    okHints: OK_SENTINEL,
     grabSel: '',
     loggedIn: curLoggedIn,
     openLogin: curOpenLogin,
     logout: curLogout,
     fetch: fetchTodo
   });
+
+  /* 覆盖 define 的默认登录回跳：默认版在扫码中间页被秒关时也会写假
+   * __bound。这里只在「用户点完成(ok=true) 且验到区域 cookie」才写
+   * AUTH_KEY；取消 / 没验到 cookie 一律清掉，不假装登录成功。 */
+  window[CB] = function (ok, acct) {
+    if (!ok) {
+      try { XXMU.pref(AUTH_KEY, ''); } catch (e) {}
+      try { XXMU.toast('已取消雨课堂登录'); } catch (e) {}
+      return;
+    }
+    if (hasCookie()) {
+      try { XXMU.pref(AUTH_KEY, '1'); } catch (e) {}
+    } else {
+      try { XXMU.pref(AUTH_KEY, ''); } catch (e) {}
+      try { XXMU.toast('没检测到登录态，请在页面里扫完码、进到课程页后再点右上角「完成」'); } catch (e) {}
+    }
+    if (window.SrcUI && window.SrcUI.sync) window.SrcUI.sync('yuketang', false);
+  };
 
   /* 给界面用：读当前区域、切区域。切换后要重新登录（会话不通用），
    * 由 app.js 在切完提示「换区要重新扫码」。 */

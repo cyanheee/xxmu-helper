@@ -50,12 +50,14 @@ function byId(st, id) {
  *
  * Host.getPref/setPref 是聚合器唯一的缓存通道，用一份可变的 store 兜住，
  * 这样能从 Node 侧预置缓存 JSON、也能读回 refresh 写进去的内容。 */
-function loadSources(initialPrefs) {
+function loadSources(initialPrefs, opts) {
+  opts = opts || {};
   const store = Object.assign({}, initialPrefs || {});
+  const calls = { toast: [] };
   const Host = {
     getPref: (k) => (Object.prototype.hasOwnProperty.call(store, k) ? String(store[k]) : ''),
     setPref: (k, v) => { store[k] = String(v); },
-    hasCookieFor: () => false,
+    hasCookieFor: () => (opts.cookie !== undefined ? !!opts.cookie : false),
     clearCookieFor: () => {},
     openWebFor: () => true,
     openLogin: () => true,
@@ -73,7 +75,7 @@ function loadSources(initialPrefs) {
     netCk: () => Promise.resolve(''),
     splitResp: () => ({ code: -1, body: '' }),
     decodeAuto: (s) => s,
-    toast: () => {},
+    toast: (m) => { calls.toast.push(String(m)); },   // v1.1.81：验证自动刷新绝不弹 toast
   };
   /* sources.js 走 Host 读写缓存，不碰 localStorage；这里仍按契约注入一份
    * 最小实现，保证沙箱齐全、将来聚合器若改用 localStorage 也不会 ReferenceError。 */
@@ -91,7 +93,13 @@ function loadSources(initialPrefs) {
   sandbox.window = sandbox;
   vm.createContext(sandbox);
   vm.runInContext(SRC + '\n;__S = SOURCES;', sandbox, { timeout: 3000 });
-  return sandbox.__S;
+  /* v1.1.81：把 store / calls / sandbox 挂到返回对象上，让 autoSync 组能
+   * 预置缓存、读回 refresh 写盘内容、断言「自动刷零 toast」。不改返回类型，
+   * ①–⑦ 里 `const SOURCES = loadSources(...)` 的用法一点不动。 */
+  const S = sandbox.__S;
+  S.__t = { store, calls, sandbox };
+  if (opts && opts._out) { opts._out.store = store; opts._out.calls = calls; opts._out.sandbox = sandbox; }
+  return S;
 }
 
 async function main() {
@@ -208,7 +216,106 @@ async function main() {
       'readErr=' + JSON.stringify(re) + ' status.error=' + JSON.stringify(row && row.error));
   }
 
-  console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  7 assertions: pass=' + pass + ' fail=' + fail);
+  /* ---------- ⑧–⑪ v1.1.81 自动刷新调度器（方案 B）----------
+   * 钉住：单飞 / 串行不并发 / 最小间隔防限流 / 跳过没登录·失效·从没成功过的
+   * 来源 / 静默（零 toast）/ 变化了才回调重画 / autoDiag 有账可查。
+   * 自动刷直接调 s.refresh，绝不经过 SrcUI.sync（那条降级会 showTip 弹满屏）。 */
+  {
+    const tNow = Math.floor(Date.now() / 1000);
+    const oldOk = (extra) => cacheBlob(Object.assign({ synced_at: 1700000000, state: 'ok' }, extra || {}));
+    const defOk = (S, id, fetchFn, loggedIn) =>
+      S.define({ id, loggedIn: loggedIn || (() => true), fetch: fetchFn });
+
+    /* ⑧ 冷启动 / 够旧的已登录来源会被自动补刷；builtin 学习通不参与；
+     *    串行跑完、数据落盘、指纹变了回调 true、全程零 toast。 */
+    {
+      const out = {};
+      const prefs = {
+        xxmu_src_a1: oldOk({ works: [{ name: 'OLD-A' }] }),
+        xxmu_src_a2: oldOk({ works: [{ name: 'OLD-B' }] }),
+      };
+      const SOURCES = loadSources(prefs, { _out: out });
+      let hitA = 0, hitB = 0;
+      defOk(SOURCES, 'a1', () => { hitA++; return { state: 'ok', works: [{ name: 'NEW-A' }], exams: [] }; });
+      defOk(SOURCES, 'a2', () => { hitB++; return { state: 'ok', works: [{ name: 'NEW-B' }], exams: [] }; });
+      let doneChanged = null;
+      const r = await SOURCES.autoSync(c => { doneChanged = c; }, { reason: 'cold' });
+      ok('⑧ 两个够旧的已登录来源都被自动补刷（ran===2）', !!r && r.ran === 2, JSON.stringify(r));
+      ok('⑧ 两个 fetch 各跑一次', hitA === 1 && hitB === 1, hitA + '/' + hitB);
+      ok('⑧ 学习通 builtin 不参与自动刷新', r.ran === 2);
+      ok('⑧ 新数据已落盘', /NEW-A/.test(out.store['xxmu_src_a1'] || '') && /NEW-B/.test(out.store['xxmu_src_a2'] || ''));
+      ok('⑧ 指纹变了 → 回调 changed=true（让调用方重画一次）', doneChanged === true, String(doneChanged));
+      ok('⑧ 自动刷新全程零 toast（静默，不弹满屏）', out.calls.toast.length === 0, out.calls.toast.join('|'));
+      ok('⑧ autoGap() 报出最小间隔 600 秒', SOURCES.autoGap() === 600, String(SOURCES.autoGap()));
+      const dg = SOURCES.autoDiag();
+      ok('⑧ autoDiag() 记下这次 cold 刷新（ran=2, changed=true）',
+        dg.length >= 1 && dg[dg.length - 1].reason === 'cold' && dg[dg.length - 1].ran === 2,
+        JSON.stringify(dg));
+    }
+
+    /* ⑨ 最小间隔：刚刷过（<600s）的来源这次跳过，不重复打平台。 */
+    {
+      const out = {};
+      const prefs = { xxmu_src_fresh: oldOk({ synced_at: tNow - 100 }) };
+      const SOURCES = loadSources(prefs, { _out: out });
+      let hit = 0;
+      defOk(SOURCES, 'fresh', () => { hit++; return { state: 'ok', works: [], exams: [] }; });
+      const r = await SOURCES.autoSync(() => {}, { reason: 'resume' });
+      ok('⑨ 距上次成功 100s（<600s）→ 跳过、fetch 一次都不发', r.ran === 0 && hit === 0, JSON.stringify(r) + ' hit=' + hit);
+    }
+
+    /* ⑩ 跳过规则：没登录 / stale / degraded / 从没成功过 synced_at===0 一律不刷。 */
+    {
+      const out = {};
+      const prefs = {
+        xxmu_src_nologin: oldOk(),
+        xxmu_src_stale: oldOk({ state: 'stale', error: '登录已失效' }),
+        xxmu_src_deg: oldOk({ state: 'degraded', error: '接口挂了' }),
+        xxmu_src_never: cacheBlob({ synced_at: 0, state: 'ok' }),
+      };
+      const SOURCES = loadSources(prefs, { _out: out });
+      let any = 0;
+      const bump = () => { any++; return { state: 'ok', works: [], exams: [] }; };
+      defOk(SOURCES, 'nologin', bump, () => false);
+      defOk(SOURCES, 'stale', bump);
+      defOk(SOURCES, 'deg', bump);
+      defOk(SOURCES, 'never', bump);
+      const r = await SOURCES.autoSync(() => {}, { reason: 'interval' });
+      ok('⑩ 没登录/失效/上次降级/从没成功过 全跳过（ran===0）', r.ran === 0 && any === 0, JSON.stringify(r) + ' any=' + any);
+      const dg = SOURCES.autoDiag();
+      ok('⑩ 无目标也记一笔账（ran=0，可查调度器确实跑过）',
+        dg.length >= 1 && dg[dg.length - 1].ran === 0, JSON.stringify(dg));
+    }
+
+    /* ⑪ 单飞 + 串行：第一个 fetch 还没 resolve 时第二次 autoSync 直接被拒，
+     *    第二个来源的 fetch 不会和第一个并发；且降级也静默（零 toast）。 */
+    {
+      const out = {};
+      const prefs = { xxmu_src_s1: oldOk(), xxmu_src_s2: oldOk() };
+      const SOURCES = loadSources(prefs, { _out: out });
+      let started2 = 0, resolve1;
+      const p1 = new Promise(res => { resolve1 = res; });
+      defOk(SOURCES, 's1', () => p1);
+      defOk(SOURCES, 's2', () => { started2++; return { state: 'degraded', error: '假装失效' }; });
+      const first = SOURCES.autoSync(() => {}, { reason: 'cold' });
+      let secondChanged = 'unset';
+      const sr = await SOURCES.autoSync(c => { secondChanged = c; }, { reason: 'resume' });
+      ok('⑪ 单飞：第一个没跑完时第二次直接被拒（skipped=running）',
+        !!sr && sr.skipped === 'running' && sr.ran === 0, JSON.stringify(sr));
+      ok('⑪ 被拒的那次仍回调 done(false)（调用方不傻等）', secondChanged === false, String(secondChanged));
+      ok('⑪ 串行：第一个没完，第二个 fetch 还没启动（不并发打平台）', started2 === 0, String(started2));
+      resolve1({ state: 'ok', works: [], exams: [] });
+      const fr = await first;
+      ok('⑪ 放行后串行跑完两个来源（ran===2）', !!fr && fr.ran === 2, JSON.stringify(fr));
+      ok('⑪ 第二个来源开始跑了', started2 === 1, String(started2));
+      ok('⑪ 其中一个降级也全程静默（零 toast，交连接卡）', out.calls.toast.length === 0, out.calls.toast.join('|'));
+      const row2 = byId(SOURCES.status(), 's2');
+      ok('⑪ 降级来源被记住原因、不会被当成没作业',
+        !!row2 && row2.state === 'degraded' && !!row2.error, JSON.stringify(row2 && { s: row2.state, e: row2.error }));
+    }
+  }
+
+  console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  ' + (pass + fail) + ' assertions: pass=' + pass + ' fail=' + fail);
   process.exit(fail ? 1 : 0);
 }
 

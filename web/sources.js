@@ -22,11 +22,38 @@
  * live() 在「所有来源都没抓到数据」时返回 null，让 renderHomework 原有
  * 优先级链（外部 JSON → live → 旧缓存 → window.HOMEWORK）继续往下走。
  * 学习通没登录、新平台也没登录时，页面表现与 v1.1.65 逐字一致。
+ *
+ * ================== v1.1.81：自动刷新调度器（方案 B） ==================
+ * YG「雨课堂喜鹊知到能不能像学习通一样自动重新抓取」。逐文件核对后发现
+ * 学习通也不是后台轮询：CX.sync 只在登录成功 / 点刷新 / 解锁时触发，靠
+ * cookie 长效撑着。三平台真正缺的是「登录态有效时，冷启动 / 切回前台 /
+ * 前台常驻到点，就静默补刷一次」。这里补一个统一调度器 autoSync()，由
+ * app.js 挂冷启动、window.__onResume（MainActivity.onResume 已在喊）和
+ * 30 分钟前台定时器；学习通(builtin)不参与，它有自己的触发链。
+ *
+ * 三条保护（学习通并发敏感，chaoxing.js:499 注释「一次打十门课大概率被
+ * 限流成 3004」，多平台更不能并发打）：
+ *   1. 单飞：AUTO_RUNNING 期间再来一次 autoSync 直接跳过，防三钩子叠加；
+ *   2. 串行：一个来源刷完再下一个，不并发；
+ *   3. 最小间隔：每来源距上次成功 synced_at 不满 AUTO_GAP(600s) 不刷。
+ * 两条诚实底线：
+ *   4. 跳过没登录 / 明确要重登(stale) / 从没成功过(synced_at===0) 的来源，
+ *      不给它们盲发请求（发了必然 401/50000，还会在卡上刷出假「暂不可用」）；
+ *   5. 静默：自动刷只落盘 + 回调重画一次，绝不弹 toast / showTip；失效原因
+ *      交给连接卡自己显示（cardNode 的 note + 「重新登录」按钮），不弹满屏。
+ * 天花板：登录态过期（雨课堂微信扫码、知到/喜鹊 cookie）机器代不了，调度器
+ * 只做「失效明确提示 + 一键直达重登」，不假装能自动重登。
  */
 const SOURCES = (() => {
   const REG = [];
   const byId = {};
   let LAST_ERR = '';
+
+  /* v1.1.81 自动刷新：单飞标志 + 每来源最小补刷间隔（秒，防限流）
+   * + 最近一次自动刷的结果（供诊断读，不落盘、不影响状态推断）。 */
+  const AUTO_GAP = 600;
+  let AUTO_RUNNING = false;
+  const AUTO_LOG = [];
 
   const hasHost = () => typeof Host !== 'undefined' && Host;
   const hasXXMU = () => typeof XXMU !== 'undefined' && XXMU;
@@ -350,12 +377,101 @@ const SOURCES = (() => {
     return String((snap && snap.diag) || '');
   }
 
+  /* ---------------- v1.1.81 自动刷新调度器实现 ----------------
+   * app.js 三处钩子（冷启动 / __onResume / 30 分钟前台定时器）都调这个
+   * autoSync(onDone, opts)，靠单飞 + 最小间隔自己去重，调用方不用记状态。
+   * 关键：自动刷**直接调 s.refresh**，不经过 SrcUI.sync —— 那条在降级时会
+   * showTip 弹满屏；自动刷只落盘，变化了才让 onDone 重画一次连接卡。 */
+  function statusFingerprint() {
+    const m = {};
+    try {
+      status().forEach(function (r) {
+        m[r.id] = [r.state, r.count, r.synced_at, r.error].join('|');
+      });
+    } catch (e) {}
+    return m;
+  }
+  function fingerprintChanged(a, b) {
+    const keys = {};
+    Object.keys(a).forEach(k => { keys[k] = 1; });
+    Object.keys(b).forEach(k => { keys[k] = 1; });
+    for (const k in keys) if (a[k] !== b[k]) return true;
+    return false;
+  }
+
+  function autoSync(onDone, opts) {
+    const done = typeof onDone === 'function' ? onDone : function () {};
+    if (AUTO_RUNNING) { try { done(false); } catch (e) {} return Promise.resolve({ ran: 0, skipped: 'running' }); }
+    const reason = String((opts && opts.reason) || 'auto');
+    const t = now();
+    const before = statusFingerprint();
+
+    /* 挑「值得自动补刷」的来源：非 builtin、已登录、上次成功过、且距上次
+     * 成功超过 AUTO_GAP。没绑过 / 明确要重登(stale) / 上次就降级 的一律
+     * 跳过 —— 尤其「上次降级」这条：session 过期自动刷一次就会把来源标成
+     * degraded，之后每 30 分钟不再反复重试、不反复弹假「暂不可用」，直等
+     * 用户重新登录（回跳会自动刷回 ok）才恢复调度。 */
+    const targets = [];
+    REG.forEach(function (s) {
+      if (s.builtin) return;
+      let logged = false, snap = null;
+      try { logged = !!s.loggedIn(); } catch (e) {}
+      if (!logged) return;
+      try { snap = s.cached ? s.cached() : null; } catch (e) {}
+      const synced = snap ? (Number(snap.synced_at) || 0) : 0;
+      const st = snap && snap.state ? snap.state : (synced ? 'ok' : '');
+      if (!synced || st === 'stale' || st === 'degraded') return;
+      if (t - synced < AUTO_GAP) return;
+      targets.push({ id: s.id, gap: t - synced });
+    });
+
+    if (!targets.length) {
+      AUTO_LOG.push({ at: t, reason, ran: 0 });
+      if (AUTO_LOG.length > 20) AUTO_LOG.shift();
+      try { done(false); } catch (e) {}
+      return Promise.resolve({ ran: 0 });
+    }
+
+    AUTO_RUNNING = true;
+    let i = 0;
+    const results = [];
+    /* 串行：一个刷完再下一个，不并发打平台（限流 3004 的教训）。 */
+    function next() {
+      if (i >= targets.length) {
+        AUTO_RUNNING = false;
+        const changed = fingerprintChanged(before, statusFingerprint());
+        AUTO_LOG.push({ at: now(), reason, ran: results.length, changed: changed, results: results.slice() });
+        if (AUTO_LOG.length > 20) AUTO_LOG.shift();
+        try { done(changed); } catch (e) {}
+        return Promise.resolve({ ran: results.length, changed: changed, results });
+      }
+      const one = targets[i++];
+      const s = byId[one.id];
+      let p = null;
+      try { p = s && s.refresh ? s.refresh(function () {}) : null; }
+      catch (e) { p = null; }
+      return Promise.resolve(p).then(function (r) {
+        results.push({ id: one.id, state: (r && r.state) ? r.state : 'degraded' });
+        return next();
+      }, function () {
+        results.push({ id: one.id, state: 'degraded' });
+        return next();
+      });
+    }
+    return next();
+  }
+
+  /* 供「复制诊断」/ 真机定位读最近几次自动刷的钩子、跑了几个、状态变化。 */
+  function autoDiag() { return AUTO_LOG.slice(); }
+  function autoGap() { return AUTO_GAP; }
+
   /* 初始化时把学习通登记为第 0 个来源（其余由各适配器 .js 调 define 注册）。 */
   registerBuiltinChaoxing();
 
   return {
     register, define, http, stripTags, now,
     status, live, list, get, refresh, openLogin, logout, diag,
+    autoSync, autoDiag, autoGap,
     readErr: () => LAST_ERR,
   };
 })();

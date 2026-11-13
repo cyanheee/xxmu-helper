@@ -2150,5 +2150,65 @@ if (/cas\/login/.test(zhs80)) fail('v1.1.80 仍残留多余的 CAS 换票 GET（
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
 }
 
+/* ---- v1.1.81：方案 B 自动刷新 + 雨课堂扫码登录链路修复 ----
+ * YG m01416「雨课堂扫码登录没成功…能不能像学习通一样自动重新抓取」选 B。
+ * 学习通不是后台轮询：CX.sync 只在登录成功 / 点刷新 / 解锁触发、靠 cookie 长效。
+ * 三平台（雨课堂 / 喜鹊 / 知到）经 SOURCES.define 接入后，框架里一次都没有
+ * 冷启动 / 切回前台 / 前台常驻静默补刷。本版在 sources.js 补统一调度器
+ * autoSync（单飞 + 串行不并发 + 最小间隔 600s 防限流 + 跳过没登录/失效/从没
+ * 成功过的来源 + 静默零 toast），app.js 挂冷启动双 rAF / window.__onResume
+ * （MainActivity.onResume 已在喊）/ 30 分钟前台定时器三处；雨课堂登录修
+ * 知到 v1.1.78 同款坑（okHints 秒关 → 假 __bound → 全 50000）：哨兵 +
+ * AUTH_KEY 真登录判据 + 覆盖回跳 + 50000 收 stale 写区域与两条疑似原因。 */
+console.log('\nv1.1.81 checkpoints（方案 B 自动刷新 / 雨课堂扫码修复 / 只读）:');
+const src81 = read('web/sources.js');
+const ap1181 = read('web/app.js');
+const ykt81 = read('web/yuketang.js');
+has(src81, 'function autoSync', 'sources.js 自动刷新调度器 autoSync');
+has(src81, 'AUTO_RUNNING', '单飞：AUTO_RUNNING 期间第二次直接跳过');
+has(src81, 'AUTO_GAP = 600', '最小间隔 600 秒防限流（学习通 3004 教训）');
+has(src81, 't - synced < AUTO_GAP', '距上次成功不满间隔的来源跳过');
+has(src81, 'function statusFingerprint', '指纹比对：变了才回调重画');
+has(src81, 'autoDiag', '自动刷新留诊断账 autoDiag');
+has(src81, 'autoSync, autoDiag, autoGap', '三个新方法透出到 SOURCES 公共接口');
+has(ap1181, 'function autoSyncBoot', 'app.js 挂自动刷新调度');
+has(ap1181, 'window.__onResume = function', '接上 MainActivity.onResume 的回前台钩子');
+has(ap1181, '30 * 60 * 1000', '前台常驻每 30 分钟静默补刷一次');
+has(ap1181, "kick('cold')", '冷启动双 rAF 后补刷一次');
+has(ap1181, "if (document.hidden) return;", '后台不刷（document.hidden 直接返回）');
+has(ap1181, 'const redrawIfChanged = function (changed)', '静默回调只重画、不弹 toast/showTip');
+has(ap1181, "Host.setPref('xxmu_ykt_auth', '')", '切区域时清掉雨课堂真登录判据');
+has(ykt81, 'v1.1.81', '头注释标出 v1.1.81 登录链路修复');
+has(ykt81, 'OK_SENTINEL', '雨课堂 okHints 用永不命中哨兵（杜绝扫码中间页秒关）');
+has(ykt81, "var AUTH_KEY = 'xxmu_ykt_auth'", '真登录判据独立成 AUTH_KEY');
+has(ykt81, 'function authed()', 'authed() 只认 AUTH_KEY，不认旧假 __bound');
+has(ykt81, 'function curLoggedIn() { return authed() && hasCookie(); }', '登录态 = 真登录判据 + 区域 cookie 双判据');
+has(ykt81, 'window[CB] = function (ok, acct)', '覆盖登录回跳，点完成且验到 cookie 才写真登录');
+has(ykt81, '当前区域：', '50000 诊断写明当前区域');
+has(ykt81, '两条最可能的原因', '50000 诊断写明两条疑似原因（区域 / 没拿到 sessionid）');
+has(ykt81, "state: 'stale'", '登录失效收成 stale（不再误判 degraded 空清单）');
+has(ykt81, '只读：不代签到、不代作答、不代发帖', '保留只读不代交红线');
+/* 反向：okHints 绝不能再写业务页片段（会被扫码中间页 u.contains 命中秒关）。 */
+if (ykt81.indexOf("'/web/course||/web/student") >= 0) fail('v1.1.81 雨课堂仍用业务页片段当 okHints（会秒关扫码页）');
+/* 反向：autoSync 函数体内绝不能经过 SrcUI.sync（那条降级会 showTip 弹满屏）；
+ * 登录回跳里那处 window.SrcUI.sync 是合法的，不算在这里。 */
+{
+  const body81 = (src81.slice(src81.indexOf('function autoSync'))).split('function autoDiag')[0];
+  if (/SrcUI\.sync/.test(body81)) fail('v1.1.81 自动刷新误走 SrcUI.sync（会弹满屏 toast）');
+  has(body81, 's.refresh(function () {})', 'autoSync 直接调 s.refresh（静默落盘）');
+}
+{
+  const r1 = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_sources.js')], { encoding: 'utf8' });
+  console.log('  自动刷新调度器离线测试      =', r1.status === 0 ? 'PASS' : 'FAIL');
+  if (r1.status !== 0) fail('自动刷新调度器离线测试未过：' +
+    ((r1.stdout || '') + (r1.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+  const r2 = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_yuketang.js')], { encoding: 'utf8' });
+  console.log('  雨课堂登录修复离线测试      =', r2.status === 0 ? 'PASS' : 'FAIL');
+  if (r2.status !== 0) fail('雨课堂登录修复离线测试未过：' +
+    ((r2.stdout || '') + (r2.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
 console.log('\n' + (bad === 0 ? '[PASS] 静态体检全部通过' : '[FAIL] ' + bad + ' 项未过'));
 process.exit(bad === 0 ? 0 : 1);

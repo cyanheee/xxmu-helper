@@ -1531,6 +1531,17 @@ const SrcUI = (() => {
       rHint.textContent = '用哪套就选哪个（本校一般是「长江」）。换区等于换一套账号，'
         + '要重新扫码；换完先点「登录 / 绑定雨课堂」。';
       wrap.appendChild(rHint);
+      /* v1.1.81：扫码一直不成功 / 登录失效时，把「当前区域 + 两条疑似原因
+       * + 一键重扫」收敛在这张连接卡上说明白，不弹满屏 toast。切区域入口就是
+       * 上面那排按钮，重扫入口就是卡片底部「登录 / 绑定雨课堂」。 */
+      if (s.state === 'stale' || s.state === 'degraded') {
+        const yHint = el('p', 'hint tight');
+        yHint.textContent = '当前选的是「' + (YKT.regionName ? YKT.regionName() : '') + '」雨课堂。'
+          + '登录没成功，多半是：① 区域不对，本校一般选「长江」，上面换一下再重扫；'
+          + '② 扫完没真拿到登录态，二维码约 5 分钟过期，要进到课程页、再点右上角「完成」。'
+          + '点下面的「登录 / 绑定雨课堂」重扫一次；已读到的作业考试不会丢。';
+        wrap.appendChild(yHint);
+      }
     }
 
     /* v1.1.78 起：知到两条接入主线做成可切探针（方案 C）。A 读官方作业页 DOM、
@@ -1690,6 +1701,7 @@ const SrcUI = (() => {
           if (typeof Host !== 'undefined' && Host.setPref) {
             Host.setPref('xxmu_ykt_todo', '');
             Host.setPref('xxmu_ykt_todo__bound', '');
+            Host.setPref('xxmu_ykt_auth', '');   /* v1.1.81 真登录判据也要清 */
           }
         } catch (e) {}
         paint();
@@ -6100,6 +6112,32 @@ CxUI.init();
  * app.js 之前加载，这里 init 时注册已完成；若某个 js 没加载也只是空卡，
  * 不会拖垮这一串初始化（SrcUI.init 自带 typeof 守卫）。 */
 if (typeof SrcUI !== 'undefined') SrcUI.init();
+/* v1.1.81 方案 B：多来源自动刷新调度。SOURCES.autoSync 只刷「已登录、上次
+ * 成功过、距上次 ≥10 分钟」的来源，串行不并发（学习通并发会被限流 3004）、
+ * 单飞、静默（只落盘 + 重画一次，绝不弹 toast / showTip，失效交给连接卡说）。
+ * 三个时机：冷启动双 rAF 后、切回前台 __onResume（MainActivity.onResume():2491
+ * 已用 evaluateJavascript 喊它）、前台常驻每 30 分钟。扫码 / cookie 过期机器
+ * 代不了，autoSync 会直接跳过失效来源，只把状态留在连接卡上等人点重登。 */
+(function autoSyncBoot() {
+  if (typeof SOURCES === 'undefined' || !SOURCES.autoSync) return;
+  const redrawIfChanged = function (changed) {
+    if (!changed) return;
+    try { if (typeof SrcUI !== 'undefined') SrcUI.paint(); } catch (e) {}
+    try { renderHomework(); } catch (e) {}
+  };
+  const kick = function (reason) { SOURCES.autoSync(redrawIfChanged, { reason: reason }); };
+  window.__onResume = function () { kick('resume'); };
+  const fireCold = function () { kick('cold'); };
+  if (typeof window.requestAnimationFrame === 'function') {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(fireCold));
+  } else {
+    setTimeout(fireCold, 60);
+  }
+  setInterval(function () {
+    if (document.hidden) return;
+    kick('interval');
+  }, 30 * 60 * 1000);
+})();
 if (typeof MYTODO !== 'undefined') MYTODO.init();
 if (typeof FOCUS !== 'undefined') FOCUS.init();
 if (typeof REMINDER !== 'undefined') REMINDER.init();

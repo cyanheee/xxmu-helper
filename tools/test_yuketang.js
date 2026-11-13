@@ -43,7 +43,8 @@ function fmtLocal(ms) {
 
 /* 造沙箱。routes 是「URL 片段 → 响应文本」的假路由；命中最长片段，
  * 没命中返回 404。这样每个用例只描述它关心的几条接口。 */
-function load(routes) {
+function load(routes, opts) {
+  opts = opts || {};
   const calls = { urls: [], toasts: [] };
   const specBox = {};
   const SOURCES = {
@@ -65,8 +66,9 @@ function load(routes) {
     stripTags(s) { return String(s || '').replace(/<[^>]*>/g, ' '); },
     now() { return 1700000000; },
   };
-  /* pref 用真存取：区域选择靠它记（v1.1.75），返回空串的假 pref 测不出来。 */
-  const prefs = {};
+  /* pref 用真存取：区域选择靠它记（v1.1.75），返回空串的假 pref 测不出来。
+   * v1.1.81：opts.prefs 可预置登录态键，测 AUTH_KEY 双判据；opts.cookie 控验 cookie。 */
+  const prefs = Object.assign({}, opts.prefs || {});
   const XXMU = {
     pref(k, v) {
       if (v === undefined) return prefs[k] === undefined ? '' : prefs[k];
@@ -77,9 +79,18 @@ function load(routes) {
   };
   const Host = {
     openLogin() { return true; },
-    hasCookieFor() { return calls.cookie === undefined ? true : !!calls.cookie; },
-    openLoginFor(url) { calls.loginUrl = String(url); return true; },
+    hasCookieFor() {
+      if (opts.cookie !== undefined) return !!opts.cookie;
+      return calls.cookie === undefined ? true : !!calls.cookie;
+    },
+    openLoginFor(url, title, badHints, okHints, grabSel, cb) {
+      calls.loginUrl = String(url);
+      calls.openLogin = { url: String(url), title: String(title), badHints: String(badHints),
+        okHints: String(okHints), grabSel: String(grabSel), cb: String(cb) };
+      return true;
+    },
     clearCookieFor(url) { calls.cleared = String(url); return true; },
+    getPref(k) { return prefs[k] === undefined ? '' : prefs[k]; },
     setPref(k, v) { prefs[k] = v; return true; },
   };
   /* 只借 CX.classify 的口径；DONE/NOTSTART/OPEN 词表与 web/chaoxing.js 一致。 */
@@ -111,7 +122,7 @@ function load(routes) {
 const P_LOGIN = { '/api/v3/user/basic-info': { code: 0, data: { name: '张与目' } } };
 
 async function main() {
-  console.log('\n[v1.1.74] 雨课堂适配器（方案 C）离线断言');
+  console.log('\n[v1.1.81] 雨课堂适配器（方案 C 真接活清单 + 登录链路修复）离线断言');
 
   /* ---------- ① 注册契约 ---------- */
   const A = load({});
@@ -125,9 +136,15 @@ async function main() {
   {
     const T = load({ '/api/v3/user/basic-info': { code: 50000, msg: 'UNAUTHENTICATED', data: '' } });
     const r = await T.spec.fetch(function () {});
-    ok('② code 50000 判成 degraded', r.state === 'degraded', JSON.stringify(r).slice(0, 160));
+    ok('② code 50000 判成 stale（登录失效），不是普通 degraded', r.state === 'stale', JSON.stringify(r).slice(0, 160));
     ok('② 说清是登录失效、要重新扫码', /登录失效|重新扫码|扫一次码/.test(String(r.error || '')), r.error);
     ok('② 只打了一条请求就收手（没白跑课程列表）', T.calls.urls.length === 1, T.calls.urls.length);
+    ok('② 诊断写明当前区域与两条疑似原因（区域不匹配 / 没拿到登录态）',
+      /当前区域/.test(String(r.diag || '')) && /区域选错/.test(String(r.diag || ''))
+      && /没真拿到登录态/.test(String(r.diag || '')), r.diag);
+    ok('② 失效时把 AUTH_KEY 清掉，不假装还登录着',
+      T.prefs['xxmu_ykt_auth'] === '' || T.prefs['xxmu_ykt_auth'] === undefined,
+      JSON.stringify(T.prefs['xxmu_ykt_auth']));
   }
 
   /* ---------- ③ 课程列表 401 → 说 HTTP 401，不冒充没作业 ---------- */
@@ -421,6 +438,69 @@ async function main() {
     ok('⑫ 结构认不出 → degraded，不当成没作业', r.state === 'degraded', r.state);
     ok('⑫ 诊断里打出了时间轴骨架（键名可见）', /时间轴骨架/.test(String(r.diag || '')), r.diag);
     ok('⑫ 键名真的写进了诊断（hello）', /hello/.test(String(r.diag || '')), r.diag);
+  }
+
+  /* ---------- ⑬ v1.1.81 登录链路修复：杜绝「扫码登录了没成功」 ----------
+   * v1.1.74 真机报 basic-info 50000：okHints 写成业务页片段，扫码中间页
+   * 被 isLoggedInUrl 命中秒关，默认回跳写下假 __bound，没拿到 sessionid
+   * 却判已登录、盲发探针全 50000。本组钉死：okHints 换永不命中的哨兵、
+   * 真登录判据独立成 AUTH_KEY、覆盖回跳只在「完成」+ 验到 cookie 才写、
+   * logout / cancel / 失效清干净。 */
+  {
+    const CB = '__onSrcDone_yuketang';
+    const S = load({});
+
+    ok('⑬ define 的 okHints 不含业务页片段 /web（否则扫码中间页被秒关）',
+      String(S.spec.okHints).indexOf('/web') < 0, String(S.spec.okHints));
+    ok('⑬ define 的 okHints 是非空哨兵（空会退回默认 /frame/ 判定）',
+      String(S.spec.okHints).length > 0, String(S.spec.okHints));
+    ok('⑬ badHints 仍覆盖登录/护照/扫码/绑定各入口',
+      ['login', 'passport', 'signin', 'qrcode', 'bind'].every(h => String(S.spec.badHints).indexOf(h) >= 0),
+      String(S.spec.badHints));
+
+    S.spec.openLogin();
+    ok('⑬ curOpenLogin 走 openLoginFor 打开当前区域登录页',
+      S.calls.openLogin && /changjiang\.yuketang\.cn\/web/.test(S.calls.openLogin.url),
+      S.calls.openLogin && S.calls.openLogin.url);
+    ok('⑬ 传给 openLoginFor 的 okHints 与 define 一致（哨兵，非业务页）',
+      S.calls.openLogin && S.calls.openLogin.okHints === S.spec.okHints,
+      S.calls.openLogin && S.calls.openLogin.okHints);
+    ok('⑬ 回跳回调名是 __onSrcDone_yuketang',
+      S.calls.openLogin && S.calls.openLogin.cb === CB, S.calls.openLogin && S.calls.openLogin.cb);
+
+    /* 真登录判据：只有 AUTH_KEY 才算，秒关写下的假 __bound 不算 */
+    const fake = load({}, { prefs: { 'xxmu_ykt_auth': '', 'xxmu_ykt_todo__bound': '1' } });
+    ok('⑬ 光有假 __bound=1（没 AUTH_KEY）仍判未登录',
+      fake.spec.loggedIn() === false, String(fake.spec.loggedIn()));
+
+    ok('⑬ window[__onSrcDone_yuketang] 被覆盖成自己的函数',
+      typeof S.windowSw[CB] === 'function');
+
+    const done = load({}, { prefs: { 'xxmu_ykt_auth': '' }, cookie: true });
+    done.windowSw[CB](true, '');
+    ok('⑬ 点「完成」(ok=true) 且验到 cookie → 写 AUTH_KEY=1',
+      done.prefs['xxmu_ykt_auth'] === '1', JSON.stringify(done.prefs['xxmu_ykt_auth']));
+    ok('⑬ 写完判已登录（双判据都满足）', done.spec.loggedIn() === true);
+
+    const cancel = load({}, { prefs: { 'xxmu_ykt_auth': '1' }, cookie: true });
+    cancel.windowSw[CB](false, '');
+    ok('⑬ 取消(ok=false) → 清掉 AUTH_KEY，回到未登录',
+      cancel.prefs['xxmu_ykt_auth'] === '', JSON.stringify(cancel.prefs['xxmu_ykt_auth']));
+    ok('⑬ 取消给一句 toast', cancel.calls.toasts.length >= 1, cancel.calls.toasts.join('|'));
+
+    const noCk = load({}, { prefs: { 'xxmu_ykt_auth': '1' }, cookie: false });
+    noCk.windowSw[CB](true, '');
+    ok('⑬ 点「完成」但没验到 cookie → 不写真登录，清 AUTH_KEY',
+      noCk.prefs['xxmu_ykt_auth'] === '', JSON.stringify(noCk.prefs['xxmu_ykt_auth']));
+    ok('⑬ 没 cookie 提示「进到课程页再点完成」',
+      /完成/.test(noCk.calls.toasts.join('|')), noCk.calls.toasts.join('|'));
+
+    const out = load({}, { prefs: { 'xxmu_ykt_auth': '1', 'xxmu_ykt_todo__bound': '1' }, cookie: true });
+    out.spec.logout();
+    ok('⑬ logout 清 AUTH_KEY', out.prefs['xxmu_ykt_auth'] === '', JSON.stringify(out.prefs['xxmu_ykt_auth']));
+    ok('⑬ logout 清秒关遗留的假 __bound', out.prefs['xxmu_ykt_todo__bound'] === '',
+      JSON.stringify(out.prefs['xxmu_ykt_todo__bound']));
+    ok('⑬ logout 清区域 Cookie', /yuketang\.cn/.test(String(out.calls.cleared || '')), out.calls.cleared);
   }
 
   console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  ' + (pass + fail) + ' assertions: pass=' + pass + ' fail=' + fail);
