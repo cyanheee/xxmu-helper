@@ -500,6 +500,31 @@ async function main() {
     ok('⑭ 两页都读通空清单 → 诚实空 ok 清单', rp.state === 'ok', rp.state);
   }
 
+  /* ---------- ⑮ v1.1.96 网络抖动重试：作业清单首次 HTTP -1 → 自动重试一次认出 ---------- */
+  {
+    const csOne = { code: 200, result: { totalCount: 1,
+      courseOpenDtos: [{ recruitId: 'R1', courseId: 1001, courseName: '甲' }] } };
+    let hwN = 0;
+    const flakyHw = function () {
+      hwN++;
+      return hwN === 1 ? { __err: 'HTTP 401' } : HW_EMPTY;
+    };
+    const sp = load({ queryShareCourseInfo: csOne, getStudentHomework: flakyHw },
+      { prefs: prefsB() });
+    const r = await sp.spec.fetch(function () {});
+    const hwCalls = sp.calls.bodies.filter(b => /getStudentHomework/.test(b.url));
+    ok('⑮ 作业清单首次网络失败自动重试 → 最终认出空清单 state=ok',
+      r.state === 'ok', JSON.stringify(r).slice(0, 220));
+    ok('⑮ 重试确实发生（同一作业请求发出 ≥2 次）',
+      hwCalls.length >= 2, hwCalls.length);
+    ok('⑮ 诊断如实记下网络失败与重试',
+      /重试|网络层失败/.test(String(r.diag || '')), String(r.diag || '').slice(0, 260));
+    const badCookie = sp.calls.urls.filter(u => /getStudentHomework/.test(u.url))
+      .filter(u => !/studentexam-api/.test(u.cookieUrl));
+    ok('⑮ 重试请求仍锁 studentexam-api，未换域', badCookie.length === 0,
+      badCookie.map(u => u.cookieUrl).join('|'));
+  }
+
   console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  ' + (pass + fail) + ' assertions: pass=' + pass + ' fail=' + fail);
   process.exit(fail ? 1 : 0);
 }

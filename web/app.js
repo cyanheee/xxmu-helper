@@ -1590,12 +1590,13 @@ const SrcUI = (() => {
 
     /* v1.1.67：动态发现考试页没命中时，给一条「复制诊断」的路。诊断里记了
      * 抓过哪些教务菜单页、每页多大、挖到哪些 jsp 链接、每个候选为什么不算
-     * 考试表——用户复制发回来，下一版就能钉死真地址，不用再硬猜。只对有
-     * 登录入口且降级/失效的来源显示（v1.1.78 起知到的双探针诊断也走这里）。 */
+     * 考试表——用户复制发回来，下一版就能钉死真地址，不用再硬猜。
+     * v1.1.96：按孤汩要求「每个软件都加复制诊断」，四张连接卡（学习通/知到/
+     * 雨课堂/喜鹊）一律常驻这个按钮，不再只在 degraded/stale 出现。有诊断就
+     * 复制，没抓过就提示先点「重新抓一次」（act==='diag' 里已有提示，不谎报）。 */
     const bDiag = el('button', 'btn ghost', '复制诊断');
     bDiag.setAttribute('data-act', 'diag');
-    bDiag.style.display = (s.hasLogin && (s.state === 'degraded' || s.state === 'stale'))
-      ? 'block' : 'none';
+    bDiag.style.display = 'block';
 
     /* v1.1.68：喜鹊的「断开」不能真的清教务 Cookie（那会连课表一起登出），
      * 只清掉导入的考试安排，所以换个不会误导的文案。 */
@@ -2138,16 +2139,46 @@ function refreshAll(silent) {
 }
 
 document.getElementById('refresh').onclick = () => {
-  /* v0.9.9 起「刷新」= 重新抓学习通。
-   * 原来这里去找一个 PC 推送的 homework.json，手机上根本不会有这个文件，
-   * 点了只会弹一段「把文件放到 /sdcard/...」的提示 —— 对用户毫无意义。 */
-  if (typeof CX !== 'undefined' && CX.loggedIn()) {
-    CxUI.sync(false);
+  /* v1.1.85：「刷新」= 重新抓「所有已登录来源」（学习通 / 雨课堂 / 知到 / 喜鹊），
+   * 不再只抓学习通。串行刷新，避开并发限流（chaoxing.js:499 一次打十门课会被
+   * 限流成 3004）。每个适配器自己验真：失效返回 stale/degraded 并写清原因，
+   * 绝不把登录页当「0 条数据」。手动刷新绕过 autoSync 的 10 分钟间隔 / stale
+   * / degraded 跳过规则——用户点了就是想立刻重抓一次。 */
+  const btn = document.getElementById('refresh');
+  if (btn && btn.dataset.busy === '1') return;          // 防连点
+  if (typeof SOURCES === 'undefined') {
+    if (typeof CX !== 'undefined' && CX.loggedIn()) { CxUI.sync(false); return; }
+    const ext = readExternalHomework();
+    if (ext) { renderHomework(); XXMU.toast('作业已刷新'); return; }
+    if (typeof CX !== 'undefined') CxUI.login();
     return;
   }
-  const ext = readExternalHomework();
-  if (ext) { renderHomework(); XXMU.toast('作业已刷新'); return; }
-  CxUI.login();
+  const st = SOURCES.status();
+  const targets = st.filter(s => s.loggedIn && s.hasRefresh).map(s => s.id);
+  if (!targets.length) {
+    /* 一个都没登录：按老行为把人引去学习通登录；其它平台去设置页的连接卡 */
+    if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast('还没有已绑定的平台，请到「设置 → 账号绑定」登录');
+    if (typeof CxUI !== 'undefined') CxUI.login();
+    return;
+  }
+  if (btn) { btn.dataset.busy = '1'; if (btn.textContent) btn._oldText = btn.textContent; btn.textContent = '刷新中…'; }
+  let ok = 0, fail = 0;
+  const finish = () => {
+    if (btn) { btn.dataset.busy = '0'; if (btn._oldText) btn.textContent = btn._oldText; }
+    renderHomework();
+    try { if (typeof SrcUI !== 'undefined') SrcUI.paint(); } catch (e) {}
+    if (typeof XXMU !== 'undefined' && XXMU.toast)
+      XXMU.toast('刷新完成：' + ok + ' 个平台成功' + (fail ? '，' + fail + ' 个需重新登录' : ''));
+  };
+  const step = i => {
+    if (i >= targets.length) { finish(); return; }
+    const id = targets[i];
+    SOURCES.refresh(id, () => {}).then(r => {
+      if (r && r.state === 'ok') ok++; else fail++;
+      step(i + 1);
+    }).catch(() => { fail++; step(i + 1); });
+  };
+  step(0);
 };
 
 /* 倒计时每分钟重算一次（页面常驻时不再显示僵值）。
@@ -2801,6 +2832,17 @@ document.querySelectorAll('#tabs button').forEach(b => {
     if (b.dataset.tab === 'wiki' && typeof WIKI !== 'undefined') WIKI.render();
     if (b.dataset.tab === 'campus') CampusUI.refresh();
     if (b.dataset.tab === 'me') AdminUI.refresh();
+    /* v1.1.85：每次点进「学习」页自动刷新一次。走 SOURCES.autoSync（单飞 +
+     * 10 分钟最小间隔 + 静默，不弹 toast），而不是像手动「刷新」按钮那样强制
+     * 每源都打一遍——学习通并发/频繁抓会被限流成 3004（chaoxing.js:499）。
+     * 距上次刷新够间隔就真抓最新，没够就用刚同步的缓存，体感上点进来即是最新。 */
+    if (b.dataset.tab === 'learn' && typeof SOURCES !== 'undefined' && SOURCES.autoSync) {
+      SOURCES.autoSync(function (changed) {
+        if (!changed) return;
+        try { if (typeof SrcUI !== 'undefined') SrcUI.paint(); } catch (e) {}
+        try { renderHomework(); } catch (e) {}
+      }, { reason: 'learn-tab' });
+    }
   };
 });
 
@@ -5717,7 +5759,13 @@ function openFreeInEams() {
     return;
   }
   // 先进教务首页，用户在菜单里点到「空闲教室」即可，避免猜路径猜错
-  Host.openInApp('https://qgjw.xxmu.edu.cn/');
+  /* v1.1.89：顺手把标题带上。老版本 App 没有 openInAppTitled，
+   * 退回 openInApp 也只是标题写「学习通」，功能不受影响。 */
+  if (Host.openInAppTitled) {
+    Host.openInAppTitled('https://qgjw.xxmu.edu.cn/', '教务系统');
+  } else {
+    Host.openInApp('https://qgjw.xxmu.edu.cn/');
+  }
 }
 
 /* ===== 更新提示 =====
@@ -6151,6 +6199,9 @@ if (typeof ELEC !== 'undefined') ELEC.init();
   /* v1.1.66 / m00638：账号绑定细入口条，点开就是四张连接卡那组半框。 */
   const b = document.getElementById('bindEntry');
   if (b) b.onclick = () => openToolCard('bindCard');
+  /* v1.1.85：设置页里的账号绑定入口，指向同一张 #bindCard 半框 */
+  const bs = document.getElementById('bindEntrySettings');
+  if (bs) bs.onclick = () => openToolCard('bindCard');
   paintToolEntries();
   // 计时进行中时每秒刷入口小字；没在跑不占定时器
   setInterval(() => {

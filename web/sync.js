@@ -120,8 +120,7 @@ const XXMU = (() => {
         }
         const text = decodeAuto(r.body);
         // 登录失效的典型特征（青果返回一段 alert 脚本）
-        if (text.indexOf('凭证已失效') >= 0 || text.indexOf('login.action') >= 0
-            || text.indexOf('用户登录') >= 0) {
+        if (kbExpired(text, r.body)) {
           resolve({ ok: false, code: r.code, error: '登录已失效，请重新登录' });
           return;
         }
@@ -155,6 +154,42 @@ const XXMU = (() => {
       // 与 net() 同理：绝不退回同步桥，宁可这次报错让用户重试。
       resolve({ ok: false, error: '宿主未提供异步抓取桥，请安装最新版本' });
     });
+  }
+
+  /**
+   * 青果「凭证已失效」判定（v1.1.90）。
+   *
+   * 两个来源同时看：
+   *   ① raw —— Java 侧按 ISO-8859-1 原样搬过来的字节位（每个 char = 1 byte）。
+   *      ASCII 锚点在这里一定认得出来，不受编码猜测影响。
+   *   ② text —— decodeAuto 猜出来的正文，用来认中文特征词。
+   *
+   * 只认 ① 会漏掉「正常课表页里恰好有 login.action 字样」的情形吗？不会：
+   * 失效页是整页只有那一段 alert，正文长度另外还有 < 2000 的兜底。
+   * 只认 ② 会在编码猜错时整条判据失效（见文件头注释），所以必须有 ①。
+   */
+  function kbExpired(text, raw) {
+    const t = text || '';
+    const b = raw || '';
+    /* 判据要窄，宁可漏一次也别把正常课表判成失效。
+     *
+     * 不要用 login.action 当锚点：登录成功后的业务页里登出链接也指向它，
+     * 拿它判定会把真课表判成「登录已失效」，用户明明登录了却被要求重登。
+     * 不要用裸 frmbody 当锚点：那是青果框架里到处都在的全局 frame 变量，
+     * 正常课表页同样会引用它。
+     *
+     * 实测（2026-11-14）未登录时青果对任何业务页都回同一段 547 字节的
+     * alert 脚本（UTF-8）：<script>alert('温馨提示：凭证已失效，请重新登录!');
+     * if (window.frmbody){ window.top.location.href='/'; } ...</script>
+     * 所以要认的是这组组合：极短的响应 + 跳转脚本 + 弱中文特征。
+     */
+    if (t.indexOf('凭证已失效') >= 0 || t.indexOf('请重新登录') >= 0) return true;
+    if (b.length > 0 && b.length < 1500
+        && (b.indexOf("location.href='/'") >= 0 || b.indexOf('location.href="/"') >= 0)) return true;
+    // CAS 登录页自身（登录被踢回登录页）——只认它的表单独有特征
+    if (b.indexOf('id="dosub"') >= 0 || b.indexOf('name="randnumber"') >= 0
+        || b.indexOf('id="username"') >= 0) return true;
+    return false;
   }
 
   /* ---------------- 课表解析（对齐 core/parse_kb.py） ---------------- */
@@ -458,7 +493,7 @@ const XXMU = (() => {
   return {
     hasHost, guessTerm, currentTerm, setTerm,
     fetchScheduleHtml, parseKb, parseWeeks, normalize, buildSchedule,
-    splitResp, decodeAuto, pref, toast, b64, net, netCk,
+    splitResp, decodeAuto, kbExpired, pref, toast, b64, net, netCk,
     diag, diagReset,
     TERM_KEY, USER_KEY,
   };

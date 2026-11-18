@@ -21,6 +21,7 @@ import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
 import android.widget.TextView;
+import android.widget.Toast;
 
 /**
  * 全屏 WebView 页面（登录教务 / 学习通作业考试 / 胖乖生活登录都在这里打开）。
@@ -57,6 +58,9 @@ public class WebActivity extends Activity {
     public static final String EXTRA_OK_HINTS = "ok_hints";
     /** 登录页的判据（出现任一即算没登录），用 "||" 分隔 */
     public static final String EXTRA_BAD_HINTS = "bad_hints";
+    /** v1.1.90：真校验用的探测地址（必须登录才看得到的页面）。
+     *  不传 = 按域名自动推导（青果走 /frame/homes.action）；传空串 = 不做真校验。 */
+    public static final String EXTRA_VERIFY_URL = "verify_url";
     /** 从登录页里读出来的账号（学号）回传给调用方的 key，字符串 */
     public static final String EXTRA_ACCOUNT = "account";
     /**
@@ -70,36 +74,102 @@ public class WebActivity extends Activity {
     public static final String EXTRA_GRAB = "grab";
 
     /**
-     * v1.1.38：把桌面版页面塞进手机屏宽。
+     * 青果登录页的手机适配（v1.1.38 起，v1.1.85 改为纯 CSS 重排）。
      *
-     * 青果登录页是纯桌面布局：表单容器 .login-info-div 固定 760px 宽，
-     * 整页 scrollWidth 1280px。手机 WebView 视口只有 412px，于是**账号密码框
-     * 落在屏幕右边看不见**，用户看到的是左边那张插画 + 一大片蓝底空白，
-     * 主观感受就是「打不开 / 一直加载」（真机截图 + headless 逐宽度渲染均已证实）。
+     * 现象：青果 cas/login.action 的 .login-info-div 固定 760px 宽（380 内容 + 380 padding-left），
+     * 整页 scrollWidth 约 1280px；手机 WebView 布局视口只有 360~412px，
+     * 于是账号/密码/验证码三行输入框被推到屏幕右外侧，用户只看到校徽与背景插画，
+     * 无论怎么上下左右滑都够不到（body 还带 scroll=no，.main-div 是绝对定位）。
      *
-     * 修法：按「最宽的那个容器」算缩放比，同时给 html 和 body 设 zoom。
-     * 为什么不用 meta viewport 的 initial-scale：青果页面自带
-     * `content="width=device-width, initial-scale=1.0"`，且它的 px 是写死的
-     * 桌面像素，改 initial-scale 只会等比缩小字，容器仍然 760px 溢出。
-     * 为什么两个元素都设 zoom：只设 html 时，body 上如果有自己的 width
-     * 声明会二次覆盖（实测 0.54 倍后仍有 210px 溢出）。
+     * 为什么不再用 zoom：v1.1.38~v1.1.84 走的是给 html/body 设 zoom 缩放整页，
+     * 760px 缩到 412px 只有 0.54 倍，16px 的字变成 8.6px，输入框实际只剩 200px 宽，
+     * 学生根本没法看清和输入；而且只给 html 设 zoom 会被 body 的 width 二次覆盖，
+     * 实测仍向右溢出 210px。
      *
-     * 判据用「元素宽度」而不是「document.scrollWidth」：整页宽度在缩放后会
-     * 立刻回落，拿它当基准会陷入反复缩小的自激。
+     * 现在的做法：把 .mainbanner/.main-div/.logo-div 的绝对高度全部压平，
+     * 去掉 .login-info-div 的 padding-left:380px，三行 tab 改成 100% 宽 + table-layout:fixed，
+     * 输入框保持 16px，登录按钮 48px 满宽；412/360/492 三种视口实测横向溢出元素 = 0。
+     *
+     * 只在青果登录页注入：靠 #login-info-div / .login-div-float / form#dosub 三个特征判断，
+     * 因为 WebActivity 还要开学习通登录、课表、考试安排这些页面，它们不能被套用。
+     * 幂等：注入前查 style#xxmu-fit，重复调用直接返回。
      */
+    private static final String FIT_CSS =
+            "html,body{margin:0!important;padding:0!important;width:auto!important;"
+            + "min-width:0!important;overflow-x:hidden!important}"
+            + ".mainbanner,.mainbanner1{display:none!important}"
+            + ".top_bg{display:none!important}"
+            + ".main-div{position:static!important;height:auto!important;width:auto!important;"
+            + "margin:0!important;padding:8px 14px 22px!important;box-sizing:border-box!important}"
+            + ".logo-div{position:static!important;width:auto!important;margin:0!important;"
+            + "padding:0!important;text-align:center!important;box-sizing:border-box!important}"
+            + ".logo-div table,.logo-div tbody,.logo-div tr,.logo-div td{display:block!important;"
+            + "width:auto!important;height:auto!important;margin:0!important;padding:0!important;"
+            + "text-align:center!important}"
+            + ".logo-div img{float:none!important;"
+            + "vertical-align:middle!important;max-width:44%!important;height:auto!important;"
+            + "margin:2px 4px!important}"
+            + ".login-div-float{display:none!important}"
+            + ".login-div{width:auto!important;margin:0!important;padding:0!important;text-align:left!important}"
+            + ".login-div-title{position:static!important;width:auto!important;height:auto!important;"
+            + "padding:0!important;margin:2px 0 8px!important;text-align:center!important}"
+            + ".login-div-title img{width:auto!important;max-width:128px!important;height:30px!important;"
+            + "object-fit:contain!important;margin:0 3px!important}"
+            + ".login-info-div,.login-info-div1{position:static!important;width:auto!important;"
+            + "height:auto!important;padding:0!important;margin:0!important}"
+            + ".login-info-div1{display:none!important}"
+            + ".login-td{padding:0!important}"
+            + ".login-table{width:100%!important;table-layout:fixed!important}"
+            + ".tab1,.tab2,.tab3{width:100%!important;height:46px!important;margin:0 0 10px!important;"
+            + "padding:0 10px!important;box-sizing:border-box!important;background:#ecf5fa!important;"
+            + "border:1px solid #cbcccd!important;border-radius:8px!important;table-layout:fixed!important}"
+            + ".tab1 tr,.tab2 tr,.tab3 tr{width:100%!important}"
+            + ".tab1 td:first-child,.tab2 td:first-child,.tab3 td:first-child{width:30px!important}"
+            + ".tab1 td:first-child img,.tab2 td:first-child img,.tab3 td:first-child img{"
+            + "width:19px!important;height:19px!important;object-fit:contain!important}"
+            + ".tx1,.tx2,.tx3{width:100%!important;max-width:100%!important;height:40px!important;"
+            + "line-height:40px!important;font-size:16px!important;padding:0 2px!important;"
+            + "margin:0!important;border:0!important;background:transparent!important;"
+            + "box-sizing:border-box!important}"
+            + ".tpwd{display:inline-block!important;width:22px!important;vertical-align:middle!important}"
+            + "#sp_random{font-size:12px!important}"
+            + "#login,input.login{display:block!important;position:static!important;left:auto!important;"
+            + "right:auto!important;float:none!important;width:100%!important;max-width:100%!important;"
+            + "margin:8px 0 0!important;padding:0!important;height:48px!important;line-height:48px!important;"
+            + "font-size:18px!important;box-sizing:border-box!important;color:#fff!important;"
+            + "background:#2f7bd6!important;background-image:none!important;border:0!important;"
+            + "border-radius:8px!important}"
+            + "#setCookie,#lbl_setCookie{width:18px!important;height:18px!important;"
+            + "vertical-align:middle!important}"
+            + "#pub-xl,#pub-timetable,#pub-notice,#pub-rule,#pub-jsizt,#pub-dl{display:inline-block!important;"
+            + "font-size:14px!important;margin:6px 6px 0!important}"
+            + "#randpic,.bottom-tips,.bottom_bg,.bottom,#bottom{display:none!important}"
+            + ".logo-div td:last-child img{display:none!important}"
+            + "input,select,textarea,table,td,tr,div{max-width:100%!important}";
+
     private static final String FIT_JS =
             "(function(){try{"
-            + "var vw=window.innerWidth||0;if(!vw)return '';"
-            + "var sels=['.login-info-div','.login-div','.login-table','#login-info-div','body>table','.top-div'];"
-            + "var max=0;for(var i=0;i<sels.length;i++){var e=null;"
-            + "try{e=document.querySelector(sels[i])}catch(x){e=null}"
-            + "if(!e)continue;var w=e.getBoundingClientRect().width;if(w>max)max=w;}"
-            + "if(!max||max<=vw+1)return '';"
-            + "var z=(vw/max).toFixed(4);"
-            + "document.documentElement.style.zoom=z;"
-            + "try{document.body.style.zoom=z}catch(x){}"
-            + "return z;"
-            + "}catch(e){return ''}})()";
+            + "if(!document.querySelector('#login-info-div,.login-div-float,form#dosub'))return 'skip';"
+            + "if(document.getElementById('xxmu-fit'))return 'ok';"
+            + "var s=document.createElement('style');s.id='xxmu-fit';s.type='text/css';"
+            + "s.appendChild(document.createTextNode('" + FIT_CSS + "'));"
+            + "var h=document.head||document.documentElement;h.appendChild(s);"
+            + "try{if(document.documentElement.style.zoom)document.documentElement.style.zoom='';}catch(e2){}"
+            + "try{if(document.body&&document.body.style.zoom)document.body.style.zoom='';}catch(e3){}"
+            + "var m=document.querySelector('meta[name=viewport]');"
+            + "if(m)m.setAttribute('content','width=device-width, initial-scale=1.0');"
+            + "var bt=document.getElementById('login');"
+            + "if(bt){if(!bt.value||!bt.value.trim())bt.value='\\u767b\\u5f55';bt.style.backgroundImage='none';"
+            + "bt.style.backgroundColor='#2f7bd6';bt.style.color='#fff';}"
+            + "var hideBroken=function(){try{var im=document.images,i2;"
+            + "for(i2=0;i2<im.length;i2++){var g=im[i2];"
+            + "if(!g.getAttribute('src'))continue;"
+            + "if(g.complete&&g.naturalWidth===0)g.style.display='none';}}catch(e4){}};"
+            + "hideBroken();"
+            + "try{setTimeout(hideBroken,600);setTimeout(hideBroken,1800);"
+            + "setTimeout(hideBroken,3500);}catch(e5){}"
+            + "return 'fit';"
+            + "}catch(e){return 'err'}})()";
 
     /** 读 location 与 localStorage 里的 token，返回一个 JSON 字符串 */
     private static final String CAPTURE_JS =
@@ -292,6 +362,14 @@ public class WebActivity extends Activity {
      */
     private String lastUn = "";
 
+    /** v1.1.90：真校验的探测地址。null=按域名推导，""=不校验（保持旧行为） */
+    private String verifyUrl = null;
+    /** 上次校验的时刻，用来节流：同一批页面跳转里连着触发 onPageFinished 时别打成一串 */
+    private long verifyAt = 0;
+    private boolean verifying = false;
+    /** 连续校验失败次数。>=1 时再点一次「完成」就强制返回，别把人卡死在登录页 */
+    private int verifyFail = 0;
+
     @Override
     protected void onCreate(Bundle b) {
         super.onCreate(b);
@@ -312,6 +390,7 @@ public class WebActivity extends Activity {
         okHints = it.getStringExtra(EXTRA_OK_HINTS);
         badHints = it.getStringExtra(EXTRA_BAD_HINTS);
         grabSel = it.getStringExtra(EXTRA_GRAB);
+        verifyUrl = it.getStringExtra(EXTRA_VERIFY_URL);
         if (grabSel != null && grabSel.trim().length() == 0) grabSel = null;
         // 要读账号就必须持续轮询，否则用户登录完直接跳走，永远读不到输入框
         if (grabSel != null) capture = true;
@@ -368,6 +447,15 @@ public class WebActivity extends Activity {
             done.setOnClickListener(new View.OnClickListener() {
                 public void onClick(View v) {
                     CookieManager.getInstance().flush();
+                    if (detectLogin) {
+                        /* v1.1.90：原来这里无条件 finishWithResult(true)，
+                         * 也就是用户什么都不填、直接按「完成」也会报登录成功。
+                         * 现在先真探一次；已经失败过一次的，第二下放行
+                         * （万一学校改了页面结构、探针失效，用户还有出路）。 */
+                        if (verifyFail >= 1) { finishWithResult(true); return; }
+                        verifyLogin(web == null ? null : web.getUrl(), true);
+                        return;
+                    }
                     if (capture) finishWithCapture();
                     else finishWithResult(true);
                 }
@@ -470,15 +558,7 @@ public class WebActivity extends Activity {
                 } catch (Throwable ignored) {
                 }
                 if (detectLogin && isLoggedInUrl(u)) {
-                    CookieManager.getInstance().flush();
-                    if (grabSel != null) {
-                        // 要读账号时不能直接 finishWithResult：那会丢掉用户刚填的学号。
-                        // completeCapture 一样是 RESULT_OK，上层照旧判登录成功，
-                        // 额外还能从 EXTRA_ACCOUNT 拿到账号。
-                        readPageState(true);
-                    } else {
-                        finishWithResult(true);
-                    }
+                    loginHintsHit(u);
                 }
             }
         });
@@ -724,6 +804,207 @@ public class WebActivity extends Activity {
         } catch (Throwable ignored) {
         }
         finish();
+    }
+
+    /* ==================== 登录结果的真校验（v1.1.90） ====================
+     *
+     * 修的是「学号填了、密码没填，也报登录成功」。
+     *
+     * 老判据只看 URL 字符串（见 isLoggedInUrl）：青果在账号框填完、密码还没进门
+     * 时地址栏就已经变了，靠 URL 猜必然误判；顶栏「完成」更直接无条件
+     * setResult(RESULT_OK)。上层把假登录当真登录，把从未验证过的学号写进
+     * pref 的 xxmu_verified，下一次抓课表被青果弹回 login.action ——
+     * 用户看到的是「登录已失效，请重新登录」，一件 5 秒能说清的事被拖成连环故障。
+     *
+     * 现在的判据：拿 CookieManager 里的票，**真的去请求一个必须登录才看得到的
+     * 页面**，四条全过才算成功：
+     *   ① HTTP 200
+     *   ② 正文去掉空白后 >= 40 字节（只挡空响应，别拿长度当判据：真登录的 frameset 可能不到 60 字节）
+     *   ③ 不含「凭证已失效」「请重新登录」（UTF-8 与 GBK 两种字节位都查）
+     *   ④ 不含 CAS 登录表单独有的 id="dosub" / name="randnumber" / id="username"
+     *
+     * 为什么不看 status code：未登录时青果对 /frame/* 一律回 200，只是正文换成
+     * 那段 alert 脚本，状态码毫无区分度（2026-11-14 实测五次探针全 200/547B）。
+     *
+     * 探测地址默认按域名推导；未知站点保持旧行为，不做真校验 —— 宁可漏判也不
+     * 把没问题的站点卡住。
+     */
+
+    private static String originOf(String u) {
+        if (u == null) return null;
+        try {
+            java.net.URL x = new java.net.URL(u);
+            int p = x.getPort();
+            String port = (p > 0 && p != 80 && p != 443) ? (":" + p) : "";
+            return x.getProtocol() + "://" + x.getHost() + port + "/";
+        } catch (Throwable e) {
+            return null;
+        }
+    }
+
+    /** 探测地址：显式传了就用传的，否则按域名推导，推不出来返回空串（=不校验） */
+    private String resolveVerifyUrl(String pageUrl) {
+        if (verifyUrl != null) return verifyUrl;
+        if (pageUrl == null) return "";
+        String low = pageUrl.toLowerCase();
+        if (low.indexOf("qgjw.xxmu.edu.cn") >= 0) {
+            return "https://qgjw.xxmu.edu.cn/frame/homes.action";
+        }
+        return "";
+    }
+
+    private static class Verdict {
+        final boolean ok;
+        final String why;
+
+        Verdict(boolean o, String w) {
+            ok = o;
+            why = w;
+        }
+    }
+
+    /**
+     * 正文里找中文特征词。
+     *
+     * Http 把响应体按 ISO-8859-1 原样搬过来（每个 char = 一个字节位），所以在
+     * Java 侧不能直接 indexOf 中文字面量 —— 得把特征词按 UTF-8 / GBK 各编一次
+     * 再转成字节位形态去匹配。只编一次是错的：课表正文是 GBK、凭证失效提示是
+     * UTF-8，同一台服务器两种编码都会出现（2026-11-14 实测该 alert 脚本是 UTF-8）。
+     */
+    private static boolean bodyHas(String body, String word) {
+        if (body == null || body.length() == 0 || word == null || word.length() == 0) return false;
+        try {
+            if (body.indexOf(new String(word.getBytes("UTF-8"), "ISO-8859-1")) >= 0) return true;
+        } catch (Throwable ignored) {
+        }
+        try {
+            return body.indexOf(new String(word.getBytes("GBK"), "ISO-8859-1")) >= 0;
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    /** raw 是 Http.request 的返回值 "code|body" */
+    private static Verdict judgeLogin(String raw) {
+        if (raw == null || raw.length() == 0) {
+            return new Verdict(false, "登录校验没有响应，请再试一次");
+        }
+        if (raw.startsWith("ERR:")) {
+            return new Verdict(false, "登录校验失败（网络异常），请再试一次");
+        }
+        int p = raw.indexOf('|');
+        if (p < 0) {
+            return new Verdict(false, "登录校验失败（响应异常），请再试一次");
+        }
+        int code = 0;
+        try {
+            code = Integer.parseInt(raw.substring(0, p).trim());
+        } catch (Throwable ignored) {
+        }
+        String body = raw.substring(p + 1);
+        if (code != 200) {
+            return new Verdict(false, "登录校验失败（HTTP " + code + "），请重新登录");
+        }
+        if (bodyHas(body, "凭证已失效") || bodyHas(body, "请重新登录")) {
+            return new Verdict(false, "还没登录成功：密码或验证码没填完");
+        }
+        /* 失效锚点只认「青果自己的登录表单」和「那段跳转脚本」，两条都要窄。
+         *
+         * 别用 login.action：登录成功后的业务页里登出链接也指向它。
+         * 别用裸 frmbody：那是青果框架里到处都在的全局 frame 变量，登录后的
+         * 页面同样会引用它，拿它当锚点会把真登录判成没登录。
+         * 这里只认三样：① CAS 登录表单独有的 id="dosub" / name="randnumber" /
+         * id="username"（2026-11-14 实测登录页 35287 字节里三者齐全）；
+         * ② 那段「alert(...) 然后 location.href='/'」的失效跳转脚本，且整页极短
+         * （实测 547 字节；正常业务页不可能这么小）。 */
+        if (body.indexOf("id=\"dosub\"") >= 0
+                || body.indexOf("name=\"randnumber\"") >= 0
+                || body.indexOf("id=\"username\"") >= 0) {
+            return new Verdict(false, "还没登录成功：密码或验证码没填完");
+        }
+        if (body.length() < 1000 && body.indexOf("location.href") >= 0) {
+            return new Verdict(false, "还没登录成功：密码或验证码没填完");
+        }
+        /* 只留一个极小的地板，只挡空响应，别拿长度当判据。
+         *
+         * /frame/homes.action 登录后可能只回一个紧凑 frameset
+         * （<html><frameset><frame src=...></frameset></html> 不到 60 字节），
+         * 任何有意义的长度阈值都会把真登录误判成失败：v1.1.90 拍的 1200 是错的，
+         * v1.1.92 的 300 依然偏高。这里只挡「空」「全是空白」和「短到装不下
+         * 一个 frameset」的响应；真正的失效识别全靠上面 ③④ 两组特征。 */
+        if (body.trim().length() < 40) {
+            return new Verdict(false, "还没登录成功：拿到的不是登录后的页面");
+        }
+        return new Verdict(true, "");
+    }
+
+    /**
+     * 带 Cookie 真探一次，再决定要不要交回 RESULT_OK。
+     *
+     * @param manual 用户点的「完成」= true（失败会 toast 告诉他为什么）；
+     *               页面自己跳转触发 = false（失败就静默，别在登录过程中反复弹）
+     */
+    private void verifyLogin(final String pageUrl, final boolean manual) {
+        final String vu = resolveVerifyUrl(pageUrl);
+        if (vu.length() == 0) {
+            // 未知站点：保留旧判据，不在别人的网站上乱打请求
+            CookieManager.getInstance().flush();
+            if (grabSel != null) readPageState(true);
+            else finishWithResult(true);
+            return;
+        }
+        if (verifying) return;
+        long now = System.currentTimeMillis();
+        // 自动触发（页面跳转连击）才节流；用户手点「完成」必须每次都真跑
+        if (!manual && now - verifyAt < 2000) return;
+        verifyAt = now;
+        verifying = true;
+
+        final String cookie = CookieManager.getInstance().getCookie(vu);
+        final String referer = originOf(vu);
+        new Thread(new Runnable() {
+            public void run() {
+                String raw;
+                try {
+                    raw = Http.request(vu, "GET", null, cookie, null, referer, null);
+                } catch (Throwable e) {
+                    raw = "ERR:" + e.getClass().getSimpleName();
+                }
+                final Verdict v = judgeLogin(raw);
+                runOnUiThread(new Runnable() {
+                    public void run() {
+                        verifying = false;
+                        if (v.ok) {
+                            verifyFail = 0;
+                            CookieManager.getInstance().flush();
+                            /* 要读账号时不能直接 finishWithResult：那会丢掉刚填的学号。
+                             * completeCapture 同样是 RESULT_OK，还能从 EXTRA_ACCOUNT 取号。 */
+                            if (grabSel != null) readPageState(true);
+                            else finishWithResult(true);
+                        } else {
+                            // 只有用户手点的失败才计入「强制放行」次数：
+                            // 页面跳转触发的失败可能只是他还没打完密码
+                            if (manual) {
+                                verifyFail++;
+                                toastToUser(v.why + "。确认已经登录了？再按一次「完成」可强制返回");
+                            }
+                        }
+                    }
+                });
+            }
+        }, "xxmu-login-verify").start();
+    }
+
+    /** onPageFinished 命中 URL 判据之后的处理（抽出来，逻辑同 verifyLogin 的入口） */
+    private void loginHintsHit(String u) {
+        verifyLogin(u, false);
+    }
+
+    private void toastToUser(String msg) {
+        try {
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show();
+        } catch (Throwable ignored) {
+        }
     }
 
     /**

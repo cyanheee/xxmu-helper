@@ -650,6 +650,73 @@ async function main() {
       String(r.diag || '').indexOf('去重：删掉 1 张重复作业卡') >= 0, r.diag);
   }
 
+  /* ---------- ⑰ v1.1.96：时间轴活动自带截止字段 → 补到作业卡（原来显示 '-'） ---------- */
+  {
+    const actDl = new Date(2026, 10, 22, 18, 30).getTime();
+    const ACTDL = Object.assign({}, FULL, {
+      '/v2/api/web/logs/learn/101': {
+        code: 0,
+        data: {
+          activities: [
+            { id: 'a1', type: 5, title: '章节小测', is_finished: false, end_time: Math.floor(actDl / 1000) },
+          ],
+        },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0, data: { course_progress: [{ section_leaf_list: [] }] },
+      },
+    });
+    const T = load(ACTDL);
+    const r = await T.spec.fetch(function () {});
+    const w = (r.works || []).find(x => x.name === '章节小测');
+    ok('⑰ 时间轴活动自带 end_time → 作业卡补上截止（不再是空值或横杠）',
+      w && w.end === fmtLocal(actDl), w && w.end);
+  }
+
+  /* ---------- ⑱ v1.1.96：活动明确已提交状态词 → 判已完成（已交显示未交修复） ---------- */
+  {
+    const SUBMITTED = Object.assign({}, FULL, {
+      '/v2/api/web/logs/learn/101': {
+        code: 0,
+        data: {
+          activities: [
+            { id: 'a1', type: 19, title: '已交作业', is_finished: false, status: '已提交' },
+          ],
+        },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0, data: { course_progress: [{ section_leaf_list: [] }] },
+      },
+    });
+    const T = load(SUBMITTED);
+    const r = await T.spec.fetch(function () {});
+    const w = (r.works || []).find(x => x.name === '已交作业');
+    ok('⑱ is_finished=false 但 status=已提交 → 判已完成（已交不再显示未交）',
+      w && w.status === '已完成', w && w.status);
+  }
+
+  /* ---------- ⑲ v1.1.96：空 status + 未做完 → 仍是待做（不能误伤真未完成） ---------- */
+  {
+    const NOTDONE = Object.assign({}, FULL, {
+      '/v2/api/web/logs/learn/101': {
+        code: 0,
+        data: {
+          activities: [
+            { id: 'a1', type: 19, title: '未交作业', is_finished: false, status: '' },
+          ],
+        },
+      },
+      '/c27/online_courseware/schedule/course/progress/?classroom_id=101': {
+        code: 0, data: { course_progress: [{ section_leaf_list: [] }] },
+      },
+    });
+    const T = load(NOTDONE);
+    const r = await T.spec.fetch(function () {});
+    const w = (r.works || []).find(x => x.name === '未交作业');
+    ok('⑲ 空 status + is_finished=false → 仍判待做（真未完成不误判成已交）',
+      w && w.status === '待做', w && w.status);
+  }
+
   console.log('\n' + (fail ? '[FAIL]' : '[PASS]') + '  ' + (pass + fail) + ' assertions: pass=' + pass + ' fail=' + fail);
   process.exit(fail ? 1 : 0);
 }

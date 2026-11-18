@@ -590,9 +590,25 @@ public class MainActivity extends Activity {
          */
         @JavascriptInterface
         public void openInApp(final String url) {
+            openInAppTitled(url, null);
+        }
+
+        /**
+         * v1.1.89：带标题的打开方式。
+         *
+         * 以前这里把标题写死成「学习通」，于是从「校园事务 → 教务系统」
+         * 进来时顶栏还写着「学习通」，内容和标题对不上（学生以为点错了）。
+         * 现在优先用网页传进来的标题；没传就按 URL 猜一个。
+         *
+         * 不写成 openInApp 的同名重载：@JavascriptInterface 是按「方法名+参数
+         * 个数」暴露给网页的，同名重载在部分 WebView 版本上会挑错那一个，
+         * 所以另起一个名字，老入口 openInApp(url) 继续原样可用。
+         */
+        @JavascriptInterface
+        public void openInAppTitled(final String url, final String title) {
             runOnUiThread(new Runnable() {
                 public void run() {
-                    openWebActivity(url, "学习通", false);
+                    openWebActivity(url, titleForUrl(url, title), false);
                 }
             });
         }
@@ -1309,6 +1325,25 @@ public class MainActivity extends Activity {
      * 容器会让 WebView 高度算成 0，且其 Window 带 FLAG_ALT_FOCUSABLE_IM 会压住
      * 软键盘。两轮在对话框上打补丁都没解决，改用 Activity 后两个问题从根上消失。
      */
+    /**
+     * v1.1.89：给 openInApp 的页面起个和内容对得上的标题。
+     *
+     * 传了就用传的；没传按域名猜。猜错也只是标题不准，不影响功能，
+     * 所以这里不抛异常、不回退成空串。
+     */
+    private String titleForUrl(String url, String given) {
+        String t = given == null ? "" : given.trim();
+        if (t.length() > 0) return t;
+        String u = url == null ? "" : url.toLowerCase(java.util.Locale.US);
+        if (u.indexOf("qgjw.xxmu.edu.cn") >= 0) return "教务系统";
+        if (u.indexOf("passport2.chaoxing.com") >= 0) return "登录学习通";
+        if (u.indexOf("chaoxing.com") >= 0) return "学习通";
+        if (u.indexOf("zhihuishu.com") >= 0) return "知到";
+        if (u.indexOf("yuketang.cn") >= 0) return "雨课堂";
+        if (u.indexOf("xiqueer") >= 0) return "喜鹊";
+        return "网页";
+    }
+
     private void openWebActivity(String url, String title, boolean detectLogin) {
         openWebActivityGrab(url, title, detectLogin, null);
     }

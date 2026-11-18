@@ -155,6 +155,19 @@ if (!fs.existsSync(fx)) {
   ok(rn.indexOf('周排课') >= 0, '「未设置的周排课」被原样带出来（实得 "' + rn + '"）');
   ok(KFREE.reasonOf('<html><body>hi</body></html>').indexOf('表格') >= 0, '无表格 → 说没有表格');
 
+  /* v1.1.97：学生截图那次「内容看不懂」的真凶——票据失效页不含旧关键词，
+   * 只有 location.href='/' 跳转 + dosub/randnumber 表单（实测 ~515B）。
+   * 放宽后的判据必须在「没有中文失效词」时也认出来。 */
+  const EXPIRED_515 =
+    '<script>if(window.frmbody){window.top.location.href=\'/\';}</script>' +
+    '<form id="dosub"><input name="randnumber" id="username"></form>';
+  ok(KFREE.reasonOf(EXPIRED_515).indexOf('重新登录') >= 0,
+    '无中文词的 515B 失效页 → 也提示重新登录（放宽判据生效）');
+  /* 反向：短维护页没有跳转/表单特征，不能被放宽判据误伤成「要重登」。 */
+  const SHORT_MAINT = '<html><body>系统正在维护，请稍后再重试</body></html>';
+  ok(KFREE.reasonOf(SHORT_MAINT).indexOf('重新登录') < 0,
+    '短维护页（无跳转/表单特征）→ 不误判成要重登');
+
   /* ---------- 乱码不能直接贴给学生（v1.1.49） ----------
    * 有学生看到空闲教室那行灰字是
    * 「妮十⊖鎖悮 チ锌氥噚璇佸凡澧辩胺夯闁喰梒鐧诲祵海綪!」——

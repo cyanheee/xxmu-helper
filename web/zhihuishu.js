@@ -355,12 +355,35 @@
   }
 
   /* ================= B 探针：AES 直连只读端点 ================= */
-  function post(url, dataObj, keyStr, cookieUrl) {
+  function post(url, dataObj, keyStr, cookieUrl, diag) {
     var body = 'secretStr=' + encodeURIComponent(secretStr(dataObj, keyStr));
-    return SOURCES.http(url, {
+    var opt = {
       cookieUrl: cookieUrl, referer: HOME,
       method: 'POST', body: body,
       contentType: 'application/x-www-form-urlencoded'
+    };
+    function note(s) { if (diag && diag.push) diag.push(s); }
+    function failText(r) { return (r && r.error) ? String(r.error) : ('HTTP code=' + codeOf(r)); }
+    // 网络层失败（HTTP -1 / ok:false）多是移动网 DNS/TLS 抖动，重试一次；
+    // 成功或业务响应（code>=0）直接返回，零额外请求，绝不换域/改 cookieUrl。
+    return SOURCES.http(url, opt).then(function (r) {
+      if (codeOf(r) >= 0) return r;
+      var why = failText(r);
+      note('网络层失败（' + why + '），自动重试一次');
+      return SOURCES.http(url, opt).then(function (r2) {
+        if (codeOf(r2) < 0) note('重试仍失败（' + failText(r2) + '）');
+        return r2;
+      }, function (e2) {
+        note('重试异常：' + (e2 && e2.error ? e2.error : e2));
+        return r;
+      });
+    }, function (e) {
+      var why = e && e.error ? String(e.error) : String(e);
+      note('网络层异常（' + why + '），自动重试一次');
+      return SOURCES.http(url, opt).then(function (r2) { return r2; }, function (e2) {
+        note('重试仍异常：' + (e2 && e2.error ? e2.error : e2));
+        return { ok: false, error: why, text: '', code: 0 };
+      });
     });
   }
   function codeOf(b) { return b ? (b.code || (b.ok ? 200 : -1)) : -1; }
@@ -423,7 +446,7 @@
     function coursePage(p) {
       step('B 探针 · 读课程列表（第 ' + p + ' 页）');
       return post(COURSE_API, { status: 0, pageNo: p, pageSize: PAGE_SIZE },
-        HOME_KEY, API_HOME + '/').then(function (r) {
+        HOME_KEY, API_HOME + '/', diag).then(function (r) {
         var j = parseJson(bodyOf(r)) || {}, bizCode = j.code;
         diag.push('课程列表 POST(pageNo=' + p + ') → HTTP code=' + codeOf(r)
           + '，业务 code=' + str(bizCode) + '，骨架=' + skeleton(j, 3));
@@ -483,7 +506,7 @@
             tasks.push(post(HW_API, {
               recruitId: c.recruitId, courseId: c.courseId,
               flag: flag, pageSize: 100, pageNum: 0
-            }, EXAM_KEY, API_HW + '/').then(function (r) {
+            }, EXAM_KEY, API_HW + '/', diag).then(function (r) {
               var j = parseJson(bodyOf(r)) || {};
               diag.push('作业清单 POST(flag=' + flag + ',course=' + c.courseId
                 + ',recruit=' + c.recruitId + ') → HTTP code=' + codeOf(r)

@@ -350,12 +350,24 @@
     }
     list.forEach(function (raw) {
       var a = rec(raw);
+      /* v1.1.96：时间轴活动本身也可能带截止/提交字段，别只留 create_time。
+       * create_time 是「创建时间」不是截止，绝不能当截止时间用；这里只收明确的截止字段。 */
+      var dl = a.end_time !== undefined ? a.end_time
+        : (a.endTime !== undefined ? a.endTime
+        : (a.deadline !== undefined ? a.deadline
+        : (a.due_time !== undefined ? a.due_time
+        : (a.end_date !== undefined ? a.end_date : a.dueTime))));
+      /* v1.1.96：时间轴状态词（真机有的活动只在活动对象给 status）。
+       * 只认明确的已提交状态词，绝不由 is_finished=false 推断已交。 */
+      var actStatus = str(a.status) || str(a.homework_status) || str(a.submit_status);
       out.push({
         id: str(a.id),
         type: num(a.type),
         title: str(a.title) || str(a.name),
         coursewareId: str(a.courseware_id),
         createTime: num(a.create_time),
+        deadline: dl,
+        status: actStatus,
         finished: (a.is_finished === true)
       });
     });
@@ -582,13 +594,21 @@
           var order = [];
           var actCount = 0, leafCount = 0, failed = 0;
 
+          /* v1.1.85：合并同一门课同一标题的多路证据（时间轴 activity + 章节叶 progress）。
+           * 旧逻辑只把「待做→已完成」单向升级，且只有 incoming 明确是「已完成」才升；
+           * 章节叶解析不出完成证据时传空串，就留着时间轴那一侧的「待做」不肯改 ——
+           * 这正是「作业都交过了，刷新后还显示未完成」的根因。
+           * 新口径：任何一路给出明确「已完成」就覆盖；已有「已完成」绝不被
+           * 空串或「待做」降级；截止时间任何一路有都补上。 */
           function put(courseName, name, endText, status) {
             var key = courseName + '|' + (name || '').trim();
             if (!(name || '').trim()) return;
             var cur = map[key];
             if (cur) {
               if (!cur.end && endText) cur.end = endText;
-              if (cur.status === '待做' && status === '已完成') cur.status = status;
+              /* 已完成是强证据：升级任何非完成态；已有的完成态不许被覆盖回去 */
+              if (status === '已完成') cur.status = '已完成';
+              else if (cur.status !== '已完成' && status) cur.status = status;
               return;
             }
             map[key] = {
@@ -598,8 +618,15 @@
             order.push(key);
           }
 
-          /** 章节叶的完成度 → 中文状态。可疑就留空（渲染层写「状态未知」）。 */
+          /** 章节叶的完成度 → 中文状态。可疑就留空（渲染层写「状态未知」）。
+           * v1.1.85：补上 userScore/totalScore 判据。雨课堂多数已交作业在
+           * progress 里 done/total 不满、status 也不是「已完成」，但 user_score
+           * 已经有值（老师已给分或已提交待批阅），旧逻辑漏判成空状态 → 被时间轴的
+           * is_finished=false 留成「待做」。这里按「拿过分」或「得分达到满分」判完成。 */
           function leafStatus(lf) {
+            /* 分数证据：拿到任意分（含 0 分但已批改 totalScore>0 视为已交） */
+            if (lf.userScore > 0) return '已完成';
+            if (lf.totalScore > 0 && lf.userScore >= lf.totalScore) return '已完成';
             if (lf.done > 0 && lf.total > 0 && lf.done >= lf.total) return '已完成';
             if (typeof CX !== 'undefined' && CX.classify) {
               var k = CX.classify(lf.status);
@@ -621,7 +648,19 @@
                 if (a.type === 9 || a.type === 14) return;
                 if (!a.title) return;
                 actCount++;
-                put(courseName, a.title, '', a.finished ? '已完成' : '待做');
+                /* v1.1.85 保留原口径：时间轴 is_finished 为真=已完成，为假=待做。
+                 * 修「已交仍显示未完成」不靠抹掉这里的「待做」，而靠下面 put() 的
+                 * 强证据覆盖 + leafStatus 的 userScore 判据——章节叶一旦给出完成
+                 * 证据就把这条「待做」顶掉；真没交的（章节叶也给不出完成证据）仍
+                 * 保持「待做」。抹掉会让真未完成变成「状态未知」，破坏既有断言。
+                 * v1.1.96：①补活动对象自带的截止字段（原来第三参恒空=截止显示 '-'）；
+                 * ②活动对象若明确带已提交状态词（CX.classify=done，如「已提交/已交/
+                 * 待批阅/未批阅」）也判已完成——只认明确完成词，绝不凭 is_finished=false
+                 * 或空 status 推断已交，避免真未完成的被误判。 */
+                var actDone = (a.finished === true)
+                  || (typeof CX !== 'undefined' && CX.classify && a.status
+                      && CX.classify(a.status) === 'done');
+                put(courseName, a.title, a.deadline ? fmt(a.deadline) : '', actDone ? '已完成' : '待做');
               });
               if (!actCount && diag.length < 8) {
                 diag.push('时间轴骨架：' + skeleton(row.acts.data));

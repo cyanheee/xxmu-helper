@@ -102,8 +102,17 @@ const KFREE = (() => {
   }
 
   function looksLikeLogin(t) {
-    return t.indexOf('凭证已失效') >= 0 || t.indexOf('请重新登录') >= 0 ||
-           t.indexOf('/cas/login') >= 0 || t.indexOf('name="username"') >= 0;
+    if (!t) return false;
+    if (t.indexOf('凭证已失效') >= 0 || t.indexOf('请重新登录') >= 0 ||
+        t.indexOf('/cas/login') >= 0 || t.indexOf('name="username"') >= 0) return true;
+    /* v1.1.97：空教室票据失效时教务回一段 ~515B 的脚本，既没有上面的中文词、
+     * 也没有 /cas/login，只有 location.href='/' 跳转 + dosub/randnumber 表单。
+     * 判据与 sync.js 的 kbExpired 对齐（实测 2026-11-14），比猜文案稳。 */
+    const b = String(t);
+    if (b.length < 1500 &&
+        (b.indexOf("location.href='/'") >= 0 || b.indexOf('location.href="/"') >= 0)) return true;
+    if (b.indexOf('id="dosub"') >= 0 || b.indexOf('name="randnumber"') >= 0) return true;
+    return false;
   }
 
   /* ---------------- 矩阵 ---------------- */
@@ -111,7 +120,8 @@ const KFREE = (() => {
   let ST = {
     campus: '', build: '', buildName: '', week: 0, day: 0, seg: -1, seats: 0,
     busy: false, err: '', rooms: null, at: 0, key: '',
-    campuses: null, builds: null
+    campuses: null, builds: null,
+    authBad: false   /* v1.1.97：上次失败是不是「教务票据失效」——决定错误区给不给登录入口 */
   };
 
   function termParam() {
@@ -251,7 +261,7 @@ const KFREE = (() => {
     if (!force && ST.rooms && ST.key === key && Date.now() - ST.at < MX_TTL) {
       return Promise.resolve();
     }
-    ST.busy = true; ST.err = '';
+    ST.busy = true; ST.err = ''; ST.authBad = false;
     paint();
     return post(P_MATRIX, matrixBody(ST.campus, ST.build, ST.week), REFERER)
       .then(r => {
@@ -261,8 +271,12 @@ const KFREE = (() => {
           ST.err = (r.code === -1 ? '网络没通（' + (r.err || '超时') + '）' : '') ||
                    reasonOf(html) || '这栋楼这周没有排课数据';
           ST.rooms = null; ST.at = 0; ST.key = '';
+          /* v1.1.97：仅当失败原因是「教务票据失效」才置 authBad，让错误区给出
+           * 登录入口；纯「内容看不懂」/网络错误不置位，避免误判成要重登。 */
+          ST.authBad = looksLikeLogin(html) || ST.err.indexOf('重新登录') >= 0;
         } else {
           ST.rooms = rooms; ST.at = Date.now(); ST.key = key; ST.err = '';
+          ST.authBad = false;
           /* 真的拿到教务数据了 —— 这是「登录成功」的第二个证据，
            * 和课表同步成功一样记一笔。只靠 cookie 长度判不出登录状态：
            * 青果未登录时也会下发一个 43 字符的 JSESSIONID。 */
@@ -272,8 +286,33 @@ const KFREE = (() => {
           }
         }
       })
-      .catch(e => { ST.err = '请求失败：' + ((e && e.message) || e); ST.rooms = null; })
+      .catch(e => { ST.err = '请求失败：' + ((e && e.message) || e); ST.rooms = null; ST.authBad = false; })
       .then(() => { ST.busy = false; paint(); });
+  }
+
+  /* v1.1.97：面板内一键重新登录教务，登录成功后自动重查当前栋楼。
+   * 复用 sync.js 登录链末端必调的 window.__onLoginSuccess（sync.js:552），
+   * 临时包一层把 loadMatrix(true) 接进去——不改第二个文件、不新建登录桥。
+   * 若登录被取消（sync.js 走的是 __onLoginDone(!ok) 早退、不触 __onLoginSuccess），
+   * 包装会一直留着直到下次成功；为避免悬挂，加一次性兜底超时撤销。 */
+  function reloginAndReload() {
+    if (!hasHost()) return;
+    const prev = window.__onLoginSuccess;
+    let done = false;
+    const restore = () => {
+      if (done) return;
+      done = true;
+      window.__onLoginSuccess = prev;
+      clearTimeout(timer);
+    };
+    const timer = setTimeout(restore, 5 * 60 * 1000);   /* 5 分钟没登成功就还原，别永久挂着 */
+    window.__onLoginSuccess = function (chk) {
+      restore();
+      try { if (typeof prev === 'function') prev(chk); }
+      finally { loadMatrix(true); }
+    };
+    if (Host.openLogin) Host.openLogin();
+    else restore();   /* 没有登录桥就撤销包装，别留悬挂回调 */
   }
 
   /* ---------------- 列表（校区 / 楼） ---------------- */
@@ -523,8 +562,15 @@ const KFREE = (() => {
 
     if (ST.err) {
       body.appendChild(el('p', 'hint left', ST.err));
-      const retry = el('button', 'btn ghost', '再查一次');
-      retry.onclick = () => loadMatrix(true);
+      /* v1.1.97：票据失效时给一个面板内直达的登录入口，登完自动重查，
+       * 不用再退出面板→设置→登录→回来（原来 5 步压成面板内 1 步）。 */
+      if (ST.authBad) {
+        const relogin = el('button', 'btn', '重新登录教务');
+        relogin.onclick = reloginAndReload;
+        body.appendChild(relogin);
+      }
+      const retry = el('button', 'btn ghost', ST.authBad ? '重试查询' : '再查一次');
+      retry.onclick = () => { if (ST.authBad) reloginAndReload(); else loadMatrix(true); };
       body.appendChild(retry);
       return;
     }
