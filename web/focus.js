@@ -26,6 +26,7 @@
 const FOCUS = (() => {
   const K = 'xxmu_focus';
   const MAX_LOG_DAYS = 90;       // 专注记录最多留 90 天，防无限增长
+  const HIST_DAYS = 14;          // v2.4.0：柱状图显示最近多少天（14 天两周一屏刚好）
 
   /* 番茄钟默认时长（分钟）。用户可改，存本地。 */
   const D_FOCUS_MIN = 25;
@@ -112,6 +113,79 @@ const FOCUS = (() => {
     const t = d || new Date();
     return t.getFullYear() + '-' + pad2(t.getMonth() + 1) + '-' + pad2(t.getDate());
   }
+
+  /** 把 'YYYY-MM-DD' 解析成本地零点 Date；解析不出来就用今天。 */
+  function dayBase(iso) {
+    const m = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(String(iso || ''));
+    const d = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }
+
+  /* ---------------- 记录可视化（v2.4.0） ----------------
+   *
+   * 以前 state.log 按天累计了 90 天，界面上只有一句「今日 N 分钟 · 本周 M 分钟」，
+   * 看不出「这周比上周用功吗」「已经连着几天了」。这里把同一份 log 画成
+   * 最近 N 天的柱子 + 连续天数，不新增任何存储字段。
+   *
+   * 两条硬规矩：①没有记录的那天是 0，不是「缺数据」，不画成灰问号；
+   * ②柱子高度按「最近 N 天里的最大值」归一，不是按固定 120 分钟，
+   * 免得刚用两周的人看到的全是齐刷刷的矮柱子。
+   */
+
+  /* @testable:histo */
+  /** 最近 n 天（含 endIso 当天）的每日分钟，按时间正序。level 0~4 供上色。 */
+  function histo(log, n, endIso) {
+    // n 传坏了退回 14（paintHisto 传的是 HIST_DAYS）；0 或负数夹到 1，超上限夹到 MAX_LOG_DAYS
+    const want = Math.round(Number(n));
+    const cnt = Number.isFinite(want) ? Math.max(1, Math.min(MAX_LOG_DAYS, want)) : 14;
+    const base = dayBase(endIso);
+    const src = (log && typeof log === 'object') ? log : {};
+    const out = [];
+    let max = 0;
+    for (let i = cnt - 1; i >= 0; i--) {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
+      const v = Math.max(0, Math.round(Number(src[todayIso(d)]) || 0));
+      if (v > max) max = v;
+      out.push({ key: todayIso(d), min: v, level: 0 });
+    }
+    for (let i = 0; i < out.length; i++) {
+      const x = out[i];
+      if (x.min <= 0 || max <= 0) { x.level = 0; continue; }
+      x.level = Math.min(4, 1 + Math.floor((x.min / max) * 4));
+    }
+    return out;
+  }
+  /* @end */
+
+  /* @testable:streak */
+  /** 连续专注天数。今天还没开始不算断（昨天有就算连着）。 */
+  function streak(log, endIso) {
+    const base = dayBase(endIso);
+    const src = (log && typeof log === 'object') ? log : {};
+    let n = 0;
+    for (let i = 0; i < MAX_LOG_DAYS; i++) {
+      const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() - i);
+      const v = Math.round(Number(src[todayIso(d)]) || 0);
+      if (v > 0) { n++; continue; }
+      if (i === 0) continue;    // 今天还没坐下，不算断
+      break;
+    }
+    return n;
+  }
+  /* @end */
+
+  /* @testable:peakOf */
+  /** 最近 n 天里最长的一天 {key, min}；一条记录都没有时返回 {key:'', min:0}。 */
+  function peakOf(log, n, endIso) {
+    const rows = histo(log, n, endIso);
+    let best = { key: '', min: 0 };
+    for (let i = 0; i < rows.length; i++) {
+      if (rows[i].min > best.min) best = { key: rows[i].key, min: rows[i].min };
+    }
+    return best;
+  }
+  /* @end */
 
   /* ---------------- 运行时状态（不持久化，只活在内存） ---------------- */
 
@@ -404,13 +478,67 @@ const FOCUS = (() => {
     else startNoise(v);
   }
 
+  /** 画最近 14 天的柱子 + 连续天数。没有记录就写一句人话，不画空柱子。 */
+  function paintHisto(state) {
+    const box = $('focusHisto');
+    const hint = $('focusHint');
+    if (!box) return;
+    const rows = histo(state.log, HIST_DAYS);
+    let total = 0, days = 0;
+    for (let i = 0; i < rows.length; i++) {
+      total += rows[i].min;
+      if (rows[i].min > 0) days++;
+    }
+    box.innerHTML = '';
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      const b = el('i', 'fh-bar fh-l' + r.level);
+      b.title = r.key + '　' + r.min + ' 分钟';
+      // 有记录的那天才给高度，0 分钟的留一条底线，让人看得出「这天没学」而不是「没数据」
+      b.style.height = r.min > 0 ? Math.max(12, Math.round((r.min / Math.max(1, peakMax(rows))) * 100)) + '%' : '0';
+      if (r.level === 0) b.className = 'fh-bar fh-zero';
+      box.appendChild(b);
+    }
+    if (hint) {
+      const sk = streak(state.log);
+      const bits = [];
+      if (total <= 0) bits.push('最近 ' + HIST_DAYS + ' 天还没有专注记录');
+      else bits.push('最近 ' + HIST_DAYS + ' 天专注 ' + total + ' 分钟 · ' + days + ' 天有记录');
+      if (sk >= 2) bits.push('连续 ' + sk + ' 天');
+      /* v2.15.0：peakOf 从 v2.4.0 就写好、全库没人调用（高光日一直藏着）。
+       * 现在有记录时补一句「最长一天 X 分钟 · M月D日」，没记录就不加噪音。 */
+      const pk = peakOf(state.log, HIST_DAYS);
+      if (pk.min > 0) bits.push('最长一天 ' + pk.min + ' 分钟 · ' + shortDate(pk.key));
+      hint.textContent = bits.join(' · ');
+    }
+  }
+
+  /** histo() 里用来归一的最大值（不含 0）。 */
+  function peakMax(rows) {
+    let m = 0;
+    for (let i = 0; i < rows.length; i++) if (rows[i].min > m) m = rows[i].min;
+    return m;
+  }
+
+  /** 'YYYY-MM-DD' → 'M月D日'，给「最长一天」那句话用。 */
+  /* @testable:shortDate */
+  function shortDate(key) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(key || ''));
+    if (!m) return '';
+    return (Number(m[2])) + '月' + (Number(m[3])) + '日';
+  }
+  /* @end */
+
   /** 重画整张卡。 */
   function paint() {
     const card = $('focusCard');
     if (!card) return;
     const state = load();
+    /* v2.15.0：load() 里会把读失败/记录损坏写进 LAST_ERR，这里立刻取一份——
+     * 别等到别处再 load，那会把错误清掉。旧版写了却从不显示，用户踩到坏数据
+     * 只看到静默失败（mytodo.js 早有 readErr()+提示，这里照它补上）。 */
+    const stateErr = LAST_ERR;
     const mode = state.settings.mode;
-
     // 模式切换按钮
     const segBtns = card.querySelectorAll('[data-fmode]');
     segBtns.forEach(b => b.classList.toggle('on', b.dataset.fmode === mode));
@@ -437,7 +565,20 @@ const FOCUS = (() => {
     // 统计
     const st = stats(state);
     const statEl = $('focusStat');
-    if (statEl) statEl.textContent = '今日 ' + st.todayMin + ' 分钟 · 本周 ' + st.week + ' 分钟';
+    if (statEl) {
+      statEl.textContent = '今日 ' + st.todayMin + ' 分钟 · 本周 ' + st.week + ' 分钟';
+      /* v2.15.0：本机记录读不出来就说出来，别静默当 0 分钟。
+       * 不往 statEl 追加错误文字（那行窄，塞长句会挤成两行），改用独立的
+       * #focusErr 行承载；statEl 只负责上色。 */
+      statEl.classList.toggle('warn', !!stateErr);
+      const errEl = $('focusErr');
+      if (errEl) {
+        errEl.textContent = stateErr || '';
+        errEl.style.display = stateErr ? '' : 'none';
+      }
+    }
+
+    paintHisto(state);
 
     // 白噪音 chips 高亮
     const noiseBtns = card.querySelectorAll('[data-noise]');
@@ -473,8 +614,12 @@ const FOCUS = (() => {
     const toggle = $('focusToggle');
     if (toggle) toggle.onclick = () => (RT.running ? pause() : start());
 
-    const reset = $('focusReset');
-    if (reset) reset.onclick = reset;
+    /* v2.15.0 修真 bug：这里原来写 `const reset = $('focusReset'); if (reset) reset.onclick = reset;`。
+     * 局部 const reset 把模块级 function reset() 遮住了，末句实际是「把 DOM 元素自己
+     * 绑成点击回调」——点「重置」抛 TypeError，计时照跑，秒表归零只能靠切模式。
+     * 改：局部变量改名 resetBtn，回调显式调用模块级 reset()。 */
+    const resetBtn = $('focusReset');
+    if (resetBtn) resetBtn.onclick = () => reset();
 
     const set = $('focusSet');
     if (set) set.onclick = openSettings;
@@ -499,6 +644,8 @@ const FOCUS = (() => {
     init, paint, start, pause, reset,
     load, save, stats, fmt, todayIso, remain,
     startNoise, stopNoise, makeNoiseBuffer,
-    K, MAX_LOG_DAYS, D_FOCUS_MIN, D_REST_MIN,
+    histo, streak, peakOf, paintHisto, shortDate,
+    readErr: () => LAST_ERR,
+    K, MAX_LOG_DAYS, HIST_DAYS, D_FOCUS_MIN, D_REST_MIN,
   };
 })();

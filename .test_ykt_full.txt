@@ -1,0 +1,107 @@
+﻿
+[v1.1.82] 雨课堂适配器（方案 C 真接活清单 + 登录链路修复 + 作业去重）离线断言
+  [OK]   ① define 拿到 yuketang 的 spec
+  [OK]   ① 不再标 alwaysDegraded（否则永远降级、也不给登录按钮）
+  [OK]   ① kinds 同时出作业与考试
+  [OK]   ① 有 loginUrl 才给得出「登录 / 绑定雨课堂」按钮
+  [OK]   ② code 50000 判成 stale（登录失效），不是普通 degraded
+  [OK]   ② 说清是登录失效、要重新扫码
+  [OK]   ② 只打了一条请求就收手（没白跑课程列表）
+  [OK]   ② 诊断写明当前区域与两条疑似原因（区域不匹配 / 没拿到登录态）
+  [OK]   ② 失效时把 AUTH_KEY 清掉，不假装还登录着
+  [OK]   ③ 课程列表失败 → degraded
+  [OK]   ③ 带上 401 的真实原因
+  [OK]   ③ 绝不给一个空 works 冒充「没作业」
+  [OK]   ④ 整体 state=ok
+  [OK]   ④ 带 synced_at
+  [OK]   ④ 有进度回报（读登录态→课程→逐课）
+  [OK]   ④ 收下 2 条作业（章节测验 / 作业二；章节叶与时间轴同名合并、不重复）
+  [OK]   ④ 公告（type 9）与上课记录（type 14）不当作业
+  [FAIL] ④ 未完成作业状态是「待做」
+  [OK]   ④ 章节叶补上截止时间，秒级时间戳也换算对
+  [OK]   ④ 已完成的作业也要收（进「已完成」页）
+  [OK]   ④ 视频叶（leaf_type 0）不冒出来当作业
+  [OK]   ④ 待考考试 1 场
+  [OK]   ④ 考试开考时间是 YYYY-MM-DD HH:mm
+  [OK]   ④ 考试结束时间同样换算
+  [OK]   ④ 考试不编状态（留给渲染层按开考时间写「未开考」）
+  [OK]   ④ 考场照抄平台值
+  [OK]   ④ 每条都打来源标签 yuketang
+  [OK]   ④ 请求都带了 xtbz: ykt（否则 /c27 报 40000）
+  [OK]   ④ 请求量符合 3+2N（验登录 + 待考考试 + 课程列表 + 每课两条 = 7 次）
+  [OK]   ④ 时间轴与章节进度各打一次，没重复跑
+  [OK]   ⑤ success:boolean 与 errcode 两套成功标志都当成功
+  [OK]   ⑤ 拿到作业 1 条
+  [OK]   ⑥ 零条目 → degraded 而不是 ok 空清单
+  [OK]   ⑥ 明说「没认出作业条目」而不是「这学期没作业」
+  [OK]   ⑦ 只有考试接口失效时，作业照旧出
+  [OK]   ⑦ 诊断里记下考试没拿到
+  [OK]   ⑧ 没给时间就不编时间，start 留空
+  [OK]   ⑧ 只给名字也照样出这一场（不因缺时间丢弃）
+  [OK]   ⑨ 网络不通时 degraded
+  [OK]   ⑨ 带上真实错误
+  [OK]   ⑩ 默认区是长江（本校口径）
+  [OK]   ⑩ 默认请求打在 changjiang.yuketang.cn
+  [OK]   ⑩ Cookie 也从长江域取（否则带不上扫码的 sessionid）
+  [OK]   ⑩ 长江区照旧出作业与考试
+  [OK]   ⑩ 登录入口指向长江域
+  [OK]   ⑩ 暴露 YKT.setRegion 给界面用
+  [OK]   ⑩ 切到 standard 成功
+  [OK]   ⑩ 切完 region() 读到 standard
+  [OK]   ⑩ 换区后请求改打 www.yuketang.cn
+  [OK]   ⑩ 换区后登录入口也换域
+  [OK]   ⑩ 断开只清当前区的 Cookie
+  [OK]   ⑪ 时间轴换层级（data.records）也能认出条目
+  [OK]   ⑪ 章节叶换层级（progress_tree[].leaves）也能认出
+  [OK]   ⑪ 没见过的 type=20 当作业收下，不再只认 5/19
+  [OK]   ⑪ 公告（type 9）仍然排除，不能混进作业
+  [FAIL] ⑪ 未完成 → 「待做」
+  [OK]   ⑪ 没见过的 leaf_type=7 靠「未交」状态也能收下
+  [OK]   ⑪ 靠状态收下的条目状态不编造
+  [OK]   ⑪ 整体 ok，不是「暂不可用」
+  [OK]   ⑫ 结构认不出 → degraded，不当成没作业
+  [OK]   ⑫ 诊断里打出了时间轴骨架（键名可见）
+  [OK]   ⑫ 键名真的写进了诊断（hello）
+  [OK]   ⑬ define 的 okHints 不含业务页片段 /web（否则扫码中间页被秒关）
+  [OK]   ⑬ define 的 okHints 是非空哨兵（空会退回默认 /frame/ 判定）
+  [OK]   ⑬ badHints 仍覆盖登录/护照/扫码/绑定各入口
+  [OK]   ⑬ curOpenLogin 走 openLoginFor 打开当前区域登录页
+  [OK]   ⑬ 传给 openLoginFor 的 okHints 与 define 一致（哨兵，非业务页）
+  [OK]   ⑬ 回跳回调名是 __onSrcDone_yuketang
+  [OK]   ⑬ 光有假 __bound=1（没 AUTH_KEY）仍判未登录
+  [OK]   ⑬ window[__onSrcDone_yuketang] 被覆盖成自己的函数
+  [OK]   ⑬ 点「完成」(ok=true) 且验到 cookie → 写 AUTH_KEY=1
+  [OK]   ⑬ 写完判已登录（双判据都满足）
+  [OK]   ⑬ 取消(ok=false) → 清掉 AUTH_KEY，回到未登录
+  [OK]   ⑬ 取消给一句 toast
+  [OK]   ⑬ 点「完成」但没验到 cookie → 不写真登录，清 AUTH_KEY
+  [OK]   ⑬ 没 cookie 提示「进到课程页再点完成」
+  [OK]   ⑬ logout 清 AUTH_KEY
+  [OK]   ⑬ logout 清秒关遗留的假 __bound
+  [OK]   ⑬ logout 清区域 Cookie
+  [OK]   ⑭ 去重后整体 state=ok（作业 1 条 + 真考试 1 场）
+  [OK]   ⑭ 作业卡只剩 1 条，没被拆成两张
+  [OK]   ⑭ 留下的是作业卡，名字与截图一致
+  [OK]   ⑭ 作业卡带截止时间 2026-11-15 20:00
+  [FAIL] ⑭ 作业卡信息更全（课程名 + 状态都留着）  -> 高等数学B1|
+  [OK]   ⑭ 假考试删掉、自身重复合并后只剩 1 场考试
+  [OK]   ⑭ 留下的是真考试「期末考试」
+  [OK]   ⑭ 撞作业名的 📝 假考试不再出现
+  [OK]   ⑭ 真考试的考场信息完好
+  [OK]   ⑭ 诊断写明删掉 1 张重复作业卡
+  [OK]   ⑭ 诊断写明合并 1 张重复考试卡
+  [OK]   ⑭ 整理计数按去重后算（1 条作业 / 1 场考试）
+  [OK]   ⑮ 同名但截止差大：整体 state=ok
+  [OK]   ⑮ 作业仍是 1 条
+  [OK]   ⑮ 作业截止时间没被考试卡覆盖
+  [OK]   ⑮ 截止差 > 60s 的真考试保留（不误删）
+  [OK]   ⑮ 保留下来的考试截止是 2026-11-15 20:00
+  [OK]   ⑮ 名字归一化（空格差异）那条被删
+  [OK]   ⑮ 整理计数 1 条作业 / 1 场考试
+  [OK]   ⑯ 补回截止后整体 state=ok（作业 1 条，考试 0 场）
+  [OK]   ⑯ 作业卡 1 条
+  [OK]   ⑯ 假考试被删光
+  [OK]   ⑯ 作业卡原本没截止，补回了考试卡读到的 2026-11-15 20:00
+  [OK]   ⑯ 诊断写明删掉 1 张重复作业卡
+
+[FAIL]  103 assertions: pass=100 fail=3

@@ -1,0 +1,1150 @@
+manifest: label=河医大助手 versionName=2.11.0 versionCode=21100
+  index.html   web=  71143 assets=  71143 identical=true
+  app.js       web= 293595 assets= 293595 identical=true
+  about.js     web=  27558 assets=  27558 identical=true
+  license.js   web=  15963 assets=  15963 identical=true
+  sync.js      web=  23819 assets=  23819 identical=true
+  water.js     web=  44242 assets=  44242 identical=true
+  auth.js      web=  39346 assets=  39346 identical=true
+  wiki.js      web=  45218 assets=  45218 identical=true
+  guide.js     web=  15869 assets=  15869 identical=true
+  jsQR.js      web= 256885 assets= 256885 identical=true
+  onboard.js   web=   5081 assets=   5081 identical=true
+  disc.js      web=   5696 assets=   5696 identical=true
+  tut.js       web=  18972 assets=  18972 identical=true
+  chaoxing.js  web=  28669 assets=  28669 identical=true
+  data.js      web=    850 assets=    850 identical=true
+  homework.js  web=    484 assets=    484 identical=true
+  mytodo.js    web=  17887 assets=  17887 identical=true
+  focus.js     web=  21855 assets=  21855 identical=true
+  reminder.js  web=  25990 assets=  25990 identical=true
+  elec.js      web=  36639 assets=  36639 identical=true
+  free.js      web=  28810 assets=  28810 identical=true
+  theme.js     web=  10009 assets=  10009 identical=true
+  nova-skin.js web=   5748 assets=   5748 identical=true
+  nova-organs.js web=  85172 assets=  85172 identical=true
+  lesson-cmd.js web=  21215 assets=  21215 identical=true
+  grades.js    web=  10277 assets=  10277 identical=true
+  app.css      web= 128391 assets= 128391 identical=true
+  nova-skin.css web= 101529 assets= 101529 identical=true
+  nova-organs.css web=  81598 assets=  81598 identical=true
+  export.js    web=  18873 assets=  18873 identical=true
+  gradepull.js web=  16904 assets=  16904 identical=true
+  learnplus.js web=  17111 assets=  17111 identical=true
+  nova-anime.css web=   9472 assets=   9472 identical=true
+  nova-brass.css web=  23999 assets=  23999 identical=true
+  nova-campuscard.css web=  13147 assets=  13147 identical=true
+  nova-cyber.css web=  17817 assets=  17817 identical=true
+  nova-easter.css web=   8206 assets=   8206 identical=true
+  nova-easter.js web=  24416 assets=  24416 identical=true
+  nova-fx.js   web=  15182 assets=  15182 identical=true
+  nova-ghibli.css web=  14141 assets=  14141 identical=true
+  nova-ink.css web=   6101 assets=   6101 identical=true
+  nova-medium.css web=  32077 assets=  32077 identical=true
+  nova-motion.css web=  25310 assets=  25310 identical=true
+  nova-pixel.css web=  10422 assets=  10422 identical=true
+  nova-polish.css web=   8227 assets=   8227 identical=true
+  nova-press.css web=  19971 assets=  19971 identical=true
+  nowline.js   web=  11719 assets=  11719 identical=true
+  pop.css      web=   4365 assets=   4365 identical=true
+  pop.js       web=  11207 assets=  11207 identical=true
+  sources.js   web=  22307 assets=  22307 identical=true
+  waterwatch.js web=  16162 assets=  16162 identical=true
+  xiqueer.js   web=  35782 assets=  35782 identical=true
+  yuketang.js  web=  38527 assets=  38527 identical=true
+  zhihuishu.js web=  33011 assets=  33011 identical=true
+
+checkpoints:
+  app.js  kbMismatchAck       = 5 refs
+  app.js  kbMismatchToastShown= 3 refs
+  license looksLikeAccount    = true
+  license PLACEHOLDER_WORDS   = true
+  license clearCheck          = true
+  license clearCheck 已导出   = true
+  about.js #btnClearCheck     = true
+  index.html #btnClearCheck   = true
+  chaoxing pickStatus         = true
+  chaoxing wordIn             = true
+  chaoxing status_known       = 2 refs
+  app.js   status_known       = 5 refs
+  app.js   isDoneStatus       = true
+  app.js   状态未知 角标       = 6 refs
+  待完成组排在未开始组之前        = true
+  about.js #btnShowHwRaw      = true
+  index.html #btnShowHwRaw    = true
+
+v1.1.6 checkpoints:
+  tut.js PAGES                = 7 pages
+  index.html #tut             = true
+  index.html rowTut           = true
+  index.html tut.js 已加载    = true
+  app.js Tut.init             = 3 refs
+  about.js Tut.afterUnlock    = 2 refs
+  wiki photosSection          = true
+  wiki fbSection              = true
+  wiki startUpload            = true
+  wiki composeFeedback        = true
+  wiki __onPhotoUploaded      = true
+  auth Photos/Feedback        = true
+  auth 已导出 Photos/Feedback = true
+  index.html #revPhotoList    = true
+  index.html #revFbList       = true
+  app.js loadRevPhotos        = true
+  app.js loadRevFb            = true
+  wiki.js prompt() 调用       = 0
+
+v1.1.7 checkpoints:
+  worker x-xxmu-via            = true
+  worker rlKey(fp)             = true
+  worker /v1/_diag             = true
+  pages  转发真实 IP           = true
+  app.js errText/hintInto      = true
+  app.js 残留 innerHTML 注入   = 0
+
+v1.1.8 checkpoints:
+  onboard 转发 chk 参数       = true
+  onboard 转发旧回调          = true
+  onboard cx 转发 r           = true
+  sync parseWeeks 降级        = 3 refs
+  sync showable               = true
+  sync bad_weeks              = true
+  app crowded 叠放            = 8 refs
+  app blocksOf 不再 return 丢课 = true
+  app SYNCING 重入锁          = 4 refs
+  app __x 挂在卡片上          = true
+  app 定时器只改文本          = true
+  app saveKey 回滚内存口令    = true
+  wiki PHOTO_ERR              = true
+  wiki FB_ERR                 = true
+  wiki 单飞 INFLIGHT          = 14 refs
+  tut replayMode              = 5 refs
+  tut init 幂等守卫           = true
+
+v1.1.42 checkpoints（教程排版 + 内容跟着功能走）:
+  tut.js 把 strip 装进 .tut-view（修真机相邻页漏字）= true
+  strip 真的被 append 进裁切层         = true
+  教程有内容版本号                      = true
+  教程声明了覆盖的功能清单                  = true
+  每页标了自己讲哪些功能                   = true
+  每页标了最后更新版本                    = true
+  app.css 有 .tut-view 裁切层       = true
+  教程契约检查          = PASS
+  license isActivated 校验格式 = true
+  license whoami 已收紧       = true
+  auth HARD/KEEP 分档         = true
+  auth activate 记住旧学号    = true
+  worker idxApply             = true
+  worker idx 损坏不重建       = true
+  worker constEq 口令比较     = true
+  worker 孤儿图清理           = true
+  worker 子请求分页           = true
+  Http.sha256                 = true
+  MainActivity 校验安装包     = true
+  MainActivity 域名白名单     = true
+  MainActivity 路径白名单     = true
+  about 过期显示「已过期」    = true
+  app 尺寸未知                = true
+  app 重新上架                = true
+
+v1.1.9 checkpoints:
+  worker IDX_CAP              = true
+  worker 名单上限跳过新增     = true
+  worker cfg 坏值不缓存       = true
+  worker 激活口令走 constEq   = true
+  pages 读 body 兜住          = true
+  chaoxing cached 记原因      = true
+  chaoxing 导出 readErr       = true
+  app 读 CX.readErr           = true
+
+v1.1.10 checkpoints:
+  edgeCache 支持 ignoreQuery  = true
+  config/photos/feedback 忽略 query = true
+  edgeCache 支持 negTtl       = true
+  edgeCache 支持 costLimit    = true
+  全局兜底限流 all:ip:        = true
+  兜底限流在路由之前          = true
+
+v1.1.11 checkpoints:
+  disc.js pref 键              = true
+  disc.js afterUnlock         = true
+  disc.js replay              = true
+  disc.js replayMode          = true
+  index.html 声明层              = true
+  index.html 已知晓按钮            = true
+  index.html 关闭按钮             = true
+  我的页声明入口                     = true
+  关于页完整声明卡                    = true
+  disc.js 已引入                 = true
+  about.js 转交 Disc            = true
+  app.js 调 Disc.init          = true
+  声明在教程之前              = true
+  disc.done() 读不到当未看过   = true
+
+v1.1.12 checkpoints:
+  Admin.key 未被当函数调用      = true
+  app.js 口令去空白                = true
+  口令失败两处都提示            = true
+  口令框关掉自动大写            = true
+
+v1.1.13 checkpoints:
+  index.html 课表状态条            = true
+  index.html 状态条标题            = true
+  index.html 状态条正文            = true
+  index.html 状态条同步按钮          = true
+  index.html 状态条诊断按钮          = true
+  index.html 查看课表原文按钮         = true
+  app.js paintKbBar           = true
+  app.js kbWeekStats          = true
+  app.js kbDiagText           = true
+  sync.js diagReset           = true
+  sync.js keepSample          = true
+  about.js 绑定查看课表原文           = true
+  about.js 导出 version（诊断要版本号） = true
+  kbBar 排在 grid 之前          = true
+  cellRe 节次认两位             = true
+  课程块正则顺序无关            = true
+
+v1.1.23 checkpoints:
+  不再有内嵌详情卡              = true
+  app.js showDetail 改为 sheet 版签名= true
+  app.js 详情标题写进 sh-name       = true
+  app.js 打开详情弹 #sheet         = true
+  详情内容写进 sh-body           = true
+  app.js 不再引用详情卡          = true
+
+v1.1.15 checkpoints:
+  Java readFileIfBig 失败回 null = true
+  Java 没文件仍回空串                = true
+  Java 读流 try-with-resources  = true
+  Java 写流 try-with-resources  = true
+  app.js 外部课表判 null           = true
+  app.js 课表缓存判 null           = true
+  app.js 外部作业判 null           = true
+  app.js 作业缓存判 null           = true
+  Http os.close 进 finally 处数  = 2
+  Http os 提到 try 外            = true
+  Java prompt 前判 Activity 存活  = true
+  worker 留言不露学号后 4 位          = true
+  留言板不再拼学号后 4 位        = true
+  _diag 详细自检仅管理员        = true
+  cfg noticeAt 只认清空           = true
+  noticeAt 不再无条件采用        = true
+  cfg maxDev 非法值直接拒           = true
+  maxDev 不再静默回退            = true
+  app.js refreshStats 带 force = true
+  app.js stats 3 秒节流          = true
+  操作成功后强制刷新处数        = 8
+  app.js renderList 记滚动位置     = true
+  app.js renderList 还滚动位置     = true
+  Manifest 指向白名单配置            = true
+  Manifest 不再全局放开明文      = true
+  白名单默认拒明文                    = true
+  白名单含学校域                     = true
+  白名单含胖乖生活                    = true
+  白名单含学习通                     = true
+  混合内容不再 ALWAYS_ALLOW      = true
+
+v1.1.16 checkpoints:
+  界面不把 amount 当毫升         = true
+  保留「单位以账单为准」说明      = true
+  water.js 停止后仍有观察窗口          = true
+  status 3/5 先到也不提前收工     = true
+  用量单调递增（不回退）          = true
+  app.js 已无 openSettle        = true
+  app.js 已无 endWaterAndSettle = true
+  app.js 已无 settleMode        = true
+  app.js 已无 setSettleMode     = true
+  app.js 已无 paintMode         = true
+  界面不再调 createOrder        = true
+  app.js 文案说明要去机器上按           = true
+  water.js 记录了官方原文依据          = true
+  不再声称「已开阀/正在出水」  = true
+  water.js watchVolume        = true
+  water.js 停止发命令              = true
+  停止用 goodsId                 = true
+  app.js 用 watchVolume        = true
+  index.html 最长放水 chips       = true
+  water.js 防忘关 pref 键         = true
+  water.js guardSec           = true
+  water.js setGuardSec        = true
+  water.js 防忘关起表              = true
+  water.js 防忘关超时主触发           = true
+  water.js 轮询循环               = true
+  app.js 手动起表兜底按钮             = true
+  index.html 档位是秒而非毫升         = true
+  water.js 已无 AMOUNT_ML     = true
+  water.js 已无 volumePlan    = true
+  water.js 已无 PRICE_HOT     = true
+  water.js 已无 PRICE_PURE    = true
+  water.js 已无 targetMl      = true
+  water.js 已无 setTargetMl   = true
+  water.js 已无 flowRate      = true
+  water.js 已无 setFlowRate   = true
+  water.js 已无 unitYuan      = true
+  water.js 已无 K_RATE        = true
+  water.js 已无 K_UNIT        = true
+  water.js 已无 K_TARGET      = true
+  app.js 已无 到量会自动停            = true
+  app.js 已无 计时估算              = true
+  app.js 已无 WATER.volumePlan( = true
+  app.js 已无 WATER.targetMl(   = true
+  water.js unlockWithRebind   = true
+  water.js 重试码表               = true
+  重试只认明确拒绝码          = true
+  重绑后按同名口取 skuId      = true
+  water.js clearLegacyMode    = true
+  app.js 主动清老 pref            = true
+
+v1.1.17 checkpoints:
+  auth.js 双入口 HOSTS           = true
+  auth.js fetchAny            = true
+  auth.js isNetFail 判定        = true
+  auth.js baseNow             = true
+  auth.js 不再是单域名常量          = true
+  AUTH.BASE 是 getter 属性          = true
+  auth.js 无 AUTH.BASE() 调用       = true
+  wiki.js 图片走 AUTH            = true
+  MainActivity 双入口 BASES      = true
+  MainActivity uploadAny      = true
+  Java 不再是单域名常量              = true
+  Java 只用 ERR: 前缀判网络失败      = true
+  HANDOFF 里留了回滚说明              = true
+
+v1.1.18 checkpoints:
+  worker 只把 /v1/ 当接口          = true
+  worker 静态资源走 ASSETS         = true
+  worker 不是无条件全量代理        = true
+  worker 不存在的静态路径回 404        = true
+  worker 区分首页与深层路径        = true
+  index.html 体积                  = 40652
+  官网有下载按钮                     = true
+  下载指向 /v1/apk                = true
+  官网写了 QQ 群号                  = true
+  官网版本号由接口填充                  = true
+  官网版本号没有写死                = true
+  官网外链资源引用数                = 0
+  超链接均指向白名单域名            = true
+  官网与 App 共用同一套 NOVA 令牌  = true 
+  官网内联样式 = 真源逐字一致        = true
+  经典皮肤可回退（--paper 仍在 app.css）= true
+  官网深色档 = App 紫夜舱同源       = true 
+
+v1.1.19 checkpoints:
+  官网有微信环境提示块              = true
+  提示默认隐藏（非微信看不到）      = true
+  用 UA 判微信环境                  = true
+  命中才加 .show                    = true
+  文案写明「在浏览器中打开」        = true
+  下载链接没有被改成「微信专用版」  = true
+
+v1.1.20 checkpoints:
+  logo.svg         存在且非空 = true
+  shot-kb.svg      存在且非空 = true
+  shot-learn.svg   存在且非空 = true
+  shot-water.svg   存在且非空 = true
+  官网引用图片数                    = 4（外链） / 0（内联）
+  logo.svg         单个 svg 根元素 = true
+  shot-kb.svg      单个 svg 根元素 = true
+  shot-learn.svg   单个 svg 根元素 = true
+  shot-water.svg   单个 svg 根元素 = true
+  官网写了作者 QQ                   = true
+  官网写了 GitHub 绝对链接            = true
+  官网写了群号                      = true
+  没有相对的 github.com 链接        = true
+  图片标注为「示意图」              = true
+
+v1.1.22 checkpoints:
+  mytodo 日期真实性校验              = true
+  没有「只验格式」的日期校验      = true
+  mytodo 读失败原因                = true
+  mytodo readErr 导出           = true
+  脏记录不会清空整份              = true
+  index.html 待办卡              = true
+  index.html 加一条按钮            = true
+  index.html 待办列表容器           = true
+  index.html 待办计数             = true
+  index.html 引入 mytodo.js     = true
+  mytodo.js 排在 app.js 之前      = true
+  app.js 初始化 MYTODO           = true
+  待办/番茄钟停车场+入口按钮      = true
+  app.js 有 openToolCard       = true
+  app.js 有 parkTools          = true
+  app.js 有入口状态字               = true
+  待办入口绑了 openToolCard         = true
+  番茄钟入口绑了 openToolCard        = true
+  closeSheet 里调 parkTools     = true
+  已完成有删除线样式                   = true
+  过期日期有红色样式                   = true
+  勾选态有样式                      = true
+
+v1.1.26 checkpoints:
+  index.html 专注计时卡            = true
+  index.html 引入 focus.js      = true
+  focus.js 模块包裹               = true
+  focus 番茄钟用结束时间戳             = true
+  focus 正计时用开始时间戳             = true
+  focus 白噪音合成 buffer          = true
+  focus 用 Web Audio，不引音频文件    = true
+  focus 专注统计                  = true
+  app.js 初始化 FOCUS            = true
+  focus.js 导出 remain          = true
+  focus.js 排在 app.js 之前        = true
+  没有引外部音频文件              = true
+
+v1.1.27 checkpoints:
+  index.html 课程提醒卡            = true
+  index.html 提醒设置按钮           = true
+  index.html 引入 reminder.js   = true
+  reminder.js 模块包裹            = true
+  reminder 调 Java scheduleReminders= true
+  reminder 调 Java cancelReminders= true
+  reminder 有课程时间计算            = true
+  reminder 有作息起点解析            = true
+  app.js 初始化 REMINDER         = true
+  app.js load() 后重挂提醒         = true
+  reminder.js 排在 app.js 之前     = true
+
+v1.1.29 checkpoints:
+  开关 onchange 里刷新入口状态         = true
+  提前量 onchange 里刷新入口状态        = true
+  reminder 设置前先 parkTools     = true
+
+v1.1.30 checkpoints:
+  index.html 宿舍空调独立入口卡        = true
+  index.html 引入 elec.js       = true
+  elec.js 模块包裹                = true
+  elec 学校代码 709               = true
+  elec 调 getbindroom          = true
+  elec 调 h5_getstuindexpage   = true
+  elec 有筛空调房间                 = true
+  elec 有去缴费入口                 = true
+  elec 按包名拉起完美校园 App          = true
+  app.js 初始化 ELEC             = true
+
+v1.1.31 checkpoints:
+  index.html 有 elecCard 入口卡   = true
+  index.html 入口卡有标题区          = true
+  elec.js 绑定新入口卡 elecCard     = true
+
+v1.1.32 checkpoints:
+  elec 缴费指引有「打开完美校园 App」按钮    = true
+  elec 走 Host.openApp 按包名拉起   = true
+  elec 空白页根因写进用户文案            = true
+  findAircon 不再把普通电表当空调显示     = true
+  MainActivity 有 openApp 桥（按包名拉起 App）= true
+
+v1.1.35 checkpoints（提醒链路必须两端都在）:
+  manifest 注册了 ReminderReceiver= true
+  manifest 声明 POST_NOTIFICATIONS= true
+  manifest 声明 SCHEDULE_EXACT_ALARM= true
+  ReminderReceiver 继承 BroadcastReceiver= true
+  ReminderReceiver 建通知 channel（API 26+ 不建就静默不弹）= true
+  scheduleReminders 处理 Android 12+ 精确闹钟权限= true
+  scheduleReminders 有非精确兜底    = true
+  manifest 声明 RECEIVE_BOOT_COMPLETED= true
+  manifest 注册 BootReceiver    = true
+  BootReceiver 监听开机广播         = true
+  BootReceiver 监听自更新换包        = true
+  ReminderScheduler 有重启重挂     = true
+  ReminderScheduler 把提醒列表落盘   = true
+  MainActivity 调 ReminderScheduler.schedule= true
+  MainActivity 调 ReminderScheduler.cancelAll= true
+
+v1.1.36 checkpoints（宿舍空调只选一次）:
+  elec 调 getzonelist 取校区      = true
+  elec 调 getbuildlist 取公寓     = true
+  elec getfloorlist 用 buildid（小写，写错会返回全校 221 条）= true
+  elec getroomnumlist 用 floorid= true
+  rvOf 拼 5 段 roomverify（第 3 段空）= true
+  parseRv 能从 roomverify 反解四级  = true
+  bindroom 带上 account         = true
+  bindroom 带上 roomverify      = true
+  bindroom 带上 zoneid          = true
+  bindroom 带上 buildid         = true
+  bindroom 带上 floorid         = true
+  bindroom 带上 roomnum         = true
+  elec 把选过的房间存本地（只选一次）        = true
+  elec 有读取已记住房间               = true
+  elec 有记住的房间就直查              = true
+  elec 没记住房间才进选择器             = true
+  fetchRoom 能识别「未绑定房间」        = true
+  登记丢了自动重登记一次（不用重选）           = true
+  elec 楼层只留空调分表               = true
+  elec 有「换房间」入口               = true
+  选择器复用全局半框 #sh-body          = true
+
+v1.1.37 checkpoints（空调度数印在入口卡上）:
+  入口卡上有度数字段 #elecEntryOdd     = true
+  入口卡上有副标题 #elecEntrySub      = true
+  入口卡上有手动刷新按钮 #elecRefresh    = true
+  入口卡左半边（标题/副标题）              = true
+  入口卡右半边（数字+刷新）               = true
+  数字与「度」同排                    = true
+  elec 有 paintEntry（把数字贴到入口卡） = true
+  elec 有 entryRefresh（只刷卡、不动半框）= true
+  入口卡 10 分钟自刷                 = true
+  paintEntry/entryRefresh 已导出 = true
+  只在数字属于当前房间时才显示（换房不贴旧数）      = true
+  没数据时显示 -- 而不是 0             = true
+
+v1.1.62 checkpoints（空调房绑定防呆 + 套间 AB）:
+  入口卡印出当前绑定哪间房 #elecEntryRoom = true
+  paintEntry 取到了 #elecEntryRoom= true
+  入口卡房间名走 roomBrief 压短        = true
+  elec 有房间自然排序 roomSort       = true
+  elec 有房间排序键 roomKey（主号+字母后缀）= true
+  四级选择器房间列表走 roomSort（AB 紧跟主号）= true
+  elec 有 airconRooms（列全多间空调房） = true
+  autoPick 登记多间房时不再盲选第一间，交给学生自己认= true
+  elec 有 chooseRoom 多房点选      = true
+  AB 房 cell 带 suite 高亮类       = true
+  半框有「房间不对就换」明示               = true
+  v1.1.62 新函数已导出              = true
+
+v1.1.38 checkpoints（全校空闲教室 / 登录页 / 登录状态）:
+  index.html 引了 free.js       = true
+  free.js 模块包裹                = true
+  free.js 固定教务域名              = true
+  free.js 用 droplist 接口       = true
+  free.js 用 SB12 数据页          = true
+  free.js 有 parseMatrix       = true
+  free.js 有 matrixBody        = true
+  free.js 有 reasonOf（把服务端 alert 原话带出来）= true
+  free.js 有 freeAt            = true
+  free.js 有 freeList          = true
+  切教室块必须用前瞻（普通 split 会吃掉开标签，第 1 节永远查不到）= true
+  判占用靠 style 里的背景色（天格里没有文字）   = true
+  free.js 的 xq_m 字段（学期编码：年,0 = 第一学期）= true
+  缓存命中时也要补默认教学楼（否则 selLF 为空会查到全校）= true
+  app.js 有 markLoginOk（真的拿到教务数据才算登录成功）= true
+  登录状态有「未验证」这一档（只有 cookie 不算登录成功）= true
+  app.js 有 LOGIN_OK_KEY       = true
+  入口按钮走 KFREE.open()          = true
+  本机课表推算保留为 openFreeLocal（降级方案）= true
+  WebActivity 有 FIT_JS（把桌面布局缩进手机视口）= true
+  WebActivity 在 onPageFinished 里真调了 FIT_JS= true
+
+v1.1.39 checkpoints（主题系统 / 深色模式）:
+  index.html 引了 theme.js      = true
+  设置页有外观三档容器                  = true
+  状态字用 data-theme-state 批量同步  = true
+  主题 pref 键                   = true
+  resolve 纯函数（三档 × 系统亮暗）      = true
+  系统夜间模式读 Java 的 uiMode（不靠 prefers-color-scheme）= true
+  切主题时通知 Java 改状态栏/底色         = true
+  把 data-theme 写到 <html>      = true
+  暴露 __onThemeSys 供 onConfigurationChanged 回调= true
+  __onResume 链式保留 elec.js（不能整个覆盖）= true
+  链式真的调了前一个 __onResume        = true
+  theme.js 首屏立即 apply（不等 DOMContentLoaded）= true
+  DOM 就绪后补画入口状态字（head 阶段 #themeState 还不存在）= true
+  paint 已导出（测试能单独验补画）         = true
+  app.css 有深色变量块              = true
+  深色块声明 color-scheme（表单/滚动条跟着变深）= true
+  深色有独立底色（沙漠夜空）               = true
+  app.css 有外观选项样式             = true
+  MainActivity 有 isSystemDark（uiMode 真值）= true
+  Host 有 setAppTheme 桥        = true
+  MainActivity 有 applyAppTheme（改状态栏/底色）= true
+  onCreate 在 loadUrl 之前按已存主题设首屏底色= true
+  MainActivity 处理系统夜间模式变化     = true
+  manifest 的 configChanges 含 uiMode（切系统主题不重建丢状态）= true
+  MainActivity 关掉 WebView 自动反色（33+）= true
+  MainActivity 关掉 WebView 自动反色（29~32）= true
+  WebActivity 也关掉自动反色（教务登录页不被反色）= true
+
+v1.1.40 checkpoints（设置页 / 图标方案）:
+  有独立设置页 section              = true
+  「我的」页有设置入口                  = true
+  设置页有返回按钮                    = true
+  设置页里有外观三档容器                 = true
+  TAB_PARENT 把 settings 挂到 me（返回键/底栏自动接管）= true
+  PAGE_HEAD 有设置页标题            = true
+  入口真的跳设置页                    = true
+  返回箭头回「我的」                   = true
+  状态字用 data-theme-state 批量同步  = true
+  theme.js 能把三档直接铺进设置页        = true
+  半框重开只丢临时组（不弄丢设置页常驻三档）       = true
+  register 区分常驻/临时两组          = true
+  gen_icons.py 有 6 套方案表       = true
+  生成多尺寸 launcher              = true
+  生成 SVG 源                    = true
+  生成总览图                       = true
+  总览按 alpha 合成（四角不留黑块）        = true
+  换图标前先备份                     = true
+  替换后逐字节 hash 校验              = true
+  支持从备份回滚                     = true
+
+v2.0.0 checkpoints（当前图标方案 G = 07_ink）:
+  CURRENT.txt 声明当前用的是 G 号（07_ink 墨迹）= true
+  5 档密度与 G 号源图逐字节一致 = true
+  apply_icon.py 支持 --v2 <slug>= true
+  verify_apk 有图标逐像素校验         = true
+
+v1.1.41 checkpoints（课程提醒三档）:
+  reminder.js 有 mode 的 pref 键 = true
+  三档顺序固定                      = true
+  mode() 纯函数（脏值回落 alarm）      = true
+  build() 每项带 mode（重启重挂不退回响铃） = true
+  有方式三档按钮                     = true
+  有「试一下」按钮                    = true
+  非短信档调 Java 预览通知             = true
+  短信档调 Java 拉起编辑页             = true
+  状态字写明当前方式                   = true
+  文案写明不读通讯录                   = true
+  静默有独立 channel id            = true
+  静默 IMPORTANCE_LOW           = true
+  响铃 IMPORTANCE_HIGH          = true
+  Receiver 读广播里的 mode         = true
+  脏 mode 在 Java 侧也回落 alarm    = true
+  短信用 ACTION_SENDTO（系统编辑页）    = true
+  smsto: 不带号码（收件人空着）          = true
+  只预填正文                       = true
+  短信 PendingIntent 指向 Activity= true
+  「试一下」能直接开短信编辑页              = true
+  Scheduler 把 mode 原样落盘（缺字段回落 alarm）= true
+  MainActivity 有 previewReminder 桥= true
+  MainActivity 有 openSmsDraft 桥= true
+  app.css 有方式三档样式             = true
+  课程提醒设置入口仍在                  = true
+
+v1.1.44 checkpoints（下载/官网性能）:
+  Worker 读版本化 query           = true
+  Worker handleApk 真调 Cache API= true
+  Range 从全量切片（单一实现）           = true
+  老 URL 仍 no-cache（不缓存旧包）     = true
+  Pages 层有版本化 APK 缓存分支        = true
+  缓存键带 Range（4 段不互相覆盖）        = true
+  Pages 层有命中标记，线上可验           = true
+  官网首页长 TTL（86400）            = true
+  缓存键带 BUILD 版本号（改皮肤即整批失效）    = true
+  publish_apk 生成版本化 URL       = true
+  set_latest 也补 ?v=           = true
+  App 内下载仍前缀匹配（带 query 不外链）   = true
+  APK 缓存契约检查      = PASS
+
+v1.1.45 checkpoints（名单排序）:
+  后端按 at 降序（不是 id 字典序）        = true
+  同 at 按 id 稳定排序              = true
+  前端有同款排序函数                   = true
+  renderList 真的用它排了           = true
+  有异常形状判据（只标不拦）               = true
+  异常号在行里标出来                   = true
+  行里显示收录时间                    = true
+  激活判据没被改成拦异常号                = true
+  名单排序行为测试        = PASS
+  教务绑定名单契约测试    = PASS
+
+v1.1.64 checkpoints（名单双号三态 / 校准二级菜单 / 手动录真号）:
+  后端双号归一 kbRealOf             = true
+  后端三态分类 kbClassOf            = true
+  主列表 = confirmed 集           = true
+  后端取 confirmed 补集整批回传（校准）    = true
+  主列表 / 校准每行带真号 kb            = true
+  返回体带 oddCount               = true
+  返回体带 oddRows 明细             = true
+  reason 两类：pending / conflict= true
+  三态计数分开回（已确认 / 待补录 / 冲突）     = true
+  后端有手动录真号 handleKbFix        = true
+  /v1/admin/kbfix 路由在鉴权块内     = true
+  前端有校准表 renderOdd            = true
+  两处拉取都收 oddRows              = true
+  前端有二级菜单切换                   = true
+  异常计数写独立徽章                   = true
+  正常计数写独立徽章                   = true
+  方案 C 只看已确认开关状态              = true
+  renderList 合并 pending 灰度行   = true
+  双行下一行 .adm-kbline           = true
+  卡头三态汇总                      = true
+  校准每行手动录真号半框                 = true
+  手动录真号走 Admin.kbFix          = true
+  Admin.kbFix 客户端出口           = true
+  名单卡有二级菜单容器                  = true
+  有「校准·异常」按钮                  = true
+  有异常独立 pane                  = true
+  有异常独立表格容器                   = true
+  有卡头三态汇总容器                   = true
+  有只看已确认开关                    = true
+  二级菜单样式在                     = true
+  双行细字样式在                     = true
+  待补录灰度样式在                    = true
+  卡头汇总样式在                     = true
+
+v1.1.65 checkpoints（全员重绑 / 撤销 / 老票据判踢 / 管理台按钮）:
+  全员重绑契约测试        = PASS
+  后端 rebindKicks 判据           = true
+  后端有 handleRebindAll         = true
+  后端有 handleRebindUndo        = true
+  整键备份走 rebind:backup 单键      = true
+  handleCheck 老票据判踢           = true
+  返回 bad_ticket + rebind:true = true
+  /v1/admin/rebind-all 路由     = true
+  /v1/admin/rebind-undo 路由    = true
+  Admin.rebindAll 出口          = true
+  Admin.rebindUndo 出口         = true
+  前端二次确认半框 openRebind         = true
+  openRebind 调发起              = true
+  openRebind 调撤销              = true
+  init 绑发起按钮                  = true
+  init 绑撤销按钮                  = true
+  名单卡有发起按钮                    = true
+  名单卡有撤销按钮                    = true
+  名单卡有重绑状态位                   = true
+  重绑两按钮并排（修 width 溢出）         = true
+
+v1.1.46 checkpoints（检查更新 / 说明文案）:
+  启动检查改成立即执行（双 rAF）           = true
+  用双 rAF 等首屏画完再发，不抢渲染         = true
+  仍是非阻塞的静默检查                  = true
+  更新弹窗只显示 latest.notes        = true
+  公告只读 cfg.notice（与更新说明分离）    = true
+  发版说明学生视角检查  = PASS
+
+v1.1.47 checkpoints（更新下载入口归一）:
+  auth.js 有统一入口归一函数           = true
+  归一函数真的导出到 AUTH（app.js 才调得到） = true
+  只归一 /v1/ 接口，不碰外链与官网静态资源     = true
+  HOSTS 前缀比较带边界（形近域名不被当成自己人）  = true
+  同入口时原样返回（绝大多数学生零影响）         = true
+  go() 用的是归一后的地址              = true
+  前缀判据仍在（?v= 版本化缓存键照样命中）      = true
+  下载入口归一行为测试  = PASS
+
+v1.1.48 checkpoints（管理台时间单位）:
+  worker.js 的 now() 仍是秒级时间戳   = true
+  fmtDay 自己判单位（秒 / 毫秒都吃）      = true
+  管理台时间显示行为测试  = PASS
+
+v1.1.49 checkpoints（乱码兜底 + 连接复用）:
+  free.js 有「像不像人话」判定          = true
+  判据是常用字占比，不是全角符号区（正常中文的，：也在那）= true
+  U+FFFD 直接判死（解码器自己都说坏）       = true
+  私用区直接判死（GBK 越界映射出来的）        = true
+  看不懂时给一句能照着做的                = true
+  看得懂才原样带出教务原话                = true
+  判定函数导出（测试才验得到）              = true
+  空闲教室行为测试  = PASS
+  Http.request 记「这条连接能不能复用」   = true
+  读完响应才置真（异常路径仍断连）            = true
+  成功路径不断连，keep-alive 池才留得住（TLS 握手省掉）= true
+  冷启动抢跑一次 /v1/config 的握手      = true
+  预热走的是同一个连接池                 = true
+  index.html aboutVer         = 2.11.0
+  about.js APP_VERSION        = 2.11.0
+  index.html CJK              = 7976
+  mojibake                    = false
+
+v1.1.55 checkpoints（糖梨借鉴：DSL / 成绩 / 小组件 / 否决清单）:
+  课表 load() 叠加了 AI 改课表指令      = true
+  AI 改课表入口按钮已绑定               = true
+  成绩入口按钮已绑定                   = true
+  index.html 引入 lesson-cmd.js = true
+  index.html 引入 grades.js     = true
+  index.html 有 AI 改课表按钮       = true
+  index.html 有成绩按钮            = true
+  DSL 解析器存在                   = true
+  任一行坏→整批拒绝                   = true
+  生成给 AI 的说明文本                = true
+  预览差异                        = true
+  可撤销                         = true
+  成绩三态判定                      = true
+  绩点计算                        = true
+  导入整批校验                      = true
+  新成绩盖着翻开                     = true
+  manifest 注册桌面小组件            = true
+  小组件类存在                      = true
+  小组件定义了即时刷新入口                = true
+  课表写完就重画小组件                  = true
+  成绩抓取预留（只读）                  = true
+  DESIGN.md 有否决清单             = true
+  小组件底是 NOVA 紫罗兰描边            = true
+  小组件底是 NOVA 深紫玻璃             = true
+  小组件标题是 NOVA 紫               = true
+  小组件行文是 NOVA 浅紫字             = true
+  小组件用等宽字                     = true
+  DSL/成绩离线测试              = PASS
+
+v1.1.66 checkpoints（多平台待办聚合 / 诚实降级）:
+  web/sources.js 存在             = true
+  sources.js 把学习通包装成 builtin  = true
+  sources.js 降级 state 记忆       = true
+  sources.js 定义了 live() 聚合    = true
+  sources.js 无并入来源时 !merged 返回 null= true
+  app.js 用 SOURCES.live() 取代单一来源= true
+  index.html 有 srcCards 连接卡容器 = true
+  index.html 有 srcChips 来源筛选容器= true
+  index.html 引入 sources.js    = true
+  index.html 引入 xiqueer.js    = true
+  index.html 引入 yuketang.js   = true
+  index.html 引入 zhihuishu.js  = true
+
+v1.1.67 / v1.1.68 checkpoints（喜鹊诊断回传 / 真浏览器辅助发现）:
+  xiqueer.js 有考试安排解析器（卡片/表格/自由文本）= true
+  xiqueer.js 有 WebView 辅助发现回跳 = true
+  xiqueer.js 回传定位诊断           = true
+  sources.js 透出诊断文本           = true
+  app.js 连接卡有「复制诊断」动作         = true
+  sources.js 保留适配器回传的导入时间     = true
+  喜鹊导入解析离线测试        = PASS
+
+v1.1.68 checkpoints（WebView 辅助发现 / 粘贴导入兜底）:
+  WebActivity 有整页文字/表格抓取脚本    = true
+  WebActivity 有 find 模式开关     = true
+  MainActivity 暴露 openFinderFor 给前端= true
+  MainActivity 有独立的 find 结果分支 = true
+  xiqueer.js 调起 WebView 辅助发现  = true
+  app.js 连接卡有「导入这段」动作         = true
+
+v1.1.69 checkpoints（frame 递归读页 / 原文可见兜底）:
+  FIND_JS 遍历 window.frames（含 <frame>，不只 iframe）= true
+  FIND_JS 读下拉已选值（学年学期 / 考试批次） = true
+  FIND_JS 拼出整页原文 raw          = true
+  xiqueer.js 认不带年份的「11月14日」   = true
+  xiqueer.js 认不出时把读回原文摊给用户    = true
+  xiqueer.js 把读回原文落在独立快照键     = true
+  xiqueer.js 暴露 lastRaw 供卡片回填 = true
+  app.js 喜鹊卡片回填读回原文           = true
+
+v1.1.70 checkpoints（剪贴板导入 / 不再赌读页）:
+  MainActivity 有读取系统剪贴板的桥     = true
+  xiqueer.js 有从剪贴板导入          = true
+  xiqueer.js 对空剪贴板有清楚提示       = true
+  xiqueer.js 走 Host.getClip 读剪贴板= true
+  app.js 有「从剪贴板导入」动作          = true
+
+v1.1.71 checkpoints（双探全自动 / 报表地址重放）:
+  WebActivity 有 EXTRA_PROBE 双探开关= true
+  WebActivity 拦「检索」发出的请求 URL  = true
+  WebActivity 钩「导出/打印」的下载 URL = true
+  WebActivity 把候选地址记进 probes  = true
+  MainActivity 有 openProbeFor 打开双探视图= true
+  MainActivity 有 REQ_PROBE 结果分支= true
+  xiqueer.js 有双探回跳处理          = true
+  xiqueer.js 记住自动报表地址         = true
+  xiqueer.js 照课表用带 Cookie 的桥重放= true
+  xiqueer.js 对候选地址打分挑最像报表的    = true
+  app.js 有「自动同步一次」动作          = true
+
+v1.1.72 checkpoints（丢幽灵条目 / 接住新窗口 / 失败自清地址）:
+  WebActivity 覆写 onCreateWindow 接住检索结果的新窗口= true
+  WebActivity 把新窗口交回主 WebView = true
+  FIND_JS 递归读嵌套框架（不限一层）       = true
+  xiqueer.js 丢弃没有课程名的幽灵条目     = true
+  xiqueer.js 自动地址失败计数，连续两次就忘掉 = true
+  读旧快照时就地滤掉幽灵条目               = true
+  app.js 时间两栏都空时不再印「— ~ —」    = true
+  app.js 状态文案按实际来源说，不指着教务说学习通 = true
+
+v1.1.73 checkpoints（轮次剥学年抬头 / 副行换轮次）:
+  xiqueer.js 有 cleanRound 剥掉学年学期抬头= true
+  轮次取值经过 cleanRound           = true
+  标题只放课程名，不再拼轮次括号             = true
+  app.js 副行改用轮次               = true
+  副行没有轮次时才退回课程名               = true
+
+v1.1.74 checkpoints（雨课堂真接活清单 / 诚实降级）:
+  yuketang.js 先验登录态再花后续请求     = true
+  yuketang.js 拉待考考试           = true
+  yuketang.js 拉课程列表（学生视角）     = true
+  yuketang.js 按课拉时间轴（作业/公告/上课记录）= true
+  yuketang.js 用 course_progress 补截止时间= true
+  所有请求带 xtbz: ykt（否则 /c27 报 40000）= true
+  只把 leaf_type 5/6/19 当作业，视频不算= true
+  考试状态不编造，留给渲染层按开考时间写         = true
+  认不出条目时明说，不冒充「没作业」           = true
+  逐课请求限并发，别一次放出十几条            = true
+  不再标 alwaysDegraded          = true
+
+v1.1.75 checkpoints（雨课堂四区域可选 / 默认长江）:
+  yuketang.js 认得长江域           = true
+  默认区域是长江（本校口径）               = true
+  有 curRegion 实时取当前区域，不再写死常量  = true
+  请求域由 hostNow() 实时给          = true
+  Cookie 也从当前区域取，否则带不上扫码的 sessionid= true
+  登录态按当前区域判                   = true
+  登录入口按当前区域拼                  = true
+  断开只清当前区域的 Cookie            = true
+  给界面暴露区域读写口                  = true
+  卡片上能切区域                     = true
+  区域按钮带 data-region           = true
+  区域按钮走委托表                    = true
+  卡片画出了区域选择行                  = true
+  区域按钮有样式                     = true
+  深色档单独覆盖，不靠浅色硬套              = true
+
+v1.1.76 checkpoints（下探认结构 / 放开 type 白名单 / 诊断带骨架）:
+  有 deepArray 下探找条目数组，不死认 data.activities= true
+  有 deepConcat 拼多份章节叶         = true
+  按形状判时间轴条目，字段名不同也认           = true
+  按形状判章节叶                     = true
+  有骨架输出，结构认不出时能把键名发回来         = true
+  诊断里真的会打时间轴骨架                = true
+  诊断里真的会打章节骨架                 = true
+  章节叶不再只认 leaf_type 5/6/19    = true
+  不再只收 type 5/19              = true
+
+v1.1.77 checkpoints（已过截止移出待完成 / 按截止时间正序）:
+  作业按截止是否过去打 expired 标记       = true
+  考试按结束时间打 expired 标记         = true
+  顶部待做计数不含已过截止                = true
+  顶部单独报已过截止条数，不混进待做           = true
+  待完成只收「还能做」的那堆               = true
+  已过截止单独一堆                    = true
+  已过截止单独一段、默认折叠               = true
+  按课程排时只用未过期条目算最紧急（全过期则沉底）    = true
+  组内：能做的→已过截止→未开始→其余          = true
+  分桶抽成纯函数，测试能单独钉住             = true
+  已完成优先于已过截止                  = true
+  待完成已排除过期                    = true
+
+v1.1.78 checkpoints（知到双探针接入 / 去 alwaysDegraded / 只读）:
+  zhihuishu.js 是本版双探针适配器      = true
+  注册了知到来源                     = true
+  给了真实登录入口（不是 alwaysDegraded 桩）= true
+  有 A 探针（读官方作业页快照）            = true
+  有 B 探针（直连只读端点）              = true
+  有纯 JS AES-128-CBC 加密（B 探针）  = true
+  B 探针打作业清单只读端点               = true
+  B 探针打课程列表只读端点               = true
+  A 探针的 WebView 回跳            = true
+  A/B 模式可切                    = true
+  保留了只读不代交的注释红线               = true
+  app.js 委托表有 A/B 切换分支        = true
+  app.js 委托表有「打开知到作业页」分支      = true
+  知到卡片登录文案按来源分流               = true
+  知到双探针离线测试          = PASS
+
+v1.1.78 checkpoints（连堂只提醒一次 / setAlarmClock 穿透 Doze）:
+  build() 按一门课一周只留最早一节（连堂不重复提醒）= true
+  Java 主路径改用 setAlarmClock（不被 Doze 节流）= true
+  用 AlarmClockInfo 构造真闹钟      = true
+  保留 setExactAndAllowWhileIdle 兜底（被拒时仍能挂上）= true
+  提醒两修复离线测试          = PASS
+
+v1.1.79 checkpoints（知到登录链路修复 / 杜绝秒关 / 只读）:
+  头注释标出 v1.1.79 登录链路修复        = true
+  okHints 用永不命中的哨兵（登录页绝不会命中）  = true
+  真登录判据独立成 AUTH_KEY，不认旧假 __bound= true
+  覆盖登录回跳，只在「完成」且验到 cookie 才写真登录= true
+  诊断首行说明不再自动秒关                = true
+  保留方案 C 双探针标题锚点              = true
+  保留只读不代交红线                   = true
+  卡片提示引导用户手动点右上角「完成」          = true
+  知到登录修复离线测试        = PASS
+
+v1.1.80 checkpoints（知到定 B 主线 / 课程列表字段名 / 只读）:
+  头注释标出 v1.1.80 定 B 主线        = true
+  extract_course_id 口径：顶层 courseId=0 下探 courseInfo.courseId= true
+  课程数据读 result.courseOpenDtos（不再猜 rt.shareCourseList）= true
+  分页按 result.totalCount       = true
+  课程列表请求体用 pageNo（从 1 起）/status/pageSize= true
+  诊断记业务 code=200 成功判据         = true
+  作业清单按 status=200 + studentHomeworkList 判定= true
+  无课程如实报，不造空 recruitId 占位     = true
+  删掉会炸 500 的空 recruitId 占位请求  = true
+  每门课都读通的空清单才算诚实空 ok          = true
+  默认模式 B（接口直连）作主线，A 可手动切回兜底   = true
+  保留只读不代交红线                   = true
+  卡片文案以「接口直连」为主               = true
+  卡片按钮顺序 B 在前（主线在前）           = true
+  知到定 B 主线离线测试        = PASS
+
+v1.1.81 checkpoints（方案 B 自动刷新 / 雨课堂扫码修复 / 只读）:
+  sources.js 自动刷新调度器 autoSync = true
+  单飞：AUTO_RUNNING 期间第二次直接跳过   = true
+  最小间隔 600 秒防限流（学习通 3004 教训）  = true
+  距上次成功不满间隔的来源跳过              = true
+  指纹比对：变了才回调重画                = true
+  自动刷新留诊断账 autoDiag           = true
+  三个新方法透出到 SOURCES 公共接口       = true
+  app.js 挂自动刷新调度              = true
+  接上 MainActivity.onResume 的回前台钩子= true
+  前台常驻每 30 分钟静默补刷一次           = true
+  冷启动双 rAF 后补刷一次              = true
+  后台不刷（document.hidden 直接返回）  = true
+  静默回调只重画、不弹 toast/showTip    = true
+  切区域时清掉雨课堂真登录判据              = true
+  头注释标出 v1.1.81 登录链路修复        = true
+  雨课堂 okHints 用永不命中哨兵（杜绝扫码中间页秒关）= true
+  真登录判据独立成 AUTH_KEY           = true
+  authed() 只认 AUTH_KEY，不认旧假 __bound= true
+  登录态 = 真登录判据 + 区域 cookie 双判据 = true
+  覆盖登录回跳，点完成且验到 cookie 才写真登录  = true
+  50000 诊断写明当前区域              = true
+  50000 诊断写明两条疑似原因（区域 / 没拿到 sessionid）= true
+  登录失效收成 stale（不再误判 degraded 空清单）= true
+  保留只读不代交红线                   = true
+  autoSync 直接调 s.refresh（静默落盘）= true
+  自动刷新调度器离线测试      = PASS
+  雨课堂登录修复离线测试      = PASS
+
+v1.1.82 checkpoints（雨课堂作业去重 / 适配器层 / 只读）:
+  头注释标出 v1.1.82 作业去重          = true
+  名字归一化 dedupName（去空格标点大小写）   = true
+  截止时间解析 dedupTime            = true
+  适配器层去重函数 dedupExams         = true
+  截止差 >60s 才判真考试、不误删          = true
+  作业卡没截止时补回考试卡读到的时间           = true
+  exams 自身同名同起止重复推送合成一条       = true
+  主流程 works 建成后调去重            = true
+  用去重后的 exams 继续（计数/降级判据都对）   = true
+  零课程早退分支也合一下 exams 自身重复      = true
+  诊断写明删掉几张重复作业卡               = true
+  保留只读不代交红线                   = true
+  雨课堂作业去重离线测试      = PASS
+
+v2.2.0 checkpoints（作业截止 / 考试开考提醒）:
+  index.html 有作业截止那一行         = true
+  index.html 有作业截止状态读数        = true
+  reminder.js 有独立作业开关键        = true
+  reminder.js 有作业提前量键         = true
+  reminder.js 有考试提前量键         = true
+  reminder.js 有 buildHw()     = true
+  reminder.js 有 buildAll()    = true
+  reminder.js 以 IIFE 收尾（不自启动） = true
+  buildHw 产出 kind 字段（Java 侧靠它换文案）= true
+  buildHw 产出 due 字段（Java 侧算「还有 N 小时」）= true
+  app.js 仍导出 __HWITEMS（buildHw 的唯一数据源）= true
+  buildHw 用 isDoneStatus 挡掉已交的= true
+  buildHw 显式挡掉 expired        = true
+  Receiver 有作业/考试独立 channel   = true
+  Receiver 认 hw 类             = true
+  Receiver 认 exam 类           = true
+  Receiver 有 kind 归一化（缺字段回落 class）= true
+  Scheduler 把 kind 带进 intent  = true
+  Scheduler 把 due 带进 intent   = true
+  MainActivity 有作业提醒预览桥       = true
+  仍引入 reminder.js             = true
+  课程文案仍是「N 分钟后上课」             = true
+  作业/考试提醒离线测试        = PASS
+
+v2.3.0 checkpoints（现在一屏）:
+  index.html 有 #nowLine       = true
+  index.html 有 #nowMain       = true
+  index.html 有 #nowSub        = true
+  index.html 有 #nowRooms      = true
+  index.html 有空教室按钮           = true
+  index.html 引入 nowline.js    = true
+  读不到钟点会置 unknown             = true
+  教室缺数据时如实说教务没给               = true
+  用递归 setTimeout 走时钟          = true
+  不在课表页就不排下一次                 = true
+  空教室按钮调 KFREE.open()         = true
+  app.css 有经典皮肤 .now-line     = true
+  nova-skin.css 有 NOVA 皮肤 .now-line= true
+  switchTab 会重画现在一屏           = true
+  现在一屏离线测试              = PASS
+
+v2.4.0 checkpoints（专注记录可视化）:
+  focus.js 有 histo()          = true
+  focus.js 有 streak()         = true
+  focus.js 有 peakOf()         = true
+  HIST_DAYS 是 14              = true
+  index.html 有 #focusHisto    = true
+  index.html 有 #focusHint     = true
+  app.css 有经典皮肤 .focus-histo  = true
+  nova-skin.css 有 NOVA 皮肤 .focus-histo= true
+  app.css 有 .fh-zero（0 分钟留底线） = true
+  专注记录离线测试              = PASS
+
+v2.5.0 checkpoints（备份与导出）:
+    export.js 有敏感名单           = true
+    export.js 有导出白名单          = true
+    export.js 自启动守卫用 typeof module= true
+    saveFile 读 OK: 前缀         = true
+    saveFile 读 ERR: 前缀        = true
+    index.html 有 #rowExport   = true
+    index.html 加载 export.js   = true
+    export.js 自己绑 #rowExport  = true
+    openPanel 会先 parkTools    = true
+    Host 有 exportText 桥       = true
+    MainActivity 有 exportTextFile 落盘实现= true
+    API 29+ 走 MediaStore.Downloads= true
+    写完 IS_PENDING 置 0（否则别的应用读到半截文件）= true
+    写下载目录用 RELATIVE_PATH（免存储权限）= true
+    低版本退回 App 私有外部目录          = true
+    失败要返回 ERR: 人话，不静默         = true
+    app.css 有经典皮肤 .ex-acts    = true
+    nova-skin.css 有 NOVA 皮肤 .ex-acts= true
+    app.css 有 .ex-bad         = true
+    nova-skin.css 有 .ex-bad   = true
+  备份与导出离线测试            = PASS
+
+v2.6.0 checkpoints（从教务读成绩）:
+    gradepull.js 有 @testable:parseGradeTable= true
+    gradepull.js 有 @testable:mergeInto= true
+    gradepull.js 有 @testable:looksStale= true
+    gradepull.js 有 @testable:isGradeWord= true
+    gradepull.js 有 @testable:rowsOf= true
+    gradepull.js 有 @testable:colsOf= true
+    gradepull.js 有 @testable:cellText= true
+    gradepull.js 走 XXMU.netCk（带教务 Cookie）= true
+    gradepull.js 候选 1（stuckcj）= true
+    gradepull.js 候选 2（wdcj）   = true
+    gradepull.js 候选 3（cjcx）   = true
+    gradepull.js 域名与 sync.js 一致= true
+    index.html 引了 gradepull.js= true
+    index.html 仍有 #rowExport（v2.5.0 不能被顶掉）= true
+    grades.js 里挂了「从教务读成绩」入口   = true
+    app.css 有经典皮肤 .gp-row     = true
+    app.css 有经典皮肤 .gp-sum     = true
+    nova-skin.css 有 NOVA 皮肤 .gp-row= true
+    nova-skin.css 有 NOVA 皮肤 .gp-sum= true
+  从教务读成绩离线测试          = PASS
+
+v2.7.0 checkpoints（界面这一轮）:
+    app.css .c b 用 overflow-wrap 兜底= true
+    nova-skin.css .c 内边距让出横向空间= true
+    app.js 只在连堂课卡印结束钟点        = true
+    app.js 暴露 __HWSTAT        = true
+    nova-organs.js 读数条用 data-hw 自己的键= true
+    nova-organs.js 有 syncText（短格式）= true
+    nova-organs.js 有 parseStamp= true
+    nova-skin.css 给课表底部按钮补了主色 = true
+
+v2.8.0 checkpoints（可读性这一轮）:
+    浅色 --pencil 是 #706046（三底 ≥4.75）= true
+    深色 --pencil 是 #B0A085（三底 ≥5.14）= true
+    浅色 --warn 是 #83560A（纸面 ≥4.96）= true
+    深色黄底专用深字 --on-yellow      = true
+    深色 --oncolor-dim 收到 .82（.72 压红只剩 4.38）= true
+    HW_COLORS 未交是 #A8201A（纸面 8+）= true
+    HW_COLORS 待做是 #9E5009（纸面 6+）= true
+    app.js 有 HW_INK（倒计时字色收口）  = true
+    深色作业威胁色走令牌 --hw-threat    = true
+    nova-polish.css .pr/.pr2 提到 10px= true
+
+v2.9.0 checkpoints（工具卡走查这一轮）:
+    半框内 sheet-only 走透明底（压过 nth-of-type 彩纸）= true
+    半框内卡中卡不贴胶带（会被上沿裁半截）       = true
+    铭牌 srcTag 走整行（长读数不被裁）     = true
+    铭牌 .wide 有对应样式            = true
+
+v2.9.1 checkpoints（其余四个页面摆到窄屏上看这一轮）:
+    学期设置那一行有 fr-row-term 钩子   = true
+    空 .gate-err 在 NOVA 下不占位   = true
+
+v2.10.0 checkpoints（桌面小组件改成人话这一轮）:
+    WidgetClock 纯函数类          = 150 行 / 4/4 个核心函数
+    ClassWidget 行数              = 431 （走 WidgetClock 5/5 处）
+    硬编码开学日已删              = true
+  桌面小组件离线测试            = PASS
+
+v2.11.0 checkpoints（桌面小组件与改课表指令对齐这一轮）:
+    写指令后立刻重画组件          = true
+    WidgetOps 四类指令            = 4/4
+    ClassWidget 走 WidgetOps      = true
+    老「只认加课」分支已删        = true
+  改课表指令离线测试            = PASS
+
+v2.12.0 checkpoints（桌面小组件「最近要交」这一轮）:
+    WidgetDue 纯函数类            = 201 行
+    三组状态词表                  = 3/3
+    读不到时间不上桌              = true
+    ClassWidget 走 WidgetDue      = 4/4
+    作业同步后立刻重画组件        = true
+  桌面最近要交离线测试          = PASS
+
+[PASS] 静态体检全部通过
+
+--- stderr ---

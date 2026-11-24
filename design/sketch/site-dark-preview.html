@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>河医大助手 · 河南医药大学学生自建的课表工具</title>
+<meta name="description" content="课表、作业倒计时、空教室、饮水机——河南医药大学学生自己做的安卓小工具。免费，无需注册，数据留本机。">
+<meta name="theme-color" content="#1A1430">
+<meta property="og:title" content="河医大助手">
+<meta property="og:description" content="课表、作业、空教室、饮水机，一个 App 全有。河南医药大学学生自己做的小工具。">
+<meta property="og:type" content="website">
+<meta property="og:image" content="/img/logo.svg">
+<link rel="icon" href="/img/logo.svg" type="image/svg+xml">
+<style>
+/* ============================================================
+   河医大助手 · 官网 NOVA「万象舱」
+   唯一真源：用 tools/apply_site_style.py 写进官网页面头部样式块，
+   不要手改内联。注意：CSS 注释里绝不能出现样式块的闭合标签字面量，
+   HTML 解析器不认 CSS 注释，会提前闭合样式块，把余下 CSS 当正文打印。
+
+   与 App 的 web/nova-skin.css 同一套语言：冷瓷白水彩晕染底、
+   切角 HUD 舷窗、黄铜传送带、磁带门、票券、剪报、拍立得、波段拨盘。
+   西部涂鸦的牛皮纸 / 红皮绳 / 方格 / 墨线 / 胶带 / 蹄铁星全部作废。
+   零外部依赖：无 CDN、无 webfont，断网也能开。
+   ============================================================ */
+:root{
+  --shell:#E8EEF0;      --shell2:#F5F9FA;
+  --hull:#DCE7EA;       --seam:#B9C8CE;
+  --glass:#122A38;      --glass2:#1B3B49;   --glass-deep:#0C1E29;
+  --ink:#101828;        --ink2:#4A5A6A;      --ink3:#7B8B99;
+  --on:#F5FAFF;         --on2:#A9C6D2;
+  --coral:#FF5C7A;      --cyan:#35E0D0;      --violet:#7C5CFF;
+  --coin:#FFD23F;       --grass:#2BD47D;     --orange:#FF6B3D;
+  --brass:#C9A24B;      --brass2:#8A6A2C;    --mist:#9A8CD8;
+  --tape:#F2E9DA;       --tape2:#DCCDB4;     --tape-ink:#43382A;
+  --sky:#8FB8C9;        --leaf:#7FA86B;      --moss:#6E8F5E;
+
+  --bg:var(--shell);    --surface:var(--shell2);
+  --fg:var(--ink);       --fg2:var(--ink2);   --mute:var(--ink3);
+  --accent:var(--coral); --accent2:var(--cyan);
+  --accent-soft:rgba(53,224,208,.14);
+  --ok:#177A46;          --warn:#B27A12;
+  --line:rgba(16,24,40,.14);
+  --radius:10px;         --radius-sm:7px;
+  --shadow:0 3px 0 rgba(16,24,40,.13);
+  --shadow-lift:0 8px 20px rgba(12,30,41,.18);
+  --wrap:820px;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,"Courier New",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+/* ---- 紫夜舱：跟随系统自动切深色，和 App 的 data-theme="dark" 同一套介质 ---- */
+
+body{
+  margin:0;color:var(--fg);background-color:var(--shell);
+  /* 宫崎骏介质层：水粉打底 + 水彩晕染，不是旧版牛皮纸方格 */
+  background-image:
+    radial-gradient(ellipse 80% 26% at 10% 0%,  rgba(143,184,201,.30), transparent 72%),
+    radial-gradient(ellipse 70% 22% at 94% 24%, rgba(127,168,107,.24), transparent 72%),
+    radial-gradient(ellipse 90% 26% at 4% 62%,  rgba(124,92,255,.13), transparent 74%),
+    radial-gradient(ellipse 70% 20% at 98% 88%, rgba(255,107,61,.14), transparent 72%),
+    radial-gradient(ellipse 60% 16% at 50% 100%,rgba(154,140,216,.13), transparent 74%);
+  background-attachment:fixed;
+  font:16px/1.65 var(--sans);
+  -webkit-font-smoothing:antialiased;letter-spacing:.1px;overflow-x:hidden;
+}
+/* 舱体左侧一条皮革压边：西部只剩这一道，无针脚无红皮绳 */
+body::before{content:'';position:fixed;left:0;top:0;bottom:0;width:5px;z-index:1;pointer-events:none;
+  background:linear-gradient(90deg,rgba(80,62,44,.22),rgba(80,62,44,.05),transparent)}
+a{color:var(--ink);text-decoration:none;border-bottom:1px dashed var(--cyan)}
+a:hover{text-decoration:none;border-bottom:1px solid var(--coral);color:var(--coral)}
+img{max-width:100%;display:block}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 22px;position:relative;z-index:2}
+
+/* ---------------- 顶部：仪表读数条 ---------------- */
+.top{padding:22px 0 4px}
+.brand{display:flex;align-items:center;gap:13px}
+.mark{
+  width:44px;height:44px;flex:0 0 auto;border-radius:50%;
+  border:2px solid #6B4A30;
+  background:radial-gradient(circle at 34% 30%,#FFF8DE,var(--coin) 60%,#C08A1E);
+  color:#3A2408;font:800 19px var(--mono);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 0 12px rgba(255,210,63,.55);position:relative;
+}
+.mark::after{content:'';position:absolute;inset:-5px;border-radius:50%;
+  border:1px dashed rgba(255,210,63,.45)}
+.brand-txt h1{margin:0;font:800 18px var(--mono);letter-spacing:1.8px;color:var(--glass)}
+.brand-txt p{margin:2px 0 0;font:10px var(--mono);color:var(--ink3);
+  letter-spacing:2px;text-transform:uppercase}
+
+/* ---------------- Hero ---------------- */
+.hero{padding:38px 0 10px;display:grid;grid-template-columns:1fr;gap:30px}
+.hero-copy h2{margin:0 0 16px;font:800 clamp(28px,6.6vw,42px)/1.22 var(--sans);
+  letter-spacing:-.8px;color:var(--ink)}
+.hero-copy h2 em{font-style:normal;color:var(--coral);
+  background:linear-gradient(transparent 62%,rgba(53,224,208,.28) 62%);padding:0 2px}
+.hero-copy .lead{margin:0 0 8px;font-size:16.5px;color:var(--fg2);max-width:32em}
+.pills{display:flex;flex-wrap:wrap;gap:8px;margin:18px 0 26px}
+.pill{font:700 11px var(--mono);letter-spacing:.8px;color:var(--glass);
+  background:rgba(255,255,255,.72);border:1px solid var(--line);
+  border-radius:4px;padding:6px 12px;box-shadow:var(--shadow)}
+.pill b{color:var(--coral);font-weight:800}
+
+/* 下载卡 = 切角 HUD 舷窗（不是贴纸便签） */
+.dl{
+  position:relative;background:linear-gradient(180deg,var(--glass),var(--glass-deep));
+  border:1.5px solid rgba(53,224,208,.45);padding:24px;color:var(--on);
+  clip-path:polygon(16px 0,calc(100% - 16px) 0,100% 16px,100% calc(100% - 16px),
+    calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px),0 16px);
+  box-shadow:inset 0 0 0 1px rgba(53,224,208,.18),0 8px 22px rgba(12,30,41,.28);
+}
+.dl::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse 62% 88% at 50% 108%,rgba(255,107,61,.24),transparent 72%),
+    repeating-linear-gradient(0deg,rgba(245,250,255,.028) 0 1px,transparent 1px 4px);
+  animation:n-scan 8s linear infinite}
+.dl::after{content:'XXMU / NOVA OS';position:absolute;right:14px;top:10px;
+  font:9px var(--mono);letter-spacing:2px;color:var(--cyan);opacity:.85}
+.dl>*{position:relative;z-index:2}
+.dl-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:9px;
+  border:1px solid #9FFFF2;border-radius:7px;padding:16px 28px;
+  font:800 16px var(--sans);letter-spacing:1px;color:#062029;cursor:pointer;
+  background:linear-gradient(160deg,var(--cyan),#1BAFA3);
+  box-shadow:0 3px 0 #0E6D66;text-decoration:none;
+  flex:1 1 210px;transition:transform .12s ease,box-shadow .12s ease;
+}
+.btn:hover{transform:translateY(1px);box-shadow:0 2px 0 #0E6D66;text-decoration:none}
+.btn:active{transform:translateY(3px);box-shadow:none}
+.btn svg{flex:0 0 auto}
+.btn[disabled]{opacity:.45;pointer-events:none}
+.btn-ghost{flex:0 0 auto;background:rgba(255,255,255,.08);color:var(--cyan);
+  border:1px solid rgba(53,224,208,.5);box-shadow:none;padding:16px 22px}
+.btn-ghost:hover{background:rgba(53,224,208,.18)}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;margin-top:18px;padding-top:16px;
+  border-top:1px dashed rgba(169,198,210,.35);font:11px var(--mono);color:var(--on2);letter-spacing:.6px}
+.meta b{color:var(--cyan);font-weight:800;font-variant-numeric:tabular-nums}
+.dot-ok{display:inline-block;width:7px;height:7px;border-radius:50%;
+  background:var(--grass);margin-right:6px;vertical-align:1px;
+  box-shadow:0 0 6px var(--grass);animation:n-breath 2s ease-in-out infinite}
+.note{margin:14px 0 0;font-size:12.5px;color:var(--on2);line-height:1.75}
+.note.warn{color:var(--coin)}
+#wxTip{display:none;margin:14px 0 0;padding:15px 17px;border:1px dashed var(--cyan);
+  background:rgba(53,224,208,.10);border-radius:7px;font-size:13px;line-height:1.8;color:var(--on)}
+#wxTip.show{display:block}
+#wxTip b{color:var(--coin)}
+#wxTip .kbd{display:inline-block;padding:2px 8px;margin:0 3px;border-radius:4px;
+  background:rgba(255,255,255,.10);border:1px solid rgba(53,224,208,.4);
+  font:12px var(--mono);color:var(--on);white-space:nowrap}
+
+/* ---------------- 手机示意：三扇舷窗并排 ---------------- */
+.shots{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;align-items:end}
+.phone{position:relative;overflow:hidden;border-radius:12px;
+  background:var(--glass-deep);border:1.5px solid rgba(53,224,208,.4);
+  box-shadow:0 8px 20px rgba(12,30,41,.3);
+  transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.phone img{width:100%;height:auto}
+.phone:hover{transform:translateY(-6px)}
+.phone:nth-child(2){transform:translateY(-14px)}
+.phone:nth-child(2):hover{transform:translateY(-20px)}
+.shots-cap{grid-column:1/-1;text-align:center;font:10px var(--mono);
+  color:var(--ink3);margin-top:8px;letter-spacing:1.4px}
+
+/* ---------------- 区块 ---------------- */
+section{padding:52px 0 0}
+.sec-h{margin:0 0 6px;font:800 21px var(--sans);letter-spacing:-.2px;color:var(--ink)}
+.sec-h::before{content:'▮';color:var(--coral);font:14px var(--mono);margin-right:8px}
+.sec-p{margin:0 0 24px;font-size:14.5px;color:var(--ink3)}
+
+/* 功能清单：舱格，不是纸卡片 */
+.feat{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+.fcard{position:relative;background:linear-gradient(180deg,#F5F9FA,#E3ECEF);
+  border:1px solid var(--line);border-left:3px solid var(--cyan);
+  border-radius:10px 12px 9px 13px;padding:18px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),var(--shadow);
+  transition:transform .16s ease,box-shadow .16s ease}
+.fcard:nth-child(4n+2){border-left-color:var(--coral)}
+.fcard:nth-child(4n+3){border-left-color:var(--violet)}
+.fcard:nth-child(4n+4){border-left-color:var(--coin)}
+.fcard:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift)}
+.fcard .ic{width:36px;height:36px;border-radius:8px;
+  background:rgba(53,224,208,.14);border:1px solid rgba(53,224,208,.35);
+  display:flex;align-items:center;justify-content:center;margin-bottom:12px;
+  font:17px var(--mono);color:var(--cyan)}
+.fcard h3{margin:0 0 6px;font:700 15px var(--sans);letter-spacing:.4px}
+.fcard p{margin:0;font-size:13px;color:var(--ink2);line-height:1.65}
+
+/* 步骤 = 传送带刻度 */
+.steps{counter-reset:s;display:grid;gap:11px}
+.step{counter-increment:s;position:relative;
+  background:rgba(255,255,255,.78);border:1px solid var(--line);
+  border-radius:8px;padding:15px 18px 15px 58px;font-size:14px;color:var(--fg2);
+  box-shadow:var(--shadow)}
+.step::before{content:'W' counter(s,decimal-leading-zero);position:absolute;left:12px;top:13px;
+  width:38px;height:28px;border-radius:3px;background:var(--glass);
+  color:var(--cyan);border:1px solid rgba(201,162,75,.5);
+  font:700 10px var(--mono);letter-spacing:.5px;
+  display:flex;align-items:center;justify-content:center}
+.step b{color:var(--fg);font-weight:800}
+
+/* FAQ = 舱门开合 */
+details{background:rgba(255,255,255,.78);border:1px solid var(--line);
+  border-radius:8px;margin-bottom:10px;box-shadow:var(--shadow);overflow:hidden}
+details summary{cursor:pointer;padding:15px 18px;font:700 14.5px var(--sans);
+  list-style:none;display:flex;justify-content:space-between;gap:12px;align-items:center}
+details summary::-webkit-details-marker{display:none}
+details summary::after{content:'+';color:var(--coral);font:20px var(--mono);
+  transition:transform .18s ease;flex:0 0 auto}
+details[open] summary{background:rgba(53,224,208,.10)}
+details[open] summary::after{transform:rotate(45deg)}
+details .body{padding:0 18px 16px;font-size:13.5px;color:var(--fg2);line-height:1.78;
+  border-top:1px dashed var(--line)}
+details .body p{margin:12px 0 8px}
+details .body p:last-child{margin-bottom:0}
+
+/* ---------------- 联系方式 = 磁带门 ---------------- */
+.contact{position:relative;background:linear-gradient(165deg,var(--tape),var(--tape2));
+  border:1px solid rgba(67,56,42,.35);border-radius:10px;padding:26px;
+  color:var(--tape-ink);box-shadow:0 5px 0 rgba(67,56,42,.3);overflow:hidden}
+.contact::before{content:'';position:absolute;left:12px;right:12px;top:12px;height:34px;
+  border-radius:5px;background:linear-gradient(180deg,#2A3A44,#162630);
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.6)}
+.contact::after{content:'● A  XXMU · MIXTAPE 01  ● B';position:absolute;left:22px;right:22px;top:22px;
+  text-align:center;font:9px var(--mono);letter-spacing:1.6px;color:var(--cyan)}
+.contact>*{position:relative;z-index:2}
+.contact h2{margin:40px 0 6px;font:800 19px var(--sans);letter-spacing:.4px}
+.contact .sub{margin:0 0 20px;font-size:13.5px;color:#7A5A36}
+.cgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(226px,1fr));gap:12px}
+.clink{display:flex;align-items:center;gap:13px;background:rgba(255,255,255,.6);
+  border:1px solid rgba(67,56,42,.3);border-radius:7px;padding:14px 16px;
+  color:inherit;text-decoration:none;transition:transform .14s ease}
+.clink:hover{transform:translateY(-2px);text-decoration:none}
+.clink .ci{width:38px;height:38px;border-radius:7px;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  background:var(--glass);color:var(--cyan);font:16px var(--mono)}
+.clink .ct{min-width:0;flex:1}
+.clink .ct b{display:block;font-size:14px;font-weight:800;line-height:1.3}
+.clink .ct span{display:block;font-size:12.5px;color:#7A5A36;margin-top:1px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.clink .arr{color:var(--coral);font-size:17px;flex:0 0 auto;font-weight:800}
+
+/* ---------------- 页脚 ---------------- */
+footer{margin-top:56px;padding:28px 0 44px;border-top:1px dashed var(--line);
+  font-size:12.5px;color:var(--ink3);line-height:1.95}
+footer .fl{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+footer .fl a{color:var(--fg2);border-bottom:0}
+footer .fl a:hover{color:var(--coral)}
+footer .disclaim{font-size:12px;max-width:52em}
+
+#toast{position:fixed;left:50%;bottom:36px;transform:translate(-50%,16px);
+  background:var(--glass-deep);color:var(--cyan);font:12px var(--mono);
+  border:1px solid var(--cyan);border-radius:4px;padding:11px 20px;
+  opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
+  z-index:99;white-space:nowrap;max-width:90vw;box-shadow:0 6px 18px rgba(0,0,0,.35)}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+
+@keyframes n-scan{from{background-position:0 0}to{background-position:0 4px}}
+@keyframes n-breath{0%,100%{opacity:1}50%{opacity:.3}}
+@media (min-width:760px){.hero{grid-template-columns:1.02fr .98fr;gap:44px;align-items:center}}
+@media (max-width:520px){
+  .wrap{padding:0 16px}
+  .hero{padding:26px 0 4px;gap:26px}
+  .dl{padding:18px}
+  .btn{padding:15px 20px;font-size:15.5px}
+  .btn-ghost{flex:1 1 100%}
+  section{padding:38px 0 0}
+  .shots{gap:9px}
+  .phone:nth-child(2){transform:translateY(-8px)}
+  .contact{padding:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+  html{scroll-behavior:auto}
+}
+/* ============================================================
+ * v1.1.61 "Ink Cloud / Hua-qing Yun-shui" site light tier
+ * mirrors App nova-ink.css. :root NOVA_PAIRS + dark DARK_PAIRS untouched.
+ * #ink structure is unconditional; light palette only under
+ * prefers-color-scheme:light and WITHOUT !important, so the dark
+ * preview's trailing unconditional dark rules (with !important) win.
+ * ============================================================ */
+#ink .ink-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(238px,1fr));gap:14px}
+#ink .ink-card{position:relative;padding:18px 18px 16px;border-radius:12px;
+  border:1px solid rgba(28,43,48,.13);border-top:3px solid #2E6E76;
+  background:linear-gradient(180deg,#FCFDFC,#F1F6F3);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 0 rgba(28,43,48,.10)}
+#ink .ink-card:nth-child(2){border-top-color:#B23A2E}
+#ink .ink-card:nth-child(3){border-top-color:#C9A24B}
+#ink .ink-card h3{margin:0 0 8px;font:700 15px var(--sans);letter-spacing:.4px;color:#1C2B30}
+#ink .ink-card p{margin:0;font-size:13px;line-height:1.7;color:#4C6068}
+#ink .ink-card .ink-seal{display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;border-radius:50%;margin-bottom:12px;
+  background:rgba(46,110,118,.10);border:1px solid rgba(46,110,118,.30);
+  color:#2E6E76;font:16px var(--mono)}
+#ink .ink-tags{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 0;padding:0;list-style:none}
+#ink .ink-tags span{font:700 10.5px var(--mono);letter-spacing:.5px;
+  padding:5px 10px;border-radius:4px;
+  background:rgba(46,110,118,.07);border:1px solid rgba(46,110,118,.20);color:#33474D}
+#ink .ink-foot{margin:18px 0 0;padding-top:14px;font-size:12.5px;line-height:1.7;
+  color:#5B6E76;border-top:1px dashed rgba(28,43,48,.16)}
+#ink .ink-foot b{color:#B23A2E}
+@media (max-width:520px){#ink .ink-grid{grid-template-columns:1fr}}
+
+@media (prefers-color-scheme:light){
+  body{
+    background-color:#EDF0EC;
+    background-image:
+      radial-gradient(ellipse 82% 26% at 12% 2%,  rgba(46,110,118,.13), transparent 68%),
+      radial-gradient(ellipse 70% 20% at 92% 26%, rgba(46,110,118,.09), transparent 70%),
+      radial-gradient(ellipse 90% 22% at 4% 66%,  rgba(38,54,60,.08), transparent 72%),
+      radial-gradient(ellipse 78% 20% at 96% 92%, rgba(46,110,118,.07), transparent 72%),
+      repeating-linear-gradient(96deg,rgba(28,43,48,.014) 0 1px,transparent 1px 6px),
+      linear-gradient(180deg,#F3F1EA 0%,#EAEDE9 55%,#E1E7E4 100%);
+    color:#1C2B30;
+  }
+  body::before{background:linear-gradient(90deg,rgba(46,110,118,.10),rgba(46,110,118,.02),transparent)}
+  .brand-txt h1{color:#1C2B30}
+  .brand-txt p{color:#4C6068}
+  .hero-copy h2{color:#1C2B30}
+  .hero-copy h2 em{color:#B23A2E;background:linear-gradient(transparent 62%,rgba(46,110,118,.20) 62%)}
+  .hero-copy .lead{color:#4C6068}
+  .pill{background:rgba(252,253,252,.82);border-color:rgba(28,43,48,.16);
+    color:#33474D;box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  .pill b{color:#B23A2E}
+  .sec-h{color:#1C2B30}
+  .sec-h::before{color:#B23A2E}
+  .sec-p{color:#5B6E76}
+  .fcard{background:linear-gradient(180deg,#FCFDFC,#F1F6F3);
+    border-color:rgba(28,43,48,.13);border-left-color:#2E6E76;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.9),0 3px 0 rgba(28,43,48,.10)}
+  .fcard:nth-child(4n+2){border-left-color:#B23A2E}
+  .fcard:nth-child(4n+3){border-left-color:#7C5CFF}
+  .fcard:nth-child(4n+4){border-left-color:#C9A24B}
+  .fcard .ic{background:rgba(46,110,118,.10);border-color:rgba(46,110,118,.30);color:#2E6E76}
+  .fcard h3{color:#1C2B30}
+  .fcard p{color:#4C6068}
+  .step{background:rgba(252,253,252,.86);border-color:rgba(28,43,48,.13);
+    color:#4C6068;box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  .step::before{background:linear-gradient(180deg,#33474D,#26363C);
+    color:#EAF2EF;border-color:rgba(201,162,75,.5)}
+  .step b{color:#1C2B30}
+  details{background:rgba(252,253,252,.86);border-color:rgba(28,43,48,.13);
+    box-shadow:0 3px 0 rgba(28,43,48,.10)}
+  details[open] summary{background:rgba(46,110,118,.08)}
+  details summary::after{color:#B23A2E}
+  details .body{color:#4C6068;border-top-color:rgba(28,43,48,.14)}
+  .phone{border-color:rgba(46,110,118,.35);background:#F3F1EA;
+    box-shadow:0 8px 20px rgba(28,43,48,.20)}
+  .shots-cap{color:#5B6E76}
+  .contact{background:linear-gradient(165deg,#ECE7DA,#DFDED2);
+    border-color:rgba(28,43,48,.28);color:#43382A;box-shadow:0 5px 0 rgba(28,43,48,.20)}
+  .contact::before{background:linear-gradient(180deg,#40565C,#26363C)}
+  .contact::after{color:#EAF2EF}
+  .contact h2{color:#1C2B30}
+  .contact .sub{color:#5B6E76}
+  .clink{background:rgba(252,253,252,.78);border-color:rgba(28,43,48,.24)}
+  .clink .ci{background:#33474D;color:#EAF2EF}
+  .clink .ct span{color:#5B6E76}
+  .clink .arr{color:#B23A2E}
+  footer{border-top-color:rgba(28,43,48,.14);color:#5B6E76}
+  footer .fl a{color:#4C6068}
+  footer .fl a:hover{color:#B23A2E}
+}
+
+/* ---- deep preview: media 段已提为无条件 ---- */
+
+  :root{
+    --shell:#1A1430;      --shell2:#241A3E;
+    --hull:#2A2048;       --seam:#3D2F63;
+    --glass:#161028;      --glass2:#221838;   --glass-deep:#0C0818;
+    --ink:#EFE9FF;        --ink2:#B9AEDC;      --ink3:#9C90C6;
+    --on:#F7F2FF;         --on2:#B9AEDC;
+    --coral:#FF6E8F;      --cyan:#9E8CFF;      --violet:#C08CFF;
+    --coin:#FFD98A;       --grass:#5FE3A8;     --orange:#FF8A5C;
+    --brass:#D9B978;      --brass2:#A88A4C;    --mist:#B79BFF;
+    --tape:#EDE4DC;       --tape2:#D8C9BC;     --tape-ink:#2A2130;
+    --accent-soft:rgba(158,140,255,.16);
+    --ok:#5FE3A8;          --warn:#FFD98A;
+    --line:rgba(183,155,255,.2);
+    --shadow:0 3px 0 rgba(0,0,0,.5);
+    --shadow-lift:0 10px 26px rgba(0,0,0,.55);
+  }
+  body{
+    background-color:var(--shell);
+    background-image:
+      radial-gradient(ellipse 80% 26% at 10% 0%,  rgba(158,140,255,.34), transparent 70%),
+      radial-gradient(ellipse 70% 18% at 94% 24%, rgba(120,96,190,.30), transparent 72%),
+      radial-gradient(ellipse 90% 20% at 4% 62%,  rgba(199,140,255,.24), transparent 74%),
+      radial-gradient(ellipse 70% 20% at 98% 88%, rgba(255,110,143,.16), transparent 72%),
+      radial-gradient(ellipse 60% 14% at 50% 100%,rgba(183,155,255,.26), transparent 74%);
+  }
+  .fcard,.steps .step,details,.clink{
+    background:linear-gradient(180deg,rgba(42,32,72,.92),rgba(30,22,56,.92)) !important;
+    border-color:rgba(183,155,255,.2) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 rgba(0,0,0,.5) !important;
+  }
+  .dl{background:linear-gradient(180deg,#1D1538,#100B22) !important;
+    border-color:rgba(158,140,255,.45) !important;
+    box-shadow:inset 0 0 0 1px rgba(158,140,255,.16),0 8px 22px rgba(12,8,24,.45) !important}
+  .dl::after{color:var(--violet)}
+  .fcard h3,.sec-h,.hero-copy h2,.contact h2{color:var(--ink)}
+  .fcard p,.sec-p,.hero-copy .lead{color:var(--ink2)}
+  .fcard .ic,.clink .ci{background:rgba(158,140,255,.14) !important;
+    border-color:rgba(158,140,255,.35) !important;color:var(--cyan) !important}
+  .brand-txt h1{color:var(--ink)}
+  .brand-txt p{color:var(--ink3)}
+  .pills .pill{background:rgba(255,255,255,.07) !important;
+    border-color:rgba(183,155,255,.2) !important;color:var(--ink2) !important}
+  .pills .pill b{color:var(--coral)}
+  .btn{background:linear-gradient(160deg,var(--cyan),#6D57D8) !important;
+    color:#120C22 !important;box-shadow:0 3px 0 #4A3A9E !important}
+  .btn-ghost{background:rgba(158,140,255,.12) !important;color:var(--cyan) !important;
+    border-color:rgba(158,140,255,.45) !important;box-shadow:none !important}
+  .meta{border-top-color:rgba(183,155,255,.25) !important;color:var(--ink3) !important}
+  .meta b{color:var(--cyan) !important}
+  .note{color:var(--ink3) !important}
+  details summary::after{color:var(--coral)}
+  details[open] summary{background:rgba(158,140,255,.10) !important}
+  details .body{color:var(--ink2) !important;border-top-color:rgba(183,155,255,.2) !important}
+  .contact{background:linear-gradient(165deg,var(--tape),var(--tape2)) !important;
+    border-color:rgba(67,56,42,.35) !important;color:var(--tape-ink) !important}
+  .phone{border-color:rgba(158,140,255,.5) !important;background:var(--glass-deep) !important}
+  .shots-cap{color:var(--ink3) !important}
+  footer{border-top-color:rgba(183,155,255,.25) !important;color:var(--ink3) !important}
+  footer .fl a{color:var(--ink2) !important}
+  footer .fl a:hover{color:var(--coral)}
+  .steps .step::before{background:linear-gradient(180deg,var(--cyan),#6D57D8) !important;color:#120C22 !important}
+  /* v1.1.61 ink highlight: dark tier keeps the violet-night medium */
+  #ink .ink-card{background:linear-gradient(180deg,rgba(42,32,72,.92),rgba(30,22,56,.92)) !important;
+    border-color:rgba(183,155,255,.2) !important;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.06),0 3px 0 rgba(0,0,0,.5) !important}
+  #ink .ink-card h3{color:var(--ink) !important}
+  #ink .ink-card p{color:var(--ink2) !important}
+  #ink .ink-card .ink-seal{background:rgba(158,140,255,.14) !important;
+    border-color:rgba(158,140,255,.35) !important;color:var(--cyan) !important}
+  #ink .ink-tags span{background:rgba(158,140,255,.10) !important;
+    border-color:rgba(183,155,255,.25) !important;color:var(--ink2) !important}
+  #ink .ink-foot{color:var(--ink3) !important;border-top-color:rgba(183,155,255,.2) !important}
+  #ink .ink-foot b{color:var(--coral) !important}
+
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="top">
+    <div class="brand">
+      <div class="mark">河</div>
+      <div class="brand-txt">
+        <h1>河医大助手</h1>
+        <p>河南医药大学 · 学生自建</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="hero-copy">
+      <h2>课表、作业、空教室<br><em>一个 App 就够了</em></h2>
+      <p class="lead">
+        把手动查课表、翻作业截止时间、找空教室这些事合到一处。
+        针对河南医药大学做的，不是通用模板。这一版浅色换成了水墨云图，课表底部还住了两个会说话的像素小伙伴。
+        校园相册和留言板现在能左右翻页了，照片像晾在老式洗相片店里的相片，一屏摆得下四张。
+      </p>
+
+      <div class="pills">
+        <span class="pill"><b>免费</b> · 无广告</span>
+        <span class="pill"><b>无需注册</b> · 填学号即用</span>
+        <span class="pill"><b>数据留本机</b> · 密码不上传</span>
+      </div>
+
+      <div class="dl">
+        <div class="dl-row">
+          <a class="btn" id="dlBtn" href="/v1/apk" rel="noopener">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M12 3v12"/><path d="m7 11 5 5 5-5"/><path d="M5 21h14"/>
+            </svg>
+            下载安卓版
+          </a>
+          <a class="btn btn-ghost" href="#how">怎么装</a>
+        </div>
+
+        <div class="meta" id="meta">
+          <span><span class="dot-ok"></span>最新版 <b id="mVer">—</b></span>
+          <span>大小 <b id="mSize">—</b></span>
+          <span>更新 <b id="mDate">—</b></span>
+        </div>
+
+        <p class="note" id="dlNote">
+          点上面的按钮直接下载安装包。装的时候系统会问「是否允许安装未知应用」，
+          允许一次就行——这是安卓对所有非商店应用的标准要求。
+        </p>
+
+        <div id="wxTip">
+          <b>你现在是在微信里打开这个页面。</b>微信不让网页直接下载安装包，
+          点「下载安卓版」它会弹一条拦截提示——这是微信的限制，不是链接坏了。
+          照下面两步做：<br>
+          ① 在那条提示里点「<b>在浏览器中打开</b>」；
+          没看到这句就点右上角的 <span class="kbd">···</span>，选「在浏览器打开」<br>
+          ② 浏览器打开后，再点一次「下载安卓版」，包就开始下了<br>
+          拿到的还是同一个包，和直接下载没有区别。
+        </div>
+      </div>
+    </div>
+
+    <div class="shots">
+      <div class="phone"><img class="shot" src="../../server/pages/dist/img/shot-kb.svg" width="390" height="780" alt="课表页：宣纸花青浅色、周次传送带、底部两个像素小伙伴" loading="eager"></div>
+      <div class="phone"><img class="shot" src="../../server/pages/dist/img/shot-learn.svg" width="390" height="780" alt="学习页：磁带门卷宗，作业与考试分面" loading="eager"></div>
+      <div class="phone"><img class="shot" src="../../server/pages/dist/img/shot-water.svg" width="390" height="780" alt="校园页：热水票、校园剪报、照片墙" loading="eager"></div>
+      <div class="shots-cap">界面示意图（按 App 浅色档真实结构绘制，非真机截图）</div>
+    </div>
+  </div>
+
+  <section>
+    <h2 class="sec-h">里面有什么</h2>
+    <p class="sec-p">都是真在用的功能，不是罗列出来的卖点。</p>
+    <div class="feat">
+      <div class="fcard">
+        <div class="ic">📅</div>
+        <h3>本周课表</h3>
+        <p>登录教务后自动读取，按周渲染成网格。今天所在列高亮，每门课显示教室与起止时间。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">⏳</div>
+        <h3>作业与考试倒计时</h3>
+        <p>按紧急程度排好，还剩几小时写得清清楚楚。读不到状态时会直说，不会假装已完成。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">🚪</div>
+        <h3>空教室</h3>
+        <p>按你课表里出现过的教室，算出某天某几节哪间空着。也能找整周都空的自习位置。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">🚰</div>
+        <h3>饮水机</h3>
+        <p>扫一次码记住机器，之后在手机上点就能解锁放水，还能设最长放水（防忘关）自动停。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">📚</div>
+        <h3>校园资料</h3>
+        <p>教务、学习通、办事去处、官方账号入口都归到一处，不用再到处问链接。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">🔒</div>
+        <h3>数据留在本机</h3>
+        <p>教务和超星的密码不经过任何服务器。服务端只存版本号和公告这类轻量状态。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= v1.1.61: this build - Ink Cloud ================= -->
+  <section id="ink">
+    <h2 class="sec-h">这一版 · 水墨云图</h2>
+    <p class="sec-p">浅色档换成了「花青云水」：宣纸米白打底，花青淡墨一层层晕开，
+      墨蓝石板顶栏压住却不发黑，瓷白课程卡浮在纸面上。只动浅色，经典和深色一点没改。</p>
+    <div class="ink-grid">
+      <div class="ink-card">
+        <div class="ink-seal">印</div>
+        <h3>宣纸上的课表</h3>
+        <p>三层花青晕染加一层细纸纤维，今天所在列点一抹朱砂。时间刻度与课程卡共用一条基准线，
+          窄列也不裁字；切周和拖动的动画都归到一帧里算，连点不卡。</p>
+      </div>
+      <div class="ink-card">
+        <div class="ink-seal">8</div>
+        <h3>两个像素小伙伴</h3>
+        <p>马里奥和林克住在课表底部的空带，八种姿势会眨眼、走步、跳、挥手、欢呼。
+          气泡里每人十二句英中双语台词，还有稀有句和两人拌嘴，会跟着这一节课的状态接话。</p>
+      </div>
+      <div class="ink-card">
+        <div class="ink-seal">&#9834;</div>
+        <h3>点一下就出声</h3>
+        <p>点马里奥会响一句八位电子音的「Ma-ri-o!」，全是本机合成、断网也有。
+          连击攒金币、六枚成就、台词图鉴、长按切静音，进度都记在本机，慢慢玩不容易腻。</p>
+      </div>
+    </div>
+    <div class="ink-tags">
+      <span>8 POSES</span><span>24 + 6 QUOTES</span><span>EN / 中</span>
+      <span>8-BIT SFX</span><span>COMBO · COINS · ACHIEVEMENTS</span><span>OFFLINE</span>
+    </div>
+    <p class="ink-foot"><b>不挡事：</b>小人只在万象舱的课表页出现，中间给铭牌和底部五个入口让路；
+      系统开了「减少动态效果」时，动作、粒子和弹字全停下，只留静态台词。</p>
+  </section>
+
+  <!-- ================= v1.1.63：这一版 · 相册能翻页了 ================= -->
+  <section id="fresh">
+    <h2 class="sec-h">这一版 · 相册能翻页了</h2>
+    <p class="sec-p">水墨云图和像素小伙伴都留着，这一版把校园相册和留言板改成了左右翻页，像在洗相片店里翻一沓照片。</p>
+    <div class="feat">
+      <div class="fcard">
+        <div class="ic">&#128247;</div>
+        <h3>校园实景一屏四张，能左右翻</h3>
+        <p>照片墙不再是一长条往下拖，改成一屏摆四张、左右翻页，边上还会露出一点点上一页下一页。
+          每张都像老式洗相片店里那样，用小木夹夹着晾在麻绳上，微微有点歪，底下配一行小字。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">&#128221;</div>
+        <h3>留言板一屏三条，跟着翻</h3>
+        <p>留言也换成了同款翻页，一屏三条，底下一排小圆点告诉你在第几页。管理员回复过的留言照旧跟着显示，
+          想加功能、发现 bug、资料有错，都还能在这里说，不用加群。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">&#127912;</div>
+        <h3>浅色深色都单独调过</h3>
+        <p>浅色是米白纸面透一点雾光紫，深色是紫夜舱里配紫色木夹和圆点，两张都让白相纸清清楚楚；
+          字不压字、不裁角，白天晚上翻起来都顺手。</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 万象舱：另一套界面 ================= -->
+  <section id="nova">
+    <h2 class="sec-h">还有另一套界面</h2>
+    <p class="sec-p">设置里可以选「经典」或「万象舱」。两个皮肤各自独立，深浅模式跟皮肤互不干扰，
+      白天晚上都能用，也能随时切回去。</p>
+    <div class="feat">
+      <div class="fcard">
+        <div class="ic">⇥</div>
+        <h3>周次传送带</h3>
+        <p>21 周不再靠两颗小箭头，而是一条能拖的机械皮带。按住左右拖，松手自动吸到最近一周，
+          课表跟着整屏滑过来。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">▣</div>
+        <h3>磁带门</h3>
+        <p>作业和考试收进一扇门。点一下从手指按下的地方放大铺满，A 面是作业、翻面是考试，
+          截止时间和完成情况都在里面。</p>
+      </div>
+      <div class="fcard">
+        <div class="ic">◉</div>
+        <h3>波段拨盘</h3>
+        <p>底部五个频道做成收音机调频，指示珠会滑向当前频道，切过去时整屏舱格依次点亮，
+          不是普通的高亮切换。</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how">
+    <h2 class="sec-h">怎么装</h2>
+    <p class="sec-p">三步，一分钟之内。</p>
+    <div class="steps">
+      <div class="step">点上面的 <b>下载安卓版</b>，等安装包下完。</div>
+      <div class="step">在通知栏或「文件管理 → 下载」里点开它。如果提示「不允许安装」，去设置里把 <b>允许来自此来源的应用</b> 打开，再返回点一次。</div>
+      <div class="step">打开 App，填学号，然后按提示登录一次教务系统。<b>课表会自动同步过来。</b></div>
+    </div>
+    <p class="note">
+      已经在用旧版的话，直接覆盖安装就行，数据不会丢。
+      App 里「我的 → 检查更新」也能升。
+    </p>
+  </section>
+
+  <section>
+    <h2 class="sec-h">常见问题</h2>
+    <p class="sec-p">先看这里，多数问题都有现成答案。</p>
+
+    <details open>
+      <summary>课表是空的 / 少了几节课</summary>
+      <div class="body">
+        <p>先确认教务那边能正常登录，然后在课表页点一次「重新同步」。</p>
+        <p>如果还是空，课表页顶部会有一条说明条告诉你是哪种情况：还没同步、本周确实没课、还是周次没读懂。点条上的「复制课表诊断」把内容发到群里，能直接定位。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>会不会要我的教务密码</summary>
+      <div class="body">
+        <p>不会。登录是在 App 内置的浏览器里打开的<strong>学校官方登录页</strong>，密码输给的是学校，App 只保留登录后的会话凭证。</p>
+        <p>密码不经过开发者服务器，服务端也不存。所有课表和作业数据都放在你手机本地。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>饮水机为什么点完还要在机器上按一下</summary>
+      <div class="body">
+        <p>这一步是胖乖生活平台的设计，不是没做。手机能做的只有「解锁」，真正出水要人在机器出水口按一下物理按键——官方并没有开放远程开阀的接口。</p>
+        <p>但「停」是可以远程控制的；接够了自己点「停止」就行，放水途中平台不给实时用量。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>在微信里点下载没反应</summary>
+      <div class="body">
+        <p>微信不允许网页直接下载安卓安装包，这是微信的限制，不是链接坏了。点下载后它会自己弹一条提示，跟着点「在浏览器中打开」，然后在浏览器里再点一次下载就行。</p>
+        <p>拿到的还是同一个包，不会装出别的版本。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>提示「版本过低」进不去</summary>
+      <div class="body">
+        <p>这个提示只在旧版本确实有问题时才会出现。按页面上的按钮下载新版覆盖安装即可，数据不会丢。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>换了手机 / 重装了怎么办</summary>
+      <div class="body">
+        <p>重新装一次、重新填学号、重新登录教务就行。课表会自动同步回来。</p>
+        <p>一个学号可以绑几台设备，超过上限时联系管理员清一下记录。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>这是官方的吗</summary>
+      <div class="body">
+        <p>不是。这是学生自己做的工具，和学校、和超星都没有隶属关系。</p>
+        <p>所有数据以学校教务系统为准；遇到成绩、选课、评教这类正式事务，一律以官方系统为准。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>浅色界面怎么变样了 / 课表里那两个小人是什么</summary>
+      <div class="body">
+        <p>浅色档这一版换成了水墨云图的「花青云水」配色，宣纸底加花青晕染；经典皮肤和深色档都还在，设置里随时切回去。</p>
+        <p>课表底部那两个像素小人是彩蛋：点一下会换个动作、说一句带翻译的台词，还会响一声八位电子音。连击攒金币、集台词图鉴、解成就，长按可以关掉音效。系统开了「减少动态效果」它们就安静待着，不挡课表也不挡按钮。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>空调剩余度数看着不对 / 我这是套间 AB 宿舍</summary>
+      <div class="body">
+        <p>入口卡上会写当前绑的是哪个校区、哪间房。多半是绑到了别的校区或别的房间，点「房间不对就换」重新选一次就好。</p>
+        <p>南校区 2 号公寓那类套间的 A / B 宿舍这一版都列全了，带字母的房号也能正常选到。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>新通过的校园图片 / 新留言，我没退出软件能看到吗</summary>
+      <div class="body">
+        <p>能。停在 WIKI 页每隔几分钟会自动对一次，从后台切回 App 也会顺手更新，两处右上角各有「刷新」按钮可以手动拉。不用退出重进。</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>校园相册 / 留言板怎么翻页，照片为什么有小夹子</summary>
+      <div class="body">
+        <p>手指左右划就能翻，一屏四张照片、三条留言，两边会露出一点相邻页，底下小圆点标着当前第几页。
+          照片用木夹夹在麻绳上、微微歪着，是照着老式洗相片店晾相片的样子做的，浅色深色各有各的配色。</p>
+      </div>
+    </details>
+  </section>
+
+  <section id="contact">
+    <div class="contact">
+      <h2>找我</h2>
+      <p class="sub">有问题、想提需求、发现 bug，都可以直接找我。用的人多，我会继续维护。</p>
+      <div class="cgrid">
+        <div class="clink" id="qqCard" role="button" tabindex="0" aria-label="复制 QQ 号">
+          <div class="ci">💬</div>
+          <div class="ct">
+            <b>QQ</b>
+            <span id="qqNum">692962849</span>
+          </div>
+          <div class="arr">⧉</div>
+        </div>
+        <a class="clink" href="https://github.com/cyanheee/xxmu-helper" target="_blank" rel="noopener">
+          <div class="ci">
+            <svg width="19" height="19" viewBox="0 0 16 16" fill="#0f172a" aria-hidden="true">
+              <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+          </div>
+          <div class="ct">
+            <b>GitHub</b>
+            <span>cyanheee/xxmu-helper</span>
+          </div>
+          <div class="arr">↗</div>
+        </a>
+        <div class="clink" id="grpCard" role="button" tabindex="0" aria-label="复制群号">
+          <div class="ci">👥</div>
+          <div class="ct">
+            <b>更新群</b>
+            <span id="grpNum">1097668324</span>
+          </div>
+          <div class="arr">⧉</div>
+        </div>
+        <a class="clink" href="mailto:692962849@qq.com">
+          <div class="ci">✉️</div>
+          <div class="ct">
+            <b>邮箱</b>
+            <span>692962849@qq.com</span>
+          </div>
+          <div class="arr">↗</div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <div class="fl">
+      <a href="/v1/apk">直接下载安装包</a>
+      <a href="https://github.com/cyanheee/xxmu-helper">源码（AGPL-3.0）</a>
+      <a href="#how">安装说明</a>
+      <a href="/v1/config">接口状态</a>
+    </div>
+    <div>河医大助手 · 河南医药大学学生自建工具，与学校官方无隶属关系。</div>
+    <div class="disclaim">课表、成绩、选课等一切正式事务以学校官方系统为准。使用本工具前请确认你已了解这一点。</div>
+  </footer>
+</div>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============ 版本信息：从 /v1/config 拉，绝不写死 ============
+   *
+   * 写死版本号意味着每发一版都要改官网 + 重新部署，漏改的后果是
+   * 「官网说 1.1.16，实际已经 1.1.17」。这个项目在三处版本号上踩过这个坑，
+   * 官网这里不再留第四个副本。
+   *
+   * 拉不到怎么办：版本号保持「—」，下载按钮照旧可用（/v1/apk 是同一台
+   * 服务器上的固定路径），并在提示里说明「读不到版本信息，但链接仍是最新版」。
+   * 绝不编一个看起来正常的版本号。
+   */
+  var dlBtn = document.getElementById('dlBtn');
+  var mVer = document.getElementById('mVer');
+  var mSize = document.getElementById('mSize');
+  var mDate = document.getElementById('mDate');
+  var dlNote = document.getElementById('dlNote');
+
+  function fmtSize(n) {
+    if (!n) return '—';
+    return (n / 1048576).toFixed(1) + ' MB';
+  }
+  function fmtDate(ts) {
+    if (!ts) return '—';
+    var d = new Date(ts * 1000);
+    if (isNaN(d.getTime())) return '—';
+    var p = function (x) { return (x < 10 ? '0' : '') + x; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+  }
+
+  fetch('/v1/config', { headers: { 'accept': 'application/json' } })
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      var l = (d && d.latest) || {};
+      if (l.version) mVer.textContent = 'v' + l.version;
+      if (l.size) mSize.textContent = fmtSize(l.size);
+      var at = (d && d.apk && d.apk.at) || 0;
+      mDate.textContent = fmtDate(at);
+    })
+    .catch(function () {
+      mVer.textContent = '—';
+      dlNote.className = 'note warn';
+      dlNote.textContent = '暂时读不到版本信息（网络或服务端问题）。'
+        + '但下面的下载链接是同一个服务上的固定地址，点它拿到的仍然是最新版。';
+    });
+
+  /* ============ 微信环境提示 ============
+   * 只标注环境，不改变下载链接。微信拦不拦是它的事，我们不能假装能绕过。
+   * 判据带 wxwork：企业微信同样拦 APK。 */
+  var WX = /micromessenger|wxwork/i.test(navigator.userAgent || '');
+  var wxTip = document.getElementById('wxTip');
+  if (WX && wxTip) wxTip.className = 'show';
+
+  /* ============ 复制（仅真成功才提示）============
+   * 三级兜底：async clipboard → execCommand → 提示手动长按。
+   * 「先 toast 成功、实际失败」这个坑在 App 里踩过，这里不重复。 */
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('on'); }, 1900);
+  }
+  function legacyCopy(text) {
+    try {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      ta.style.top = '0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      var ok = document.execCommand('copy');
+      document.body.removeChild(ta);
+      return ok;
+    } catch (e) { return false; }
+  }
+  function bindCopy(el, numEl, label) {
+    if (!el || !numEl) return;
+    var run = function () {
+      var text = numEl.textContent.trim();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          toast(label + '已复制');
+        }, function () {
+          if (legacyCopy(text)) toast(label + '已复制');
+          else toast('复制失败，请长按手动复制');
+        });
+        return;
+      }
+      if (legacyCopy(text)) toast(label + '已复制');
+      else toast('复制失败，请长按手动复制');
+    };
+    el.addEventListener('click', run);
+    el.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); run(); }
+    });
+  }
+  bindCopy(document.getElementById('qqCard'), document.getElementById('qqNum'), 'QQ 号');
+  bindCopy(document.getElementById('grpCard'), document.getElementById('grpNum'), '群号');
+
+  /* 下载按钮：点下去到开始下载有短暂空档，给个反馈避免连点。 */
+  dlBtn.addEventListener('click', function () {
+    dlBtn.setAttribute('disabled', 'disabled');
+    toast(WX ? '微信会拦截下载，请按下方说明操作' : '正在准备下载…');
+    setTimeout(function () { dlBtn.removeAttribute('disabled'); }, 2600);
+  });
+})();
+</script>
+</body>
+</html>

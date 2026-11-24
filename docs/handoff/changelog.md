@@ -7,6 +7,1804 @@
 
 ---
 
+### v2.16.0（2026-11-24）—— 名单只认教务登录成功的真学号，手填号一个不记
+
+**触发**：用户 m00218 原话「这里面的2022那个就是我之前说过的无效号码，这种应该不记录进去。应该只记录正确教务网登录成功的学号。而且新手教程是不是也要有所更新，第一次的免责声明应该也要更新。你做吧」。管理后台截图里 `202211` 这种 6 位手填号被记进名单、显示成「待补录·格式异常手填」，用户要求根治。
+
+**一、后端只认教务真号（`server/worker.js` 三处）**：
+- `handleActivate` 记账段：原来无条件 `idxApply(env,[{id:id,note:''}],dels)` —— 进门填个号就写进 idx，这是 `202211` 混进名单的根。改成只有 `isKbId(kb)`（`/^20\d{2}\d{7}$/`，11 位真号）合法才记账：先用 `renameFrom` 护栏（合法 6-20 位、≠kb、未被 `rev:` 停用）删掉手填残留行，再 `bindKbRow(env,id,kb)` 写真号。手填号不再写 idx。
+- `bindKbRow(env,gateId,kb)` 整体重写为**真号主键**：`if(!isKbId(real)) return {changed:false}`；先找 `idx` 里 `id===real` 的行；找不到且 `from!==real` 时做兼容升级（`id===from && kbRealOf(e)===real` 命中就把 `idx[j].id=real`）；都没有才 `push({id:real,at,note:'',kb:real,kbAt})`。gateId 只用于升级兼容、不落盘，老手填行不会残留成主键。
+- `handleList(env)` 重写筛选：删掉 `seen/tagged/kbClassOf` 三态，改用 `byReal` Map 按真号去重（`kbRealOf(e)` 合法才收，取最早 `at`），`rows` 的 `id` 直接是真号。`oddRows=[]`，`confirmedCount=rows.length`，`pendingCount/conflictCount/oddCount` 全 0，`hidden=idx.length-bound.length`（被挡下来的存量手填号数，仅用于提示，不回传明细）。手填/脏号彻底不出现在名单里。
+
+**二、前端名单卡精简（`web/app.js` + `web/index.html`）**：
+- 删 `renderOdd` / `openKbFix` / `renderKbSummary` / `switchListTab` 四函数、`looksOddId`、变量 `ODD/LIST_TAB/ONLY_CONFIRMED` 及二级菜单、三态计数、「只看已确认」勾选框的事件绑定。
+- `renderList` 开头删掉把 `ODD` 里 pending 手填行 concat 进主表的逻辑（就是这一行把 `202211` 显示出来）；每行细行固定「教务网登录学号 · 已验证」，删「格式异常（手填）」标签；空表文案改「还没有人完成教务网登录；只有登录成功的学号才会进这个名单。」
+- `index.html` 名单卡（:760-787）删 `#admListTab` / `#admKbSummary` / `#admNormalPane` / `#admOddPane` / `#admOnlyConfirmed`，保留 `#admListTip` 新文案「这里只列在教务网登录成功、学号已验证的人。进门时手填的号码不会记录。」
+- `web/auth.js:447`、`web/sync.js:524` 的「格式异常（手填）」只是历史注释里描述旧号对齐逻辑，非渲染/记录路径，没动。
+
+**三、新手教程 → 契约 v12（`web/tut.js` + `docs/handoff/tutorial-contract.json`）**：
+- `TUT_CONTENT_VER` 11→12，契约 `version` 11→12（features 26 条不变，没有新增学生可见功能，只是口径更新）。
+- 第①页「为什么做这个」、第⑦页「就这些，开始吧」since 1.1.42→2.16.0，各补一句「手填号不作数 / 教务登录成功才进名单」。照 v2.15.0 的教训：改了教程正文就必须把该页 since 和文件头版本一起顶上去，否则 `check_tutorial` 的「讲着新功能却标着旧版本」会红。`check_tutorial.js` 40 项全绿。
+
+**四、首次声明更新（`web/index.html`）**：
+- 摘要版 `#disc` 在「课表、作业…」段后插一条：进门填的号码只是试用，只有教务网登录成功、学号被学校页面验证过才计入名单，手填/乱填不记录。
+- 完整版 `#discCard`：:1089 那条改为「填学号即可试用…不计入使用名单…只有教务登录成功才算正式用户」；「安全与反馈」卡服务器口径从「学号」改成「教务登录验证过的学号，进门手填的号码不会记进去」。声明排在最前，保证用户先看见。
+
+**五、门禁与出包**：七道门禁照跑（见本版 notes）。签名证书不变，可覆盖升级。
+
+**线上状态**：v2.15.0 已于 2026-11-22 上线（实测两入口 `/v1/config` 均回 latest=2.15.0/code 21500/size 1081846）。本版 v2.16.0 **未上线**，等用户明确说发版才切 `cfg.latest`。
+
+---
+
+### v2.15.0（2026-11-21）—— 四处「写了没人读」，接上了；顺手修一个真 BUG
+
+**触发**：用户说「你可以组建ai团队呀」。组建了两个只读调研 teammate（focus/mytodo/reminder/learnplus/nowline 一组，sync/sources/chaoxing + Java 一组），
+口径统一：只报「数据写了没人读 / 通道齐了没接线 / 用户会踩的真空」，每条给文件+行号+证据+最小落点，只读不改。
+两组各交三条。我逐条去原文复核后，**做四条、排除两条**：
+
+**一、重置按钮是真 BUG（`web/focus.js`）**：`const reset = $('focusReset'); if (reset) reset.onclick = reset;`
+局部 `const reset` 把模块级 `function reset()`（375-382 行）遮住了，绑上去的回调是 DOM 元素自己 ——
+点「重置」直接抛 TypeError，计时根本不复位。改成 `const resetBtn = ...; resetBtn.onclick = () => reset();`。
+这是这组调研里唯一一个「用户点一下就坏」的真故障，其余三条都是「本来该显示没显示」。
+
+**二、诊断里多了「自动刷新」（`web/about.js` 接线 `web/sources.js`）**：`sources.js` 从 v2.9.x 起就维护 `AUTO_LOG`
+（:56，每次 autoSync push `{at,reason,ran,changed,results}`，上限 20 条），:465 的 `autoDiag()` 也早导出了，
+但全库 grep 只有定义和导出两处、零调用；而 `about.js:275-311 diagText()`（就是设置页「复制诊断」按钮的总入口）
+读了 LICENSE / AUTH / CX.cached / 作业来源，独独漏了它。结果用户报「作业好几天不更新」，复制出来的诊断
+看不出最近到底刷没刷、跳过了谁。现在 diagText() 拼进 `SOURCES.autoDiag()` 最近 8 条：
+`11/21 09:05 learn-tab · 刷了 2 个 · 有变化 · ykt:ok,zxs:stale` 这种格式，时间戳是本地时间 `M/D HH:mm`，
+一条都没有就写「自动刷新：还没有记录」。不新加桥、不新加权限，只是把已经躺着的数据摆到用户眼前。
+
+**三、专注卡多一句「最长一天」（`web/focus.js`）**：v2.4.0 做可视化时接了 `histo()`和 `streak()`，
+`peakOf()`（180-188 行）写好就一直没人调用。现在 paintHisto() 的 hint 里补上
+「最长一天 90 分钟 · 11月18日」，只在 `pk.min > 0`（真有记录）时才加。另加一个 `shortDate()` 纯函数
+把 `YYYY-MM-DD` 压成 `M月D日`，带 `/* @testable:shortDate */` 切片供单测直接跑真源码。
+
+**四、记录存坏了会明说（`web/focus.js`）**：`LAST_ERR` 在 35/44/55/67/71 行都被写过，但从没导出也没显示 ——
+专注记录损坏时界面只显示「今日 0 分钟 · 本周 0 分钟」，看着像自己一天没学，其实是本机数据读不出来。
+参照 `mytodo.js` 的 `readErr()` + 344-370 行提示，paint() 一进来就 `const stateErr = LAST_ERR;`（立刻取，
+别被后面的 load 清掉），统计行加 `.warn` 转红，另起一个独立 `#focusErr` 行写「存着的专注记录读不出来（本机记录损坏）」。
+长句不塞进窄的 statEl。双皮肤各配一套：classic `var(--danger)`，nova `--n-warn`。
+
+**五、两个看着像缺口、查完不是的**：①`sources.js` 报的 `sync.js:379 bad_weeks` 落了缓存没人读 ——
+其实 `web/app.js:2592-2594` 已经在同步提示里报「另有 N 条周次没读懂，没进课表」（读 `sch.showable`），
+是等价实现，不重复做；②`sources.js:348 exam_upcoming: 0` 硬编码 —— 全库只有三处、没有任何渲染消费它，
+用户现在踩不到，先不动（真要做得连 renderHomework 一起改，那是另一个题目）。
+reminder / learnplus / nowline 三个模块两组都查过，接线是完整的，无新增缺口。
+
+**六、教程契约为什么没动**：这四处全是内部修复与接线 —— 修一个 bug、诊断多几行、专注卡多一句高光日、错误提示。
+没有新入口、没有新操作要用户学。硬加 features 反而会触发 `check_tutorial` 的「讲着新功能却标着旧版本」校验，
+所以按工程判断跳过，契约仍停在 v11 / 26 条 features。
+
+**七、两个自己写错的地方**：①`tools/test_gaps.js` 里时间戳断言一开始写成
+`diag.indexOf('9/21'.replace('9/','11/')) >= 0 || /11\/21\s+09:05/.test(diag)`，绕且前半恒假 ——
+改成单一正则判断就对了（35 项测试本身一次全过，错的是我这条断言的写法）。
+②纪律断言照旧先 `strip()` 剥注释再判（**这个坑第 5 次踩**：注释里正解释某个词，断言把自己判红）。
+另外含单引号的长 JS 一律落成 `.js` 文件再 `node` 跑，内联 `node -e` 会被 PowerShell 吞引号报 lexing error。
+
+**八、门禁与出包**：`tools/test_gaps.js` 新建（35 项，纯函数切真源码进 vm 真跑、接线用源码纪律钉死），
+`tools/test_*.js` 升到 **53 套**。`check_web.js` 加 v2.15.0 段（段内自建 `need15()` —— check_web 只有 `fail()`、
+没有 `ok()`，照抄别处的 `ok()` 会 ReferenceError）、`check_apk_inside.py` 加 v2.15.0 段（读包内 assets/ 那份，
+11 条全 True）。七道门禁全绿：`check_web` PASS / `check_notes` 7 项 / `check_tutorial` 40 项 /
+`check_skin` 55 passed / `test_*.js` 53 套 0 失败 / `verify_apk` 五件套 / `check_apk_inside` 11 条。
+`apk/xxmu-helper-v2.15.0.apk` **1081846 字节**（hash `c9eb17f35c20…`），签名证书不变，可覆盖升级。
+实拍十张：`_shot_gaps.js` 出 focus / diag / focuserr 三组四皮肤，`_v215_gaps_overview.png` 766×1290；
+图上确认高光日、自动刷新两段、记录损坏红字都真的显示出来（单测绿不等于视觉绿，照例看图）。
+
+**未上线**：线上仍是 1.1.97 / 1197，等用户明确说发版才切 `cfg.latest`。
+
+---
+
+### v2.14.0（2026-11-21）—— 自己记的待办，到那天早上会提醒了
+
+**触发**：v2.13.0 收尾时给 todo 第三节翻底，发现只剩「app.js 拆分」一条，而那条自己写着
+「拆分本身不是目的」。换个方向找：把每个模块的 `readPref` 键与 `reminder.js` 的键对一遍，
+发现 `xxmu_mytodo` 里从 v1.1.60 起就有 `due` 字段，而 `git grep -n "MYTODO" web/reminder.js`
+零命中 —— 记了「周三前交实验报告」，到那天手机一声不吭。这和数据齐、通道齐、就是没接线
+（v1.1.78 连堂重复、v2.1.0 出水看护）是同一类毛病，而且这一处最便宜：`MYTODO.list()` 现成、
+`ReminderScheduler` 现成，缺的只是 `buildAll()` 里第三个来源。
+
+**一、三条口径先定下来，再写代码**
+
+1. **提醒落在早上 8 点，不是 00:00，也不是「提前量往前推的同一时刻」**。待办只写日期不写钟点，
+   用户说「周三前交」的意思是周三那天还来得及，不是周三 00:00 已经到期。8 点是「还来得及改计划」
+   的那个时刻 —— 凌晨震一下只能让人关掉提醒。
+2. **一条待办算到那天 23:59**。`dueMs = day0 + 24*3600000 - 60000`，写到当天最后一分钟。
+3. **文案只说「今天到期 / 明天到期 / N 天后到期」**，不写「还有 11 小时 32 分」。
+   没有钟点的数据编到分钟是假精度 —— 这和 v1.1.60 饮水机「不换算毫升」是同一条纪律：
+   **不把不知道的东西算成一个看起来很准的数**。
+
+**二、`web/reminder.js`（621 → 810 行）**
+
+- 新增三个持久化键：`KEY_TODO = 'xxmu_remind_todo'`、`KEY_TODO_LEAD = 'xxmu_remind_todo_lead'`、
+  `TODO_LEADS = [0, 1, 2]`（提前 0/1/2 天）。**为什么又要一把开关**：课程、作业、自己记的待办
+  是三件不同性质的事，有人只想被课提醒、不想被自己写的购物清单追着响。
+- `todoOn()` 默认 `''`（关）、`todoLead()` 默认 1 天，都与另外两把开关同构
+  （`pref(k, '') === '1'`），脏值回落而不是抛。
+- 新增 `buildTodo()`（约 50 行）：守卫 `typeof MYTODO === 'undefined'`（reminder.js 在
+  mytodo.js 之前加载的路径也要活），`arr = MYTODO.list()`，逐条
+  ①`x.done` 跳过 ②`/^(\d{4})-(\d{2})-(\d{2})$/` 不匹配跳过（`2026/11/25`、`下周三` 一律不认，
+  宁可不提醒也不猜）③`dueMs + GRACE <= now` 跳过（已过截止）④`at = day0 + 8h - lead*86400000`，
+  `at <= now` 时同样按 GRACE 补一次「现在」而不是丢弃 —— 允许「今天就是那天」立刻补一条。
+- `buildAll()` 从两路变三路：`on()?build():[]` + `hwOn()?buildHw():[]` + `todoOn()?buildTodo():[]`，
+  统一按 `at` 排序后交给 `ReminderScheduler.schedule()`（那条路早就 `slice(0,200)` 封顶）。
+- `apply()` 的 toast 改成分量式：只用真正开着的来源拼「（课程 N · 作业 N · 待办 N）」，
+  不开的来源不出现（旧写法 `on() && hwOn()` 在两把开关都关时会拼出空括号）。
+- `openSettings()` 在作业那一块之后加第三块：开关 `#rmTodoSw`、提前量 `#rmTodoLead`
+  （0 =「当天早上」，其余「N 天」）、`#rmTodoHint`、按钮 `#rmTodoPreview`「试一下待办提醒」。
+  局部 `paintTodoRows()` 与作业那块同构：关着时 `opacity .45` + `select.disabled`，
+  hint 里的件数**按与 `buildTodo()` 完全相同的四条过滤算**，所以图上的数字与真会响的条数一致。
+- `paint()` 补 `#remindTodoStat` 三态：`未开启` / `提前 N 天 · 早上 8 点`（或 `当天早上 8 点`）/ `待授权通知`。
+- `init()` 的权限预请求加 `|| todoOn()`；导出表补 `buildTodo/todoOn/todoLead/TODO_LEADS` 四个名字
+  （不给外部看的能力也要给测试看）。
+
+**三、`web/index.html`**：`#remindCard` 在 `#remindHwRow` 之后加第三行
+`#remindTodoRow`「待办到期」+ `#remindTodoStat`，带一段 v2.14.0 注释说明为什么这一行迟到了十四个版本。
+
+**四、Java 侧（`ReminderReceiver.java` 213 → 258 行、`MainActivity.java`）**
+
+- 新增 `KIND_TODO = "todo"`。**`normKind()` 必须认它** —— 不认就回落成 `KIND_CLASS`，
+  一条待办提醒会显示成「15 分钟后上课」，这是最难查的那种错（文案对了、语义全错）。
+- `show()` 的文案分叉从三类变四类，待办走独立的 `todoLeftText(due, leftMin)`：
+  `due <= 0` → 按 `leftMin` 说「约 N 后到期」；已过 → 「已经到期了」；
+  否则两个 `Calendar` 各自归零到当天 0 点，`Math.round((due0 - today0) / 86400000.0)`
+  → `<=0`「今天到期」/`1`「明天到期」/否则「N 天后到期」。
+  **不能写 `(due - now) / 86400000`**：晚上 23:00 时明天 8 点只差 9 小时，整除得 0，会说成「今天到期」。
+  这个错在测试里专门有一条（`nowMs` 钉在 21:00 前后）。
+- 通知渠道名改成「作业与待办提醒」/「作业与待办提醒（静默）」，描述补「待办到期」。
+  点进去仍落学习页（`xxmu_tab=learn`），待办列表就在学习页。
+- `MainActivity.previewTaskReminder()` 加待办分支：预览必须**真给一个明天 23:59 的 due**，
+  否则走 `due=0` 兜底会试出「约 12 小时后到期」，与真机文案不一致 —— 试出来不一样的预览等于没试。
+
+**五、测试：`tools/test_todoremind.js` 47 项**
+八组：基本换算 / 提前量三档 / 四条不该提醒 + 「今天就是那天」立刻补 / 时刻边界（7:59 / 8:00 / 23:58 / 次日 00:00）
+/ mins 与排序 / 输入容错 / 源码纪律 16 条 / Java 侧 6 条。做法照 `test_hwremind.js` 的
+`cut()` 花括号配平 + `vm.createContext`，`FakeDate` 必须 `constructor(...a){ if(!a.length) super(nowMs); else super(...a); }`
+—— 无参也返回假 now 会把 `new Date(y,m,d)` 三参吞掉，`day0` 恒等于假 now，八条断言会一起假绿。
+
+**六、门禁与两个自己的错**
+
+- `check_web.js` 加 v2.14.0 段（3077 → 3141 行）。**第一版用了 `ok(cond,label)`，而 check_web 里没有
+  `ok()`，它是 `fail(msg)`** —— 直接 `ReferenceError: ok is not defined`。段内改用局部 `need14()`。
+  这已经是「同一个 harness 里两套断言名」第二次咬人，新段一律先看本文件用的是什么。
+- `check_apk_inside.py` 加 v2.14.0 条：`dex has KIND_TODO` 原写成「`b"todo"` 与 `b"xxmu_remind_todo"` 都在」
+  → False。**`xxmu_remind_todo` 是 localStorage 键，只存在于 JS 字符串里，dex 里当然没有**；
+  改成只查 `b"todo"`。写 dex 断言时要想清楚「这个字符串是谁写进包的」。
+- 教程契约：`TUT_CONTENT_VER` 10 → 11、contract `version` 10 → 11、features 25 → 26、mustMention 10 → 11。
+  `check_tutorial.js` 第一次红了一条，正是它设计来抓的：「学习：作业、待办和专注」标 2.4.0，
+  但它现在讲到 `todoremind`（since 2.14.0）→ 把该页 `since` 改成 2.14.0 后 40 项全过。
+- **实拍抓到的排版问题**：`#rmTodoHint` / `#rmHwHint` 都是两行长句，而 `.hint` 默认 `text-align:center`，
+  居中折行读起来像诗（v2.13.0 在日历面板上已经踩过一次）。两条都改成 `hint left`。
+  作业那条是 v2.2.0 留下的，一直到这次拍图才看出来。
+
+**七、出包**
+`apk/xxmu-helper-v2.14.0.apk` **1081846 字节**，签名证书 SHA-256
+`0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`，可覆盖升级。
+`javac (14 个源文件)`、`d8 (130 个 class)`。**未上线**：`cfg.latest` 一个字没动，线上仍 1.1.97 / 1197。
+
+**八、真机待看（七条）**
+①把一条待办的日子设成明天，早上 8 点会不会响（想马上验就点「试一下待办提醒」）
+②文案是「明天到期」不是「约 12 小时后到期」③设成今天、当前已过 8 点 → 是不是几十秒内补一条
+④已完成 / 没写日子 / 日子已过 三种都不响 ⑤提醒卡第三行读数与设置面板里的开关同步
+⑥关掉作业提醒只留待办，`apply()` 是否照常排（`parts` 那条改动）⑦试用按钮给的 due 是明天 23:59。
+
+### v2.13.0（2026-11-21）—— 课表可以导进手机日历了（.ics）
+
+**为什么做这个**：todo 第三节只剩「app.js 拆分」一条，而它自己写着「拆分本身不是目的」。
+翻全库找真空时发现：`grep -i "BEGIN:VCALENDAR|iCalendar" web/` 零命中 —— 这个 App 有课表、
+有作业截止、有上课提醒，却**从来没有办法把课表带出去**。学生真会做的事（导进手机自带日历、
+导进 Outlook、发给同学）一样都做不了。这是纯本地、不需要任何外部条件的缺口，够一版。
+
+**一、先确认数据够不够**
+- 课表：`web/app.js` 的 `DATA.courses` 每门课都有 `name/teacher/room/day/weeks/periods`，
+  作息表 `TIMES` 是 16 条 `"08:00~08:40"` 字符串，开学日 `START` 是 `Date`。
+  三样都在内存里，`nowline.js` 已经在用，导日历不需要任何新数据。
+- 截止：`web/chaoxing.js` 同步成功后把整个 payload 写进 `xxmu_cx_homework`（SharedPreferences），
+  work 有 `end_ts`（秒），exam **只有 `end` 字符串**（这是个坑，见下）。
+- 写文件：v2.5.0 已经有 `Host.exportText(name, content)` + `MediaStore.Downloads`，
+  API 29+ 免存储权限。**一行新桥都不用加。**
+
+**二、新增 `web/ics.js`（473 行）**
+三条硬规矩写在文件头，每条都是「不这么写就会生成一份垃圾日历」：
+
+1. **只用浮动时间**（`DTSTART:20260907T080000`，不带 `Z` 也不带 `TZID`）。
+   写 `TZID=Asia/Shanghai` 要求导入端认识这个时区名，某些日历（尤其国内 ROM 自带的）
+   会拒绝整个文件；改写成 UTC 则要自己换算，算错就是整体挪 8 小时 —— 而浮动时间
+   在「手机和课表在同一时区」这个真实前提下永远是对的。
+2. **读不出来的就不生成，绝不拿 00:00 顶上**。某一节作息串解析不出、或这门课
+   `weeks` 是空的，就跳过并 `skipped++`，面板上明写「有 N 条读不出时间，没有放进日历」。
+   拿零点顶上去的后果是：半夜三点手机震一下提醒你「去上人体解剖学」。
+3. **多周合并成「连续周段 + `RRULE:WEEKLY`」**。75 门课 × 平均 10 周 = 上千个 VEVENT，
+   导进去日历会卡；`runsOf()` 把 `[3,4,5,9,10]` 压成两段 `{3,5}` `{9,10}`，
+   每段一条带 `COUNT=N` 的周重复事件。8 门课 6 周 = 8 条日程，不是 48 条。
+
+纯函数（都可单测）：`pad2` / `fmtLocal` / `fmtDay` / `parseDay`（只认 `YYYY-M-D`，
+坏串返回 **null 而不是今天**）/ `parseStamp`（认 `YYYY-M-D[ HH:MM]`）/ `hm` /
+`segRange`（分隔符 `~ - ～ – —` 五种）/ `periodRange`（取第一节开始 + 最后一节结束）/
+`runsOf` / `dayOf` / `esc`（转义 `\ ; ,` 与换行）/ `fold`（**按 UTF-8 字节数**折行：
+按字符数折会让中文行超 75 字节，某些日历直接解析失败）。
+
+`readDue()` 三条过滤：`CX.classify(status)==='done'` 跳过、`expired===true` 跳过、
+时间读不出跳过。时间优先 `end_ts`，其次 `parseStamp(x.end)` —— **exam 没有 `end_ts`**，
+只走第二条，这就是前面说的坑。
+
+`courseEvent()` 里 `UID` 用 `{时间戳}-{课名}-{周几}-{起始周}@xxmu`：同一门课不同周段
+必须是不同的 UID（否则导入端会当成同一条覆盖掉）；`DTSTAMP` 每次导出都变，那是规范要求。
+
+`dueEvent()` 给截止点加 `BEGIN:VALARM` / `TRIGGER:-PT60M` —— 提前 1 小时。这是「截止点」
+不是「开始点」，面板文案里特意写了这句。
+
+**三、接线（三处）**
+- `web/index.html`：`export.js` 之后加 `<script src="ics.js"></script>`；设置页
+  `#rowExport` 下面加 `#rowCalendar`「导出到手机日历」—— 三个动作（检查更新 / 备份与导出 /
+  导出到日历）都是「把数据搬进搬出」，排在一起。
+- `android/.../MainActivity.java` 的 `mimeOf()` 加 `.ics → text/calendar`。不加这一行的话
+  文件类型是 `application/octet-stream`，点开问「用什么打开」而不是直接进日历。
+- 教程契约双写：`TUT_CONTENT_VER` 9 → 10、`TUT_FEATURES` 加 `calendar`（25 条）、
+  设置页 `since` 2.5.0 → 2.13.0、`covers` 加 `calendar`；`tutorial-contract.json`
+  `version` 9 → 10、features 加一条。
+
+**四、`tools/test_ics.js`（98 项）**
+直接 `require('../web/ics.js')`，不切字符串、不进 vm —— 这个模块没有 DOM 依赖，
+整份都能 require，切碎反而测不到拼接逻辑。九组：时间工具 25 / 周次压缩 6 / 日期格式 9 /
+转义与折行 5（含「每个物理行 ≤75 字节」逐行 `Buffer.byteLength`）/ 课程事件 9 /
+截止事件 5 / 整份文件 12（含 75 门课 < 512KB）/ 导出表齐全 1 / 源码纪律 7。
+
+**两条我自己算错的断言**：`periodRange([1,2], TIMES)` 我写成 10:00，实际是 `08:00~09:20`
+—— `TIMES[1]` 是 `'08:40~09:20'`，第 2 节下课就是 09:20，是我把「第 2 节」当成「第 3 节开始」了。
+另一条把 `dueEvent()` 的返回值（行数组）传给了 `build(hw:[...])`，`build` 要的是 item 对象 ——
+fail 从 5 条降到 0 条。
+
+**五、门禁里两条我又写错的断言**
+1. `check_web.js` 里验折行写成 `icsCode.indexOf('75') < 0`，实际代码是
+   `if (bytes + w > 74)` —— **续行前导空格占 1 字节，所以切 74 不是 75**，字面 `75`
+   只出现在注释里。改成正则 `bytes\s*\+\s*w\s*>\s*74`。
+2. 验入口写成查 `'#rowCalendar'`，但 `ics.js` 里只有 `getElementById('rowCalendar')`
+   （不带 `#`）。改成查 `'rowCalendar'`。
+
+**六、实拍**
+新建 `design/sketch/_shot_calendar.js`（走真入口 `ICS.openPanel()`，不是点 `#rowCalendar`
+—— 只证明点击能用会盖住面板本身的问题）。四档 390×397/434 + 拼图
+`_v213_calendar_overview.png`（510×1722）。
+
+实拍抓到一个排版问题：面板末尾那两段说明原来用 `.hint.tight`（继承 `.hint` 的
+`text-align:center`），长句居中折行读起来像诗句。改成 `.hint.left.tight` 左对齐就好 ——
+这个和 v2.5.0 发现 `.row` 的右对齐问题同源：**面板里的长句一律左对齐**。
+
+**七、出包与门禁**
+`apk/xxmu-helper-v2.13.0.apk` 1077750 字节，`javac 14 个源文件`、`d8 130 个 class`。
+七道门禁全绿：`check_web` / `check_notes` / `check_tutorial` 39 项 / `check_skin` 55 /
+`tools/test_*.js` **51 套 fail=0** / `verify_apk` 五件套 / `check_apk_inside` 全 True。
+**未上线**，线上仍是 1.1.97 / 1197。
+
+**八、真机待看（也写进了 todo.md）**
+1. 点「导出为文件」后，文件真落到「下载 / 河医大助手」了吗；点一下能不能直接进日历。
+2. 导进手机日历后，周重复对不对（一门课上 6 周应该是 6 次，不是 1 次也不是 42 次）。
+3. 时区：手机在 `Asia/Shanghai` 时，日历里显示 08:00 就是 08:00（浮动时间，不换算）。
+4. 截止那条的「提前 1 小时」提醒是否按预期响；它响的是截止点前 1 小时。
+5. 读不出时间的那几条，面板上有没有写「有 N 条读不出时间，没有放进日历」。
+6. 没设开学日时，面板是否直接叫回设置里填，而不是导出一份没有课的文件。
+7. 导完 App 里的课表有没有被改动（应该一个字都不动，导出是只读的）。
+
+### v2.12.0（2026-11-21）—— 桌面小组件摆上「最近要交」：作业考试截止上桌，且不再无条件说「今天没课，去玩吧」（**本地包 2.12.0 / 21200**）
+
+触发：v2.11.0 改完 `ClassWidget` 之后把整个文件又读了一遍，发现文件头还留着一句 v1.1.55 时代的话 —— 「仍然不做的：作业考试不上组件（那是学习页的事）」。这句话在 `apk/v2.11.0.notes.txt` 第五条里甚至被当成承诺写给用户看了。但事实是：组件本来就有四个 `WidgetRow`，两节课的日子空两行、没课的日子整片空着。空着不显示不是克制，是浪费。
+
+#### 一、先确认数据够不够
+
+- **作业数据早就同步到本机了，只是没上桌**。`web/chaoxing.js:43` 有 `const K_HW = 'xxmu_cx_homework'`，`:507` 同步成功后 `if (Host.setPref) Host.setPref(K_HW, JSON.stringify(data))` —— 整份 JSON 落在 SharedPreferences 的 `xxmu_cx_homework` 键里。（注意不是 `homework_cache.json`：`Host.saveCachedHomework` 那条路在 `web/` 里一个调用点都没有。）
+- `finish(works, exams, meta)` 已经给每条补齐了 `end_ts`（秒级截止时间）、`state`、`status_known`、`expired`、`open`；考试另有 `upcoming`、`starts_in_h`。Java 侧要的就是 `end_ts`、`name`、`status`、`upcoming` 这几样，齐了。
+- 状态口径在 `CX.classify(status)`：先 `DONE_WORDS`（已完成/已提交/已交/待批阅/未批阅/已批阅/已互评/已过期/已结束/已截止）→ `done`；再 `NOTSTART_WORDS`（未开始/未开考）→ `notstart`；再 `OPEN_WORDS`（待做/待完成/未交/未提交/重新编辑/待互评/进行中）→ `open`。**顺序不能反**：「待批阅」是我的活干完了等老师，属完成；「待互评」里虽然有个「待」，但也是我的活，属未完成。这两条是最容易搞反的一对。
+- 文案口径在 `web/app.js` 的 `fmtLeft(h)`：`<1 小时` → 「还剩 N 分钟」（`Math.max(1, ...)`，绝不写 0）；`<48 小时` → 「还剩 H 小时 M 分」（整点不写 0 分）；否则「还剩 N 天」。
+
+#### 二、新增 `android/src/com/xxmu/helper/WidgetDue.java`（245 行）
+
+第三次用同一套路：**纯算术与纯字符串抽出来，不 import `android.*` / `org.json.*`**，于是 `javac` + `java` 就能真跑单测，不用为测一句话去开模拟器。前两次是 `WidgetClock`（v2.10.0）和 `WidgetOps`（v2.11.0）。
+
+- `public static final class Item { int kind; String name, course, status; long dueTs; boolean upcoming; }` —— `dueTs` 是**截止时刻的秒**，读不到就是 0。
+- `stateOf(status)`：先 `squash()`（去掉 `&nbsp;`、` `、半角与全角空白），再按 DONE → NOTSTART → OPEN 三段匹配，都不是就 `UNKNOWN`。
+- `durText(ts, nowSec)` / `leftText(dueTs, nowSec)`：后者管「已过期」与「还剩」前缀，前者只管时长本体 —— 因为副标题里的「3 件要交」不需要「还剩」。
+- `colorOf(dueTs, nowSec)`：24 小时内 `0xFFFF8A80`（红，和 App 里 `HW_INK.bad` 同一个语义）、72 小时内 `0xFFE8A34E`（琥珀）、其余 `0xFFEFE9FF`（和 `WidgetClock.colorOf(TODO)` 一致，保证同一张卡上字色统一）。三档对深舱底都过 4.5:1。
+- `markOf(kind, upcoming)`：作业 `⏰`、考试 `✎`、未开考的考试 `⏳`（免得让人以为现在就能做）。
+- `line(it, nowSec)`：`mark + name`，有剩余时间就接 ` · 还剩 …`；空名字兜底「未命名作业」。
+- `pick(all, nowSec, max)` / `count(all, nowSec)`：**三条过滤** —— 状态是完成的不留、截止已过的不留、读不到时间的不留（`dueTs <= 0` 直接丢）。按 `dueTs` 升序，同刻按名字稳定排序。`pick` 返回副本，改返回值不影响入参。
+- 三条硬规矩写进文件头：①读不到截止时间的一条都不上桌（桌面上挂个永远不动的「还剩 --」比不显示更糟）②已过截止的不上桌 ③词表与顺序必须与 `CX.classify()` 逐字对齐。
+
+#### 三、`ClassWidget.java`（347 → 430 行）
+
+- 文件头的「作业考试不上组件」那句整体替换成 v2.12.0 的说明段，讲清做了什么、以及**抢位置规则**：课程行在前，待办填后面空位；课占满四行就一条待办都不显示。理由写进注释了 —— 课是「此刻要去哪」，作业是「之后要做什么」，抢位置时课赢；今天没课时四行全给待办，这是收益最大的一格。
+- `rows.isEmpty()` 分支不再张口就说「今天没课，去玩吧」：先 `WidgetDue.count(due0, now0)`，件数 > 0 就写 `"今天没课 · " + n + " 件要交"` 并把四行全给 `WidgetDue.pick(...)`。**这是一句假话的修复** —— 手里压着三份报告的人，看到「去玩吧」只会觉得这 App 不懂他。
+- 有课分支的四行填充循环：`i >= rows.size()` 时取第 `i - rows.size()` 条待办填进去，越界则清空该行。课程行照旧 `WidgetClock.markOf(state) + "1节 " + name + "  @" + room`。
+- 新增 `private List<WidgetDue.Item> readDue(SharedPreferences p)`：读 `xxmu_cx_homework`，`length() < 20` 早退空表；解析 `works[]` 与 `exams[]`，`catch (Throwable)` 一律吞成空表。注释写明：**空列表的意思是「桌面上不显示待办」，不是「没有作业」** —— 宁可让用户进 App 看，也不要在桌面上写「没有要交的」。
+- 曾试过在 `widget_today.xml` 里加一个独立的 `wdue` TextView，写完之后撤回了：多一个固定行会挤掉课程行，而四个 `row` 本来在不同日子就有不同数量的空位，动态填充更省空间。布局文件最终一个字没改。
+
+#### 四、`MainActivity.java`：`xxmu_cx_homework` 也要触发重画
+
+v2.11.0 已经给 `xxmu_kb_ops` / `xxmu_start` / `xxmu_weeks` 三个键加了 `ClassWidget.refresh()`。这一版补第四个：
+
+```java
+if ("xxmu_cx_homework".equals(key)) {
+    try { ClassWidget.refresh(MainActivity.this); } catch (Throwable ignored) { }
+}
+```
+
+理由是同一条：用户刚在 App 里点完「重新抓一次」，桌面那条截止时间不该还停在旧值上，也不该等到下一次 30 分钟轮询。其余几千个 pref 键（皮肤、主题、各种游标）仍然不触发，避免无谓重绘。
+
+#### 五、测试：`tools/test_widgetdue.js`，74 项
+
+做法与前两个 Java 测试完全一样：`fs.mkdtempSync` 建临时目录 → 复制 `WidgetDue.java` → 写一个 `WidgetDueTestMain` → `javac` → `java` → `finally` 删目录。
+
+- 源码纪律 14 项：不 import `android.*` / `org.json.*`、不碰 `RemoteViews` / `Context`、三组词表都在、`ClassWidget` 四处调用 `WidgetDue.*` 都在、`setPref` 里有 `xxmu_cx_homework` 的 refresh 触发。
+- Java 侧 60 项：状态 15（含「待批阅→DONE」「待互评→OPEN」「待&nbsp;做 也认」）、时长 11（含「剩 30 秒写 1 分钟不写 0」「整点不写 0 分」「48 小时→2 天」）、剩余文案 4、配色分档 5、记号 3、整行 5、挑拣 16（排序、max 边界、null 入参、`nowSec=0` 不猜时间、**返回值是副本**）、数件数 3、**一致性 1（20 个状态词「该上桌」与 `stateOf` 必须自洽）**。
+- **两个我自己踩的坑**：①第一版把 `durText(NOW+0, NOW)` 断言成空串，实际返回「1 分钟」—— 回头看 `fmtLeft`，`h < 1` 时是 `Math.max(1, Math.round(h*60))`，到点那一刻就该说「1 分钟」，是我的断言错了，不是产品错了。②`int bad` 变量与工作区其它 `bad` 名字撞了，`bad.append(...)` 编不过，改名 `wrong`。
+- **还有一个环境坑**：Windows 控制台默认 GBK，Java 打印的中文被 node 按 UTF-8 读成 `ʱ��������` —— 失败原因完全看不懂。在 `main` 第一行显式钉住 `System.setOut(new PrintStream(new FileOutputStream(FileDescriptor.out), true, "UTF-8"))` 之后才读得懂。**下次写 Java 测试直接带上这一行。**
+
+#### 六、门禁与出包
+
+- `check_web.js` 新增 v2.12.0 段（五组断言：纯 Java / 词表与顺序 / 两条过滤 / 组件四处调用 / pref 触发），其中「`待批阅` 必须在 DONE_WORDS、`待互评` 不许在 DONE_WORDS」是**剥掉注释后**再判的 —— 这个坑前后踩过五次（`RemoteViews` / `#d93025` / `nv-clip-tag 8px` / `toISOString` / `START_DEFAULT`），每次都是注释里正解释该坑、字面出现了那个词。
+- `check_apk_inside.py` 新增 v2.12.0 段，查的是 **dex 不是源码**：`WidgetDue` / `WidgetDue$Item` / 四个状态词（待批阅、待互评、未开考、已过期）/ 三个记号（⏰ ⏳ ✎）/ `xxmu_cx_homework` / 文案锚点「今天没课 · 」。出包后十二项全 True。
+- 七道门禁：`check_web` PASS、`check_notes` 7 项、`check_tutorial` 39 项、`check_skin` 55 passed、`tools/test_*.js` **50 套**（49 → 50）、`verify_apk` 五件套 PASS、`check_apk_inside` 全 True。
+- 出包：`javac 13 个源文件`、**`d8 130 个 class`**（v2.11.0 是 127，多的就是 `WidgetDue` + `WidgetDue$Item`）、`android/build/app-signed.apk (1044.4 KB)` → `apk/xxmu-helper-v2.12.0.apk` **1069499 字节**、`STATE.md` 9604 字节。签名 `0e684845…7799` 不变，可覆盖升级。**未上线**，`cfg.latest` 一个字没动，线上仍是 1.1.97 / 1197。
+
+#### 七、真机待看
+
+1. 桌面长按加组件，能不能加得出来（`targetCellWidth=3 / targetCellHeight=2`）。
+2. **今天有课的日子**：待办是否接在课程行下面（两节课 → 两条待办；三节课 → 一条）。
+3. **今天没课的日子**：副标题是否变成「今天没课 · N 件要交」，四行是否都是待办。
+4. 四节课满的日子：待办一条都不显示 —— 这是有意的，不是漏了。
+5. 记号：作业 ⏰、考试 ✎、未开考考试 ⏳，三种要能一眼分开。
+6. 颜色：24 小时内红、72 小时内琥珀、更远正常；AMOLED 上红的会不会太扎眼。
+7. 读不到截止时间的那条**不应出现**（不是显示「还剩 --」）。
+8. 在 App 里点「重新抓一次」，退回桌面那条是否**立刻**变（不用等 30 分钟）。
+9. 学习通一直没同步过的手机：桌面应只有课表，不该出现「没有要交的」这种话。
+
+### v2.11.0（2026-11-21）—— 桌面小组件认「改课表指令」了：加课/停课/调课/放假四种变换全部对齐 App（**本地包 2.11.0 / 21100，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：v2.10.0 把小组件的时间与状态算对之后，重读 `ClassWidget` 的注释，发现里面留着一句不太好意思的话 —— 「叠加 AI 改课表指令时只认「加课」；停/调/假需要完整 JSON 变换，组件上不重算（宁可少显示，也不显示错的）」。当时是按「保守」写的，但用户看见的不是「少显示」：他在 App 里停了星期四的生理学，打开桌面卡片，那节课还在 —— 那是**显示一份已经不存在的课表**。这比少显示一行更糟。
+
+#### 一、先确认缺口是真的
+
+- `web/lesson-cmd.js` 的 `apply(courses, ops, c0)`（274 行起）支持四种 `op.type`：`add`（277）、`stop`（282，`out.filter(c => !match(c, op))`）、`move`（283，命中后 `Object.assign(c,{day:op.to.day, weeks:[...op.to.weeks], periods:[...op.to.periods], room:op.to.room||c.room})`）、`holiday`（290，剔掉 `op.weeks` 再 `filter(c => c.weeks.length)`）。指令存 `xxmu_kb_ops`（17 行）。
+- `web/app.js:2061 load()` 只在**内存里**叠加：`DATA = Object.assign({}, DATA, {courses: LessonCmd.apply(...)})`，注释明写「绝不写回缓存 / 外部 schedule.json」。`web/app.js:2574` 的 `saveCachedSchedule` 存的是**教务原始课表**。
+- `android/.../ClassWidget.java` 老代码（139-168 行）读 `p.getString("xxmu_kb_ops","")`，然后只认 `"add".equals(op.optString("type"))`。
+- 三条合起来就是结论：**App 里改了，桌面卡片不改。**
+
+#### 二、新增 `android/src/com/xxmu/helper/WidgetOps.java`（约 250 行）
+
+把 `apply()` 的四种变换搬到 Java 侧。**不 import `android.*` / `org.json.*` / 不碰 `RemoteViews` / `Context`** —— 原因同 `WidgetClock`：这一块全是分支与数组运算，抽成纯类就能用 `javac` + `java` 直接跑真单测（`android.jar` 里的 `org.json` 是 Stub，一旦 import 就没法在桌面上跑）。
+
+- `public static final class Course { String name, room; int day; int[] weeks, periods; boolean cmd; Course copy(); }`
+- `public static Course make(String, String, int, int[], int[])`
+- `public static int[] ints(String csv)`：认 `1,2,3` / `3-5` / `3~5` / `3～5` / `3–5` / `3—5` / 混合 `1, 3-4`；`0` 不算有效节次；全坏 → 空数组（**不是 0**，0 会误伤 `has()`）
+- `public static boolean has(int[], int)` / `intersect(int[], int[])`
+- `public static boolean match(Course, String name, int day, int[] weeks, int[] periods)`：课名 clean 后必须相等；`day > 0` 才比日子；`weeks` / `periods` 非空才比交集 —— 与 JS 的 `match(c, q)` 逐条对齐
+- `private static String clean(String)`：手写把全角空格 `\u3000` 与连续空白压成单空格 + 去尾空格（不用 regex，避免 Android 上跑正则的开销）
+- `public static List<Course> apply(List<Course>, List<List<String>> ops)`：先 `copy()` 全部入参（**纯函数：不改入参，产物也不是入参本身**）；`add` → `make(...)` + `cmd = true` 追加；`stop` → 留 `!match(...)`；`move` → 命中后 `tDay>0` 改日子、`tWk.length>0` 换周次、`tPs.length>0` 换节次、`tRoom.length()>0` 换教室（**没给就保留原值**）；`holiday` → 剔掉命中的周次，剔空了整条丢弃；认不出的 type 一律跳过（一条坏指令不许把整张课表清空）
+- `public static String typeName(String)` → 「加课/停课/调课/放假/未知(x)」。这四个中文串会进 dex，正好当 `check_apk_inside.py` 的可查锚点。
+- 指令用**扁平 key/value 的 `List<String>`**（`type` / `name` / `day` / `weeks` / `periods` / `room` / `from.*` / `to.*`），不是 Map：调用方从 org.json 拼、测试手写断言，扁平形状两边都能拼，也避免为它再造一个嵌套结构。
+
+#### 三、`ClassWidget.java` 接入（288 → 348 行）
+
+- 删掉老分支，改成「先 `WidgetOps.apply` 再按今天+本周筛」：
+
+```java
+all = WidgetOps.apply(all, readOps(p.getString("xxmu_kb_ops", "")));
+for (...) { if (c.day != day) continue; if (!WidgetOps.has(c.weeks, week)) continue; rows.add(...); }
+```
+
+  **顺序不能反**，注释写进了代码：先叠加再筛；反过来先筛再叠加，调课调到今天的课会看不见、放假剔了周次的更筛不出来。
+- `firstOf` / `lastOf` 签名从 `JSONArray` 改成 `int[]`，`firstOf` 不再用 `Integer.MAX_VALUE` 哨兵（改成 `min == 0 || a[i] < min`）。
+- 新增 `toInts(JSONArray)`（跳过 `<= 0` 的元素，不塞 0）、`readOps(String)`（把每条 op 拼成扁平 kv，`catch (Throwable)` 吞掉返回空列表）、`put` / `putNum` / `joinInts`。
+- 删掉 `contains(JSONArray, int)`（改用 `WidgetOps.has`）。
+
+#### 四、`MainActivity.setPref` 补一次主动重画
+
+以前全库只有 `saveCachedSchedule` 会 `ClassWidget.refresh`（`MainActivity.java:255`，v1.1.55 加的）。于是「改完课表 → 桌面卡片更新」要等系统那 30 分钟轮询（`updatePeriodMillis=1800000`，部分 ROM 还会拉更长）。现在 `setPref` 里加：
+
+```java
+if ("xxmu_kb_ops".equals(key) || "xxmu_start".equals(key) || "xxmu_weeks".equals(key)) {
+    try { ClassWidget.refresh(MainActivity.this); } catch (Throwable ignored) { }
+}
+```
+
+只认这三个键：`xxmu_kb_ops`（指令叠加层）、`xxmu_start`（开学日，决定周次）、`xxmu_weeks`（总周数）。其余几千个 pref（皮肤、主题、各种游标）不触发，避免无谓重绘。
+
+#### 五、测试：`tools/test_widgetops.js`，57 项
+
+做法同 `tools/test_widget.js` —— **真编真跑 Java**，不切字符串进 vm：`mkdtemp` 复制 `WidgetOps.java` → 写一个 `WidgetOpsTestMain`（47 条断言）→ `javac -encoding UTF-8 -nowarn -d out` → `java -cp out` → `finally` 删临时目录。
+
+- 源码纪律 10 项：package 声明、不 import `android.*` / `org.json.*`、四种 type 字面量都在、`ClassWidget` 走 `WidgetOps.apply(` / `WidgetOps.has(`、**不含 `"add".equals(op.optString("type"))`**
+- Java 侧 47 项：`ints` 8（含 `0` 无效、`abc` → 空）、`match` 7、`apply` 空 ops 原样 + **产物是副本**（`r0.get(0) != b0.get(0)`）、停课 3、调课 5（含「没说教室保住原教室」「给了就换」「`from` 没命中不动」）、放假 4、加课 5（`cmd == true`、`1-16` 展开成 16 个 int）、坏指令 2、组合 2（停→假→加 顺序生效）、空白实体 1
+- **两次我自己算错的断言**：①`holiday weeks="2,3,4"` 我期望只剩解剖学，实际 `base()` 里病理学的 weeks 正好是 `{2,3,4}`，剔空移除后剩**两门**（解剖学 + 生理学）—— 断言改对即可。②更早一版把期望写成只留解剖学，同源。
+- 一条环境坑：PowerShell 打印 Java 的中文输出要先 `[Console]::OutputEncoding = [Text.Encoding]::UTF8`，否则按 GBK 解成 `ϵͳ����ѧ`（第一次跑整行乱码，看着像断言失败）。
+
+#### 六、门禁与出包
+
+- `tools/check_web.js` 新增 v2.11.0 段（在 v2.10.0 段之后、`[PASS]` 判定之前）：四组断言 + `spawnSync` 跑 `test_widgetops.js`。实测读数 `写指令后立刻重画组件 = true`、`WidgetOps 四类指令 = 4/4`、`ClassWidget 走 WidgetOps = true`、`老「只认加课」分支已删 = true`。
+- `tools/check_apk_inside.py` 新增 v2.11.0 段：读 **dex 不读源码** —— `WidgetOps`、`WidgetOps$Course`、四个中文 `加课/停课/调课/放假`、`xxmu_kb_ops`、`xxmu_weeks` 全 True。
+- 出包：`python -X utf8 tools\bump_ver.py 2.11.0 21100` → `python -X utf8 tools\build_apk.py` → assets 54 个、`javac (13 个源文件)`、**`d8 (127 个 class, 1 个 jar)`**（v2.10.0 是 125，多的是 `WidgetOps` 与 `WidgetOps$Course`）、`android/build/app-signed.apk (1040.4 KB)`。
+- `apk/xxmu-helper-v2.11.0.apk` **1065403 字节**，`classes.dex` 685956 → **690632** 字节（v2.10.0 对比），`resources.arsc` 与 entries 数不变。签名证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`（可覆盖升级）。
+- 七道门禁：`check_web` `[PASS]`、`check_notes` 7 项、`check_tutorial` 39 项、`check_skin` 55 passed、`tools/test_*.js` **49 套**（48 → 49）、`verify_apk` 五件套、`check_apk_inside` 全 True。
+
+#### 七、真机待看
+
+1. 在 App 里停一节课（「改课表」输入指令），退回桌面 —— 那节是否**立刻**从卡片上消失（不用等 30 分钟）。
+2. 调课到别的日子，卡片上是否跟着挪（不是两边都留）。
+3. 放假一周，那一周的课在卡片上是否都不出现。
+4. 撤销指令后是否回原样（`xxmu_kb_ops` 清空 → 卡片回到原始课表）。
+5. 加课（`add`）行为有没有被这版改坏（v2.10.0 就是好的，这版只是换了实现）。
+6. 有些 ROM 桌面组件刷新受省电策略限制，若「立刻」不成立，先从最近任务里划掉 App 再试一次。
+
+---
+
+### v2.10.0（2026-11-21）—— 桌面小组件从「今天 3 节课」改成人话：正在上还有多久下课、下节几点、上过的划掉（**本地包 2.10.0 / 21000，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：`docs/handoff/todo.md`「三、可以做」这一轮翻到底，剩下能纯本地做完的只有「`app.js` 已 4700+ 行要不要拆」和「导出补导入」——前者原文写着「拆分本身不是目的，只有『改一处要读三千行』真的拖慢时才值得做」，后者卡在合并/覆盖、旧字段、成绩覆盖手输三个冲突没定口径。于是回头看了一个一直没人管的东西：桌面小组件 `ClassWidget`。它从 v1.1.55 上线起就没再动过，副标题永远只写「今天 N 节课 · 点开看课表」，而课表缓存里的 `times`（16 档作息串）**从来没被读过一次** —— 时间数据就在文件里，只是没人拿它算。
+
+#### 一、这一版动的是 Java 侧，不是 web/
+
+`web/` 这一版一行没改。改的是 `android/src/com/xxmu/helper/` 下两个文件：
+
+- 新增 `WidgetClock.java`（150 行）。抽出来的理由不是「架构好看」，是这一段是全小组件里**唯一有分支、会算错、错了会当着用户面说错话**的部分：钟点比较、连堂课取最后一节、四档副标题文案。它不 import `android.*`、不 import `org.json.*`、不碰 `RemoteViews` 和 `Context` —— 所以能裸 `javac` + `java` 直接跑真单测。剩下的（读文件、拼 RemoteViews、挂 PendingIntent）是「有线就连」的代码，为它造一套 Android 测试环境不值得。
+- `ClassWidget.java` 224 行 → 289 行，`paint()` 改成调 `WidgetClock`，老的私有 `parseSeg` / `span` / `hm` / `minuteOf` / `segStart` / `segEnd` **六段全删**。两套实现并存一定会各自漂移，所以门禁里反向断言「不许有第二份」。
+
+#### 二、具体改了什么
+
+**① 「还有多久下课」（用一直没人读的 `times`）**
+
+`paint()` 里新读 `d.optJSONArray("times")`，逐档 `WidgetClock.parseSeg()` 拆成起止分钟，`WidgetClock.build(segs, true/false)` 分别摊成 `int[] tStart` / `int[] tEnd`（下标 i+1 = 第 i+1 节）。然后 `nowMin = HOUR_OF_DAY * 60 + MINUTE`，遍历今天的课找当前节与下一节。
+
+关键取的是 `lastOf(periods)` 而不是 `firstOf()`：连堂课 `periods:[1,2]` 要按第 2 节的下课时间算，否则「还有多久下课」永远少数一节。`Row` 因此从 `{period,name,room}` 改成 `{first,last,name,room}`，排序也按 `first` 升序、相同再按 `last`。
+
+四档副标题：
+- 正在上 → `正在上 · 还有 25 分钟 下课`
+- 课间 → `下节 14:30 · 12 分钟后`
+- 都上完了 → `今天的课上完了 · 共 3 节`
+- 有时钟读不出来 → 退回老文案 `今天 3 节课 · 点开看课表`
+
+**② 每行加状态记号与颜色**
+
+行首 `mark`：正在上 `▶ `、已上完 `· `、还没到三个空格（让左边界对齐）。颜色走 `v.setTextColor(ROW_IDS[i], WidgetClock.colorOf(state))` —— 这是这个文件第一次用 `RemoteViews.setTextColor`。
+
+`colorOf`：`NOW → 0xFF9E8CFF`（与标题同主色）、`DONE → 0xFF8A82A0`（压在 `#1D1538` 舱底上约 5.4:1）、其余 `0xFFEFE9FF`（`WidgetRow` 默认色，不改）。
+
+**行首仍写节次不写钟点**（`1节 人体解剖学 @3301`）。写「08:00」要多占三格，而每行是 `maxLines=1` + `ellipsize=end`，挤掉的正好是教室名 —— 钟点在副标题里已经给了，行里给节次更有用。
+
+**③ 两个会说谎的毛病**
+
+- 删掉 `private static final String START_DEFAULT = "2026-08-31"`。老逻辑是「没存过开学日就拿这个顶着算周次」，于是算出来的周次跟课表里的 `weeks` 对不上、筛不出任何课，卡片就写「今天没课，去玩吧」——**用户明明有课**。现在 `week < 1` 直接写 `还没设开学日 · 去设置里设一次` 并清空四行；`week > totalWeeks` 写 `这学期（共 N 周）已经上完了`。
+- 有时钟读不出来时，老逻辑照样装着知道时间。现在只要有一档 `parseSeg` 返回 null，就整块放弃（`clockOk = false`），只写「今天 N 节课」——宁可不报时间，也不报错时间。
+
+#### 三、测试：`tools/test_widget.js`（90 项）
+
+做法跟仓库里其它 `test_*.js` 都不一样。别的都是切 JS 字符串进 `vm` 跑，这个是**真编真跑 Java**：把 `WidgetClock.java` 复制到 `fs.mkdtempSync()` 临时目录，附带写一个 `WidgetClockTestMain`（73 条断言），`spawnSync('javac', ...)` 再 `spawnSync('java', ...)`，`finally` 删目录。
+
+- **源码纪律 17 项**：`WidgetClock` 不许 import `android.*` / `org.json.*` / 碰 `RemoteViews` / `Context`（碰了就不能裸跑）；`ClassWidget` 五处 `WidgetClock.*(` 调用都在；**不许有第二份 `parseSeg` / `span` / `hm` / `minuteOf`**；`START_DEFAULT` 不许回来；「还没设开学日」「已经上完了」两句必须在。
+- **`WidgetClock` 真跑 73 项**：`minuteOf` 10（`24:00`→1440、`24:30`/`08:60`/`0800`/空/null→-1）、`parseSeg` 13（`~ - ～ – —` 五种分隔符；结束早于开始/起止相同/缺前后半→null）、`build` 10（越界 -1、一档坏→整块 null）、**真实 16 档作息全解析**（第 1 节 08:00、第 16 节 22:00、第 15 节只有 20 分钟）、`hm` 4 / `span` 7、`stateOf` 8、`markOf` 4 / `colorOf` 4、`subText` 7。
+- **边界口径**：`nowMin = 480`（08:00）上课那一分钟算 `NOW`、`520`（下课那一分钟）仍算 `NOW`、`521` 才 `DONE` —— 跟 `web/nowline.js` 同一套口径，两个地方说同一件事不能有两种算法。
+- **一致性循环**：470→620 共 151 个时刻上，`subText()` 说的话与 `stateOf()` 判的状态必须一致（说「正在上」就必须真有一节是 NOW，说「下节」就不许有节在上）。这条是防「文案和状态各写各的」。
+
+**踩到两次自己的错**：
+1. `ok(!/RemoteViews/.test(clockSrc))` 第一版红 —— `WidgetClock.java` 文件头注释正写着「不需要 RemoteViews」。**这是「注释里正在解释某个坑，断言把自己判红」第 5 次**。修法固定成 `strip()` 剥注释再判。
+2. `subText` 两条断言我自己算错了：连堂课 `periods:[1,2]` + `firsts={1,3}` + `lasts={2,3}`，`nowMin=500`（08:20）时下课是 09:20 = 560，还剩 **60 分** 不是 40 分；`nowMin=555`（09:15）仍在连堂里（09:20 才下课）不是「下节」。改成 500→「1 小时」、555→「5 分钟」、565（09:25）→「下节 09:30 · 5 分钟后」。
+
+#### 四、编译验证（单编会失败，必须全量）
+
+单编 `ClassWidget.java` 会报 `找不到符号 类 MainActivity`。正确命令照 `tools/build_apk.py`：
+
+```
+javac -source 8 -target 8 -encoding UTF-8 -nowarn \
+  -bootclasspath "D:\android-sdk\platforms\android-33\android.jar" \
+  -classpath "<android\libs\*.jar 用 ; 连接>" -d <tmp> <所有 *.java> R.java
+```
+
+**只给 `-classpath android.jar` 不行**：`QrDecoder.java` / `ScanActivity.java` 的 `com.google.zxing.*` 会报 43 个错，必须 `-bootclasspath android.jar -classpath android\libs\*.jar` 分开给（`tools/build_apk.py:148-153` 的 `lib_jars()` 本来就这么做）。
+
+产物：`WidgetClock.class` 3142B、`ClassWidget.class` 10094B、`ClassWidget$Row.class` 477B、`ClassWidget$1.class` 976B。
+
+#### 五、门禁
+
+- `tools/check_web.js` 加 **v2.10.0 段**：源码纪律 + 布局（`widget_today.xml` 的 `wtitle`/`wsub`/`wrow1..4`/`@drawable/widget_bg` 都在、`widget_today_info.xml` 还指向它、Manifest 里 `.ClassWidget` 还在），再 `spawnSync` 跑 `tools/test_widget.js`。可见读数：`WidgetClock 纯函数类 = 150 行 / 4/4 个核心函数`、`ClassWidget 行数 = 289（走 WidgetClock 5/5 处）`、`硬编码开学日已删 = true`。
+- `tools/check_apk_inside.py` 加 **v2.10.0 段**，读的是 dex 不是源码：`dex has WidgetClock` / `ClassWidget` / `now/done marks` / `'still in class'` / `'class over'` / `'no term start'` 六条必须 True，反向 **`dex no hardcoded start date`** 必须 True（`2026-08-31` 不许再进包）。**这一条先跑过一次是 False**——当时包里还是 v2.9.1，正好证明它真的在查包里那份。
+- 结果：`check_web` `[PASS]`、`check_notes` 7 项、`check_tutorial` 39 项、`check_skin` 55 passed、`tools/test_*.js` **48 套**（47→48）、`verify_apk` 五件套、`check_apk_inside` 九条全 True。`STATE.md` 9266 字节。
+
+#### 六、包里是什么
+
+`apk/xxmu-helper-v2.10.0.apk` **1065403 字节** `4bd7a2babfba…`，d8 收了 **125 个 class**（比 v2.9.1 多一个，就是 `WidgetClock`）。签名证书 SHA-256 `0e684845…7799`，可覆盖升级。`apk/v2.10.0.notes.txt` 五条学生视角。**未上线**，`cfg.latest` 一个字没动，线上仍 1.1.97 / 1197。
+
+#### 七、真机待看（详见 todo.md）
+
+这一版没有离线截图能给 —— 桌面小组件是 App 外面的东西，headless 浏览器拍不到。所以下面几条只能真机看：桌面长按添加组件后是否显示、`▶`/`·` 两个记号与颜色在真机取色下能否分开、四档副标题在 30 分钟内是否真的自己变（`updatePeriodMillis=1800000`）、连堂课是否按最后一节算下课、没设开学日时那句提示是否出现、学期上完后那句是否出现。**注意：`updatePeriodMillis` 最小生效粒度受系统限制（文档说 30 分钟是下限，部分 ROM 会拉长），所以「自己变」这件事真机上可能要等更久 —— 那是系统行为，不是算错。**
+
+---
+
+### v2.9.1（2026-11-21）—— 剩下四页也摆到窄屏上看：日期框被截成「2026/08.」、管理台漂着三个粉色空盒子（**本地包 2.9.1 / 2910，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：上一轮（v2.9.0）拍的是「不在 tab 里」的那批卡与面板，但主界面本身还有四个 section 从来没被单独拍过 —— `tab-settings`（设置）、`tab-guide`（教程）、`tab-admin`（管理台）、`tab-about`（关于）。`_shot_tabs.js` 的 `TABS` 一直是五个（kb/learn/wiki/campus/me）。这一轮把 `TABS` 扩到九个，同时把「矮视口横向溢出体检」从「只覆盖学习页 + 成绩面板」扩到九个页面 × 六种视口 —— 后者是 `todo.md`「三、可以做」里挂了很久的那条「其余页面仍需真机或另写探针逐页看」。
+
+#### 一、先扩两把尺子
+
+`design/sketch/_shot_tabs.js`：`TABS` 加四项；`body(tab)` 在 `switchTab(tab)` 之后补三句二级页的渲染调用 —— `THEME.paint()`（settings）、`GUIDE.render()`（guide）、`About.refresh()`（about）。原因：`switchTab()` 只做「切 active 类 + 换标题 + 滚回顶部」（`web/app.js:2726`），这三个页面的内容是各自的模块在 `switchTab` 之后另调的，光切 tab 拍到的是空壳。admin 不用补，它的内容在 `#admPanel` 里，靠 `web/app.js:4527` 展开。
+
+`heightOf()` 的截断上限从 `Math.min(3200, …)` 抬到 **6000**。理由不是「怕不够」——「关于」页实测 **3826px**（权限与删除说明 + 完整更新日志 + 开发者三段话），3200 正好卡在中间，拍出来的图是半截的，而半截图最容易被误读成「页面坏了」。
+
+`design/sketch/_check_overflow.js` 这一轮改动最大，见第三节。
+
+#### 二、四个真问题
+
+##### ① 管理台页漂着三个粉色空盒子（NOVA）
+
+`uix-admin-nova-light.png` 上，口令卡下面、概览下面、停用表单下面各浮着一条粉色空条，像是界面没加载完。
+
+根因在两层样式的落差：`web/app.css:884` 的 `.gate-err` 只给了字色 + `min-height:18px`，空着的时候是一个看不见的占位；而 `web/nova-skin.css:773` 给 NOVA 的 `.gate-err` 补了底、边框、圆角和内边距 —— 于是**空占位也成了一个实体盒子**。`web/index.html` 里一共九处 `.gate-err`（`gateErr`/`admKeyMsg`/`admStatMsg`/`admErr`/`admDevMsg`/`apkMsg`/`cfgMsg`/`admAdminMsg`/`noticeMsg`），平时内文都是空串，等出错才写进去。
+
+修法是在 `web/nova-skin.css` 的 `.gate-err` 规则之后加一条 `html[data-skin="nova"] .gate-err:empty{display:none !important}`。**没有去改 JS** —— 那九处都是「先 `setMsg('')` 清空、出错再写」，为了样式去改这九处的调用时序是本末倒置；`:empty` 直接表达「没字就别占位」。管理台那张图从 1503px 收到 1419px。
+
+##### ② 设置页「开学日」被挤成「2026/08.」（两种皮肤都有）
+
+`uix-settings-classic-light.png` 与 `uix-settings-nova-light.png` 上，学期设置那一行的日期框只显示 `2026/08.` 后面就没了，右侧日历图标也被压扁。
+
+先量，不猜。探针读数（390 宽、classic/light）：`.fr-row` 宽 336（卡片内容宽）、`#setStart` **116×46**、`#setWeeks` 84×43、`#setSave` 120×36 —— 116 + 84 + 120 + 两个 8px 间距 = 336，**正好吃满**。而原生 `<input type="date">` 要画 `2026/08/31` 十个字符加一枚日历按钮，约需 136px。原文 `web/app.css:1287` 的 `.fr-row #setStart{flex:1.45 1 0;min-width:0}` 只调了比例，`min-width:0` 又允许它被压到 0，所以比例再大也顶不住。
+
+修法：给 `web/index.html` 那一行加一个 `.fr-row-term` 钩子，`web/app.css` 里针对它写三条 —— `.fr-row-term{flex-wrap:wrap}`、`#setStart{flex:1 1 132px;min-width:132px}`、`#setSave{flex:1 0 100%;margin-top:8px}`。也就是**把「保存并立即生效」整行换下去**。改后探针读数：`#setStart` **244×46**、`#setSave` 336×36（通栏），三组合（classic/light、nova/light、classic/dark）完全一致。
+
+**为什么不直接改 `.fr-row`**：`web/index.html:465` 还有一条 `.fr-row`（饮水机「验证码 + 发送验证码」），它必须留在同一行，加 `flex-wrap` 会把它拆成两截。所以只给设置页这一行加类，`check_web` 里还写了一条反向断言盯着 `.fr-row` 本体不许出现 `flex-wrap`。
+
+##### ③ 「关于」页以前只能拍到一半
+
+就是第一节那条 3200 上限。抬高后 nova 两档 3826px、classic 两档 3791px，尾部 3× 裁图确认末屏是开发者信息区，没有空白也没有被裁的元素。
+
+##### ④ 管理台在离线夹具里只剩一张口令卡
+
+`#admPanel` 默认 `style="display:none"`（`web/index.html:696`），展开条件是 `web/app.js:4534` 的 `if (key() && $('admPanel'))`，而 `key()` 读 `XXMU.pref('xxmu_admin_key')` —— 离线无 Host 时恒为空串。先试过写 localStorage，无效（`XXMU.pref` 走 Host 桥，不读 localStorage 兜底）。最后在夹具里直接 `document.getElementById('admPanel').style.display='block'`。这在语义上等价于「存过口令但连不上服务器」：概览四个数是「--」、分段能点、表单在，不含任何真实数据 —— 拍的是**版式**，不是**数据**。
+
+#### 三、溢出体检扩到九页（这轮真正的量）
+
+`design/sketch/_check_overflow.js` 原来只测学习页 + 成绩面板。这一轮扩成 **9 个 section × 6 种视口**（360/390/412/492×900、492×700、360×640），一个 Edge 启动、六个 iframe 同量，一个 iframe 里顺序切九个 tab（54 个 iframe 同时渲染会拖到十几分钟）。
+
+首跑 FAIL 16 处：`kb` 12~15 条、`wiki` 1~3 条、`settings` 0~2 条。读 CSS 后全部判定为**横向滚动/裁切容器**在正常工作的表现：
+
+- `div.nv-belt-track`（课表顶部的周次传送带）：`web/nova-organs.css:80` 的 `.nv-belt{overflow:hidden}` + `transform:translateX(var(--shift))`，里面装 20 多个 `.nv-wk` 周次格 —— 它天生就比屏幕宽，靠拖动看后面的周。
+- `button.nv-clip-chip`（WIKI 的四分段夹子）：同一套横向 chip 带。
+- `settings` 那两颗：`#setQuick` 五个 quick chips 在 360px 下换行，右边界超出视口，但 `web/app.css:594` 的 `.chips{overflow-x:auto}` 让它可滑。
+
+于是加 `clipOf(el)`：从 `el.parentElement` 往上爬，遇第一个 `overflowX !== "visible"` 的祖先就返回它和它的模式（`auto`/`scroll` = 用户滑得到；`hidden`/`clip` = 内容真够不着）。`scan()` 相应改成三档：可滚 → 跳过；可裁 → 计入 `hid`（单独提示，不判红）；都没有 → 才算 `n`（真溢出）。另外加了个 `seen` 计数，判定要求 `seen > 0` —— 某页扫到 0 个可见元素说明夹具没把那页渲染出来，那种「0 溢出」是假的。
+
+同时补齐夹具，让「没溢出」这个结论有意义：写饮水机 token + 两台机器 + 一条出水看护记录（`web/app.js:4987` 的 `if (dc) dc.style.display = on ? 'block' : 'none'`，不写 token 校园页有半页是空的）；写 `xxmu_mytodo` 四条（两条带日期走「昨天/明天」、两条无日期）；写成绩四门含一门空分 + 目标绩点 + 剩余学分。等待时间从 1800ms 抬到 5200ms、`--virtual-time-budget` 从 3500 抬到 9000（单档要顺序切九个 tab）。
+
+**结果：四组合（light/dark × nova/classic）全部 PASS**，退出码 0。nova 两档各 82 个元素被 `overflow:hidden` 祖先裁掉（全是上面那两类拖动带，设计内），classic 两档 0。单档读数形如 `kb:0#196 | learn:0#111 | wiki:0#68 | campus:0#59 | me:0#60 | settings:0#60 | guide:0#51 | admin:0#10 | about:0#123 || btnW=97 vOver=0 tl=66`。
+
+一个操作上的坑：`node ... 2>&1 | Select-String` 会让 PowerShell 把 Edge 往 stderr 刷的 `fallback_task_provider.cc:126` 当成错误输出，于是报 `[exit code: 1]` —— 但脚本本身是 PASS 的。判退出码要写 `node ... 2>$null | Out-Null; Write-Host $LASTEXITCODE`。
+
+#### 四、门禁
+
+七道全绿：`check_web`（新增 v2.9.1 段五条：`fr-row-term` 钩子 / `#setStart` 的 `min-width:132px` / `#setSave` 通栏 / 反向断言 `.fr-row` 本体无 `flex-wrap` / 空 `.gate-err` 不占位，外加两把尺子文件必须在）、`check_notes` 7 项、`check_tutorial` 39 项、`check_skin` 55 passed、`tools/test_*.js` **47 套**、`verify_apk` 五件套、`check_apk_inside`（新增 v2.9.1 段五条，读的是 `assets/` 里打包进去的那一份）。
+
+`design/sketch/_audit_type.js` 四组合复跑仍全 0；深色 NOVA 的 kb/me 两页仍是 `checked=0 unmeas=112/63` —— **unmeas 不等于通过**，这两页只能真机取色。
+
+#### 五、包里是什么
+
+`apk/xxmu-helper-v2.9.1.apk` 1061307 字节，SHA-256 `b08864003902…`（完整值见 `STATE.md`）。签名证书 SHA-256 `0e684845…7799`、DN `CN=XXMU Helper, OU=Dev, O=XXMU, L=Xinxiang, ST=Henan, C=CN`，与 1.1.x 起每一版一致，可直接覆盖升级。`apk/v2.9.1.notes.txt` 四条学生视角说明。
+
+**未上线。** `cfg.latest` 一个字没动，线上实读仍是 1.1.97 / 1197。
+
+#### 六、真机待看
+
+指向 `todo.md` 的 v2.9.1 条目。要点是「日期框在真机上是否显示完整」—— 离线是用桌面 Chromium 的 date 控件量的，Android WebView 的 date 控件排版不完全一样，宽度按 132px 起算应该是够的，但只有真机能确认。
+
+---
+
+
+触发：v2.8.0 把五个主 tab 逐张看过一遍，但还有一批界面从来没被拍过 —— 它们的共同点是**不在 tab 里**：我的待办、专注计时、账号绑定这三张卡平时睡在 `#toolPark`（`display:none`），只有点开才被 `openToolCard()` 搬进半框 `.sh-box`；空教室、成绩、导出、提醒设置是「面板」而不是「页面」。这些地方以前只在开发时随手瞄过，没有四档对照图。这一轮把它们全部拍成 390 宽的实拍，逐张看。
+
+#### 一、先补两把尺子
+
+`_shot_toolcards.js`（我的待办 / 账号绑定）+ `_shot_freetool.js`（空教室）都是**读真实 `web/index.html`** 的夹具，不做「假造一个面板」的事。两条必须遵守的做法：
+
+1. **必须走真入口 `openToolCard(id)`，不能原地 `display:''`**。半框里的 `.sh-box` 内边距、`.sheet-only` 那套规则只在卡真的被 append 进去时才生效；原地显示拍到的是另一套排版，看图会得出错误结论。
+2. **`#sheet` 是 `#app` 的子节点**，所以「只拍面板」不能靠藏 `#app`（会连面板一起藏成一整张白图），要写 `#app > *:not(#sheet){display:none!important}`。这个坑 v2.5.0 拍导出面板时踩过一次，这次直接沿用。
+
+空教室面板还多三件事，都是「不这么写就跑不出正确结论」：
+
+- `PERIODS` 必须是 **14** 不是 9。`segs()` 按 `PERIODS` 切「晚上 11-14」，只造 9 节时晚上时段一格数据都没有，`unknownAt()` 会把所有房间判成未知，图上是「空 0 / 12 间」——看起来像产品崩了，其实是夹具缺数据。
+- 教室类型必须按 **GBK 字节**拼（`多媒体 B6E0C3BDCCE5` 等）。`post()` 把响应喂 `toGbk()`，而浏览器没有 GBK 编码器；只有按字节 `String.fromCharCode` 拼才能既保持源文件纯 ASCII、又走真实的解码路径。（第一版把「研讨室」写成 `D1D0CCT6CAD2`，多了一个 C，图上渲染成「研?□室」。）
+- `netCk` 桩必须装在 **`go()` 里、`KFREE.open()` 之前**。装在 `</head>` 时 `web/sync.js` 还没执行、`window.XXMU` 还是 undefined，桩装不上，`post()` 直接吃 `ERR:`，报「网络没通（超时）」。守卫写 `typeof XXMU !== "undefined"` —— 顶层 `const XXMU` 不是 window 属性，这个坑 v2.3.0 已经踩过一次。
+
+#### 二、四个真问题（全部是「同一个东西在不同落位下长了两副面孔」）
+
+**① 我的待办卡在经典皮肤下整张淡紫。** `openToolCard()` 把卡 append 进 `.sh-box` 后，它成了容器里第 4 个同级元素，而 `web/app.css` 的彩纸规则是 `.card:not(.elec-entry):nth-of-type(4n+4){…--tint-mist…}`，特异性 (0,2,0) 高过 `.sheet-only` 的 (0,1,0) —— 于是这张本该是「面板里的一张纸」的卡，被当成「桌上第四张彩纸」配了雾紫底 + 紫胶带。探测读数：`nsib=4 nth-of-type=4 cls=card sheet-only tape=#8E7BC4`。
+
+修法（`web/app.css`）：`.sh-box .sheet-only,.sh-box .card.sheet-only{background:transparent;border:0;box-shadow:none;transform:none;--tape:var(--red);isolation:isolate}`。
+
+两处细节值得记住：**`.sheet-only` 得改成 `.sh-box .sheet-only`**（父级限定的特异性才压得住 nth-of-type；第一次写成 `#sh-body .sheet-only` 无效，因为挂载点是 `.sh-box` 不是 `#sh-body`）；**`isolation:isolate` 不能省** —— 下面第②条那个荧光笔用的是 `z-index:-1`，它以前能显示是因为卡片整体有 `transform`（形成层叠上下文），`transform:none` 之后它会直接沉到 `.sh-box` 的纸色底下面，整条消失。
+
+**② 「已完成 · 2 ▾」的沙金荧光笔横穿整张卡。** `.hwsec::after` 是 `left:0;right:0` 的绝对定位条，而 `.hwsec.fold` 原来是 `display:flex`——**块级盒撑满整行**，所以包含块是整行而不是文字，那条高亮横跨整卡，看起来像一条画歪的下划线。修法：改成 `display:inline-flex`（缩到文字宽，`align-items`/`gap` 仍然生效）。
+
+**③ 同一行在深色模式下读不出字。** 深色档 `--paper2 #302620` 上叠 `--yellow #E8BE58` 按 `opacity:.6` 混出条色 `rgb(158,129,66)`，压在上面的字：`--pencil #B0A085` 只有 **1.45**、`--ink2 #C8B79C` 只有 **1.89**、`--ink #F3E9D6` 也才 3.07。扫描结果：opacity .10 → 条 `rgb(66,53,38)`（4.64 / 6.05 / 9.86）、.14 → 4.22 / 5.50 / 8.95、.18 → 3.84 / 5.01 / 8.15。
+
+选 **.14 + 折叠行字色提到 `--ink2`**，不选 .10：.10 那条荧光笔几乎看不见，等于把装饰删了；.14 保留一笔淡痕，`--pencil` 的 4.22 缺口用字色提升补掉（折叠行本身就该比正文重一档）。用改 `opacity` 而不是换背景色，是为了让浅深两档共用同一条 `--yellow`。四条同名规则（`.hwsec`/`.grp-head`/`.wiki-cat`/`.ph-title`）一起改，它们共用同一条 `::after`。
+
+**④ 账号绑定面板里的 provider 卡顶上贴了一条被裁半截的胶带。** `#bindCard` 里挂着 `#cxCard` + `#srcCards` 里三张 provider 卡，它们是真 `.card`，各带 `::before` 胶带（44×13，`top:-7px` 探出卡外）。半框 `.sh-box` 是滚动容器、会裁掉溢出 —— 第一张卡正好贴在上沿，胶带被切掉一半，图上是一块凭空浮着的红方块。修法：`.sh-box .sheet-only .card::before,.sh-box .sheet-only .card::after{display:none}`。
+
+**彩纸底色（nth-of-type 的 tint）有意保留** —— 那是皮肤记号不是装饰附件；胶带才是「贴在桌上」的物理暗示，在半框里没有依据。
+
+#### 三、顺带：铭牌里那个长读数
+
+「我的」页 NOVA 皮肤的 SPEC 铭牌（`buildPlate()`）把 10 条读数塞进两列网格，`.nv-plate-row b` 是 `nowrap + ellipsis`。而「数据来源」的真实读数是 `教务同步（课表） / 多平台 · 2 路（作业）` 这种长句（由 `label()` 拼），一格只有约 150px，实拍里被裁成「内置（课表） / 内…」。修法：`buildPlate()` 里给 `srcTag` 那一行加 `.nv-plate-row.wide`，样式 `grid-column:1 / -1` + 允许换行右对齐。只放宽这一行，其余九行保持两列（它们都是一两个字的短值，放宽反而散）。
+
+#### 四、门禁
+
+- `tools/check_web.js` 加 v2.9.0 段（6 组）：sheet-only 透明底 + isolate、卡中卡无胶带、`.hwsec.fold` 是 inline-flex、深色荧光笔 `.14`、深色折叠行 `--ink2`、铭牌 `wide` 与三把尺子文件存在。
+- `tools/check_apk_inside.py` 加 v2.9.0 段（8 条）：断言打**进包里的那份 assets** 也是新代码，而不是只看 `web/` 源（v2.0.0 就是因为只看源、包里还是旧版 learnplus.js，才补了这个脚本）。
+- `_audit_type.js` 四组合复跑仍全 0：light/classic 41→0、light/nova 33→0、dark/classic 28→0、dark/nova 0（深色 NOVA 的 kb/me 两页 `checked=0`、`unmeas=112/63`，元素底是渐变、审计器主动放弃测量 —— **unmeas 不等于通过**，这两页只能真机取色）。
+
+七道门禁：`check_web` PASS（50 assets identical）、`check_notes` 7 项 PASS、`check_tutorial` 39 项 PASS、`check_skin` 55 passed、`test_*.js` 47 套 fail=0、`verify_apk` 五件套 PASS、`check_apk_inside` 全 True。
+
+#### 五、包里是什么
+
+`apk/xxmu-helper-v2.9.0.apk` **1061307 字节**，`STATE.md` 9044 字节；签名证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799` 与历史一致，可覆盖升级。`apk/v2.9.0.notes.txt` 六条学生视角。**未上线** —— `cfg.latest` 一个字没动，线上仍是 1.1.97 / 1197。
+
+#### 六、真机待看
+
+见 `todo.md` 的「## 二、等真机」v2.9.0 段：半框里待办卡的胶带颜色、深色荧光笔淡痕是否还看得出来、账号绑定四张卡是否还有被裁的元素、我的待办删除按钮点两次的第二态。这些离线实拍都能验，但`.sh-box` 的滚动裁切在真机上受系统字体缩放影响，值得再看一眼。
+
+---
+
+### v2.8.0（2026-11-21）—— 可读性这一轮：把「看不清」量化成对比度，一条一条改到 4.5 以上（**本地包 2.8.0 / 2800，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：v2.7.0 修完排版之后，仍然有人（也包括我自己看截图时）觉得「有些字费劲」。这件事不能靠眼睛投票 —— 到底哪一行不够，得量。于是先写了一个审计器，再按它开出来的清单改。
+
+#### 一、先造一把尺子：`design/sketch/_audit_type.js`
+
+做法：读真实 `web/index.html`，把 `#app` 解锁、隐藏首启遮罩，按四组合（light/dark × nova/classic）逐 tab（kb / learn / wiki / campus / me）遍历**所有有文字的元素**，对每个元素算三件事：字号 `< 10px` 判 `tiny`、字重、以及**文字色对最近的实底色的对比度**（`cr`）。输出 `TOTAL_BAD` 与逐条明细（选择器 + 文字片段 + fs/fw/cr）。
+
+第一版跑出来 `light/nova TOTAL_BAD=136`，里面有一堆 `cr=1.00` —— 全是假的。原因是审计器向上找底色时，只要祖先链上第一个非透明 `background-color` 就停，而 NOVA 的深色渐变底是 `background-image`，被它跳过、一路爬到 `body` 的白底，于是白字压白底算出 1.00（`#hdTitle` / `#hdSub` / 五个 tab 标签 / `u[XXMU·DEVICE]` 等 38 个）。修法：向上爬时任一层 `backgroundImage` 含 `gradient` 就 `return null`，这一条不参与判定、计入 `unmeas`。
+
+修完的读数才是真问题清单：`light/classic 41`、`light/nova 33`、`dark/classic 28`、`dark/nova 7`。
+
+> **`unmeas` 不等于通过。** 深色 NOVA 的 kb 与 me 两页是 `checked=0 / unmeas=112`、`checked=0 / unmeas=63` —— 整页元素几乎都压在渐变/玻璃底上，审计器**主动放弃测量**。这两个 0 是「没量」，不是「量过了」。要真验只能上真机取色，离线做不到，已写进 todo 的「等真机」。
+
+#### 二、经典皮肤的低对比度只有一个源头
+
+`web/app.css:22` 的 `--pencil:#9C8B70`，而 `:39` 写着 `--mute:var(--pencil)` —— 也就是说「次要文字色」就是这支铅笔灰。它对 `--paper #EFE2C8` 只有 **2.58**、对 `--paper2 #FAF3E2` 只有 **2.99**。审计里经典皮肤所有 2.99 全是它：`hwdate`（截止日期）、`hwleft.gray`（剩余时间）、`.row .v.dim`（行尾「›」、「管理 ›」、「浅色 ›」）、`.about-foot`、`.wiki-src`、`.fb-at`、`.room-m`、`.adm-stat span`…一共 23 处引用，改 token 一处通吃。
+
+候选值用 python 精确算 WCAG 之后定 **`#706046`**：对 `--paper` 4.75 / `--paper2` 5.50 / `--surface2 #F5EAD4` 5.10，三底全过 4.5，色相仍是同一支铅笔。同批：`--warn:#B27A12`（2.88 / 3.34）→ **`#83560A`**（4.96 / 5.75），它管的是 `hwleft.orange`（「还剩 11 小时 59 分」）。`--ok:#3F6B3C`（4.85 / 5.62）与 `--danger:#A62B1C`（5.49 / 6.36）实测合格，**一个字没动** —— 改色只改不合格的。
+
+#### 三、深色皮肤的铅笔灰，以及一个被我误判了半小时的 1.46
+
+深色档 `--pencil:#8F8069` 对 `--paper #241E1A` / `--paper2 #302620` / `--surface2 #3A2E26` = 4.28 / 3.83 / 3.42，三底全不达标。改 **`#B0A085`** → 6.44 / 5.77 / 5.14。
+
+改完还剩两条 `cr=1.46`：`#elecRefresh`（校园事务的「刷新」）与 `#btnSync.btn.soft`（「从教务同步课表」）。这两个都是**按钮**，字压在自己的底上，跟铅笔灰无关。查到底：深色档 `--yellow:#E8BE58`，而按钮的字色继承的是 `--ink:#F3E9D6`（深色档的 ink 是**浅色**）—— 浅米字压金黄底，1.46，肉眼几乎就是一块色块。
+
+修法不是给这两个按钮单独写规则，而是**补一个「黄底上的字」令牌**：`--on-yellow`。浅色档 `var(--ink)`（纸底上的黄块仍用墨色），深色档写死 `#2A2018`。然后用一次性脚本把 14 处黄底统一改吃它：`.btn.soft` / `.ntc-badge` / `.upd-group` / `.gate-more span:active` / `.about-ver` / `.rm-mode.on` / `.pick-cell.suite` / `.elec-entry-refresh` / `.elec-change`（含深色覆盖）/ `.wiki-tag` / `.adm-cp` / `.adm-odd` / `.th-opt.on`。脚本每处都断言「该选择器在文件里恰好出现 1 次」，任一处不符就整体不写盘。
+
+同批还有 `--oncolor-dim:rgba(23,18,14,.72)` → **`.82`**：深色档的 `--oncolor` 是深墨 `#17120E`，「淡一档」用 alpha 往下掉，压 `--red #E8704C` 只剩 4.38；提到 .82 后五底色 5.40 / 4.72 / 5.85 / 7.22 / 4.96 全过 4.5。
+
+#### 四、作业状态色：内联色搬的是 Material 500 号色
+
+`web/app.js:611` 的 `HW_COLORS` 是直接照 Material Design 500 号色填的：蓝 `#2196F3` 4.07、红 `#F44336` 4.31、橙 `#FF9800` **2.79**、绿 `#4CAF50` **2.76**、灰 `#9E9E9E` **1.96**（全部对经典 `--paper2`）。五个里只有前两个勉强及格。整表换成深一档的同色相：
+
+```js
+const HW_COLORS = {
+  '待做': '#9E5009', '重新编辑': '#9E5009', '未交': '#A8201A', '未提交': '#A8201A',
+  '待批阅': '#1259AE', '未批阅': '#1259AE', '已批阅': '#1E6B33',
+  '未开始': '#1259AE', '未开考': '#1259AE', '进行中': '#A8201A',
+  '已完成': '#1E6B33', '已过期': '#6E6E6E', '已结束': '#6E6E6E',
+  '状态未知': '#6E6E6E',
+};
+```
+
+同时新增 `const HW_INK = { bad: HW_COLORS['未交'], soon: HW_COLORS['待做'] };`，替换掉 `web/app.js` 里两处内联字色（考试倒计时 `'#d93025'`、作业剩余 `'#e8710a'`）—— 那两处是卡片里手写的，跟 `HW_COLORS` 是两套，之前改一处另一处不变。
+
+**为什么只影响经典皮肤**：`web/nova-skin.css:1112-1166`（⑥ 段）用 `!important` 按 `.hw[data-st]` 重上色（三级可读性：威胁 / 待办 / 完成），NOVA 下 `HW_COLORS` 被完全覆盖。所以这一改是修经典、NOVA 不动。
+
+深色档的作业卡是另一套：`html[data-theme="dark"] .c{filter:saturate(1.5) contrast(.98)}` 会把上面这些色一起压暗。新增一段按 `data-st` 覆盖，**但颜色必须走令牌**——`tools/check_web.js` 的 `NEUTRAL_OK` 白名单不许组件里出现裸色值（`check_web.js:1359`）。所以五个令牌：`--hw-threat:#FF8A80`、`--hw-info:#7FB3F0`、`--hw-soon:#E8A34E`、`--hw-done:#8FD08A`、`--hw-idle:#A89C8E`。
+
+#### 五、9px 的钟点：真凶在第五层 CSS
+
+`.c .pr2`（课卡右下的下课钟点）审计报 `fs=9`。但 `web/app.css:234` 写的是 11px、`web/nova-skin.css:219` 写的是 `font:11px/1.35` —— 改哪个都不生效。
+
+这次没再逐层 grep，而是写了个探针：遍历 `document.styleSheets`，对目标元素用 `el.matches(selectorText)` 把**所有命中了它、且声明了 fontSize/font 的规则**连同来源文件一起打出来。一次就指到了：
+
+```
+PR2|computed fs=9px
+  app.css:          .c .pr2 => 11px
+  nova-skin.css:    html[data-skin="nova"] #grid .c .room, … => 11px/1.35
+  nova-polish.css:  html[data-skin="nova"][lang] #grid.grid .c .pr, … => 9px   ← 就是它
+```
+
+`web/nova-polish.css`（`web/index.html:37` 引入）是之前几版一直漏掉的**第五层**（app / nova-skin / nova-medium / nova-polish / nova-cyber）。它的特异性写成 `html[data-skin="nova"][lang] #grid.grid …` = **(1,5,1)**，故意高过 medium 的 (1,4,1)。这一层把课表时间做成「基准尺」：左列 `.gt` 与卡内 `.pr` 都绝对定位到「行顶 2px + 12px 行高」，对齐同一条 y=14px 的线；`.pr2` 贴卡底右侧。
+
+9px 是当年为「第 1-3 节 · 上午」这种兜底长文案定的。现在 `.pr2` 里只剩「09:35」五个字符，10px 等宽约 30px，塞进 41px 卡内宽完全够。改 **10px**，**line-height 必须保持 12px** —— 那条 y=14px 基准线是按 `top:2px + 12px` 算出来的，动行高整列时间都会错位。
+
+`gp .gt`（左列节次钟点）：NOVA 浅色档吃 `--n-ink-2 #4A5A6A` 压 `#D8E3E9` = 4.16（差 0.34）→ 改 `--n-ink`；经典皮肤原写 `opacity:.65` 叠铅笔灰 → 改 `color:var(--ink2);opacity:1`（6.15），靠 400 vs 800 的字重差区分主次，不靠透明度。
+
+#### 六、一批 8-9px 的英文小标
+
+`web/nova-organs.css` 里 `.nv-tape-top/.nv-tape-bot`（SIDE A / ▶ PLAY）8px、`.nv-clip-tag`（CAMPUS WIKI）8px、`.nv-ticket-head`（HOT WATER · 胖乖生活）/ `.nv-ticket-read u` / `.nv-ticket-note` 9px、`.nv-polaroid-tag`（POLAROID WALL）/ `.nv-polaroid-note` 9px —— 全部提到 10px。这些是等宽大写 + 1.6px 字距的装饰小标，提到 10px 后宽度仍够。
+
+#### 七、改完复跑：四组合全 0
+
+`node design\sketch\_audit_type.js <theme> <skin>` 四组：`light/classic 0`、`light/nova 0`、`dark/classic 0`、`dark/nova 0`（后者仍带 `unmeas`，见第一节）。修前分别是 41 / 33 / 28 / 7。
+
+#### 八、实拍又抓到两个真问题
+
+五 tab × 四组合 20 张重拍之后，在「我的」页看到两处，都不是审计器能报的（一个是数据没喂、一个是截断）：
+
+1. **课程数显示 0**。截图里「课程数 0」而课表页明明有 10 门课。原因是 `#cnt`/`#termPick`/`#srcTag` 是 `app.js:2099-2101` 的 `load()` 写的，而实拍夹具绕过 `load()` 直接赋 `DATA.courses`，这三个读数就停在 HTML 里的初始值（`--` / `--` / `内置`）。**这是夹具的问题，不是产品的问题** —— 修夹具：补 `DATA.term`、`DATA._source`、`HOMEWORK._source`/`sources` 并按 `load()` 的口径写一遍三个 DOM。
+2. **「数据来源」被裁成「内置（课表） / 内_」**。这个是真问题：`web/nova-organs.js` 的铭牌 `buildPlate()` 把 10 条读数塞进两列网格，`.nv-plate-row b` 是 `white-space:nowrap;overflow:hidden;text-overflow:ellipsis`，而「数据来源」的真实读数是「教务同步（课表） / 多平台 · 2 路（作业）」这种长句，两列格里只有约 150px。修法：给这一行加 `.wide`（`grid-column:1 / -1` 占满两列）并让读数折行，其它九行仍是紧凑的一行一读数。
+
+#### 九、门禁
+
+七道全绿：`check_web`（新增 v2.8.0 段 10 条 + 3 条反向，含「不许再出现 `#d93025`/`#e8710a`」「polish 不许再有 `9px !important`」）、`check_notes` 7 项、`check_tutorial` 39 项、`check_skin` 55 passed、`test_*.js` 47 套、`verify_apk` 五件套、`check_apk_inside`（新增 v2.8.0 段 13 条）。
+
+`check_web.js` 与 `check_apk_inside.py` 两处各踩了一次同一个坑：**断言写「文件里不许出现某字符串」，而注释里正在解释这个字符串**（`app.js` 注释里的 `#e8710a`、`nova-organs.css` 注释里的 `8px → 10px`），第一版都判了红。修法统一成「先剥 `/*…*/` 与 `//` 再判」。这已经是这个坑的第 4 次，写进纪律：**任何「源码里不许有 X」的断言，先剥注释**。
+
+#### 十、包里是什么
+
+`apk/xxmu-helper-v2.8.0.apk` **1061307 字节**，SHA-256 `5C1B29D6238DF5AB56D4889CEFDAAC60D935F6EDD138BDA453B4DB9CAD882D7C`，签名证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`（可覆盖升级）。`apk/v2.8.0.notes.txt` 八条学生视角说明。`STATE.md` 8905 字节。**未上线**：`cfg.latest` 一个字没动，线上实读仍 1.1.97 / 1197。
+
+#### 十一、真机待看
+
+见 `todo.md` 的「## 二、等真机」v2.8.0 段（六条）。要点：深色 NOVA 那两页的 `unmeas` 只能真机取色；深色档黄底按钮的字是新令牌 `--on-yellow`，要看真机上是不是够黑；课表右下的钟点从 9px 到 10px，要看会不会在 5 字卡名列里挤掉一行。
+
+---
+
+### v2.7.0（2026-11-21）—— 界面这一轮：课表上的字不再被挤成一列，读数不再说胡话（**本地包 2.7.0 / 2700，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：用户把五个 tab 的截图一张张发过来。前六版都在加功能，这一版没有新功能 —— 全部是「数据和逻辑都对，但屏幕上印出来的东西是错的」。一共七处，每一处都先在截图里看见、再回源码定位、改完重拍确认。
+
+#### 一、课名被逐字竖排：三轮才找对地方
+
+`uix-kb-nova-light.png` 里「系统解剖学」竖着排成「系统解」/「剖」/「学」，「医学伦理学」排成「医学」/「伦理」/「学」。房间号 `A201` 是好的，所以不是所有字都断。
+
+算一下宽度就清楚了：390px 屏，节次列 34px、网格左右 padding 6px、七列各留 2px gap，一天一列 = `(390-34-12-14)/7 ≈ 47px`。课卡再扣掉 4px 内边距和 2px 左侧竖条，正文宽度只剩 30px —— 11px 汉字一行放两个字，五个字必然三行。而 `web/app.css:223` 的 `.c b` 写着 `word-break:break-all`，中文在任何位置都断，于是「系统解/剖/学」这种切法就成了默认行为。
+
+三轮改动，前两轮都没解决：
+
+1. **先腾垂直空间** —— 课卡里原来同时印起始钟点和结束钟点（`09:35`）。但左侧节次轴 `.gp .gt` 每一行本来就写这一节的起始时间，卡片再印一遍纯属重复，还占掉单节卡（56px = 4 行）里的两行。改成只在连堂（`b.span > 1`）时保留结束钟点：
+
+   ```js
+   const at1 = firstTime(t1), at2 = lastTime(t2);
+   if (at1 && at2) {
+     /* v2.7.0：课卡里不再印起始钟点。左边节次轴每行已经写了这一节几点开始，
+        卡片再印一遍要吃掉 4 行正文里的 2 行。连堂的课仍保留结束钟点。 */
+     if (b.span > 1) box.appendChild(el('span', 'pr2', at2));
+   } else {
+   ```
+
+   重拍，字还是竖排。**说明瓶颈不在垂直方向，在水平方向** —— 这一步的价值是排除了一个猜测，不是修好了。
+
+2. **改断词规则与内边距（app.css）** —— `.c` 的 `padding:4px 4px 4px 6px` → `3px 1px 3px 3px`，左侧竖条 `2.5px` → `2px`；`.c b` 与 `.c .room` 的 `word-break:break-all` → `word-break:normal; overflow-wrap:break-word`，`padding-left:1px` → `0`。内容宽度从 30px 变 34px，理论上能一行三字。重拍，**还是竖排**。
+
+3. **找对归属：NOVA 的内边距不在 app.css** —— 决定性的一步。`web/nova-skin.css:204` 有一条 `html[data-skin="nova"] #grid .c{... padding:4px 3px 3px 5px !important}`，带 `!important`。app.css 里改的那个值在 NOVA 皮肤下**从来没生效过**。改成 `3px 1px 3px 3px !important` 并留注释说明「`.c::before` 在 NOVA 层是 `content:none`，左边不用留竖条位」。重拍 → 「系统解剖学」两行「系统解/剖学」，「医学伦理学」两行「医学伦/理学」，`A201`、`09:35` 各一行。**这才叫修好。**
+
+   顺带记一条容易踩错的归属知识：`web/nova-skin.css:191-195` 有一段旧注释写着「浅色档实际生效的是 `nova-medium.css` 里 `:not([data-theme="dark"])` 那一组，特异性更高、载入在后，所以下面这段只在深色档生效」。这次实测推翻了它对 `padding` 的适用性 —— `nova-medium.css:223` 那组只覆盖 `border/background/color/border-radius/box-shadow`，**没写 `padding`**，所以 padding 仍由 nova-skin.css 那条唯一带 `!important` 的规则决定。一句话：**在 NOVA 里改某个属性之前，先确认 medium 层有没有写这个属性；没写，就还在 skin 层。**
+
+#### 二、截止矩阵三格读数：标签和数字互相打架
+
+学习页「DEADLINE MATRIX」右上三格，改之前：
+
+- 「待做」下面印的是「4 条待做 · 4 场考试待考」
+- 「待考」下面印的是「4 待做 / 0 待考」
+- 「同步」下面印的是**课表**的同步时刻
+
+根因是 `web/nova-organs.js` 的 `buildRain()` 用 `data-src` 直接抠别的元素的 `textContent`：`待做` ← `#hwcount`、`待考` ← `#hwStat`、`同步` ← `#syncAt`。三个都抠错了对象。另外 `segs.appendChild(s)` 那一行漏了，三个 `nv-rain-seg` 根本没进 DOM。
+
+改法是把「数值」和「怎么印」分开：
+
+- `web/app.js:920-936` 新增结构化出口：
+
+  ```js
+  window.__HWSTAT = {
+    works: openWorks.length,
+    exams: openExams.length,
+    expired: expN,
+    /* 同步时刻用秒级时间戳给，读数条按「今天/昨天/几月几号」自己决定印多长，
+       #hwSyncAt 那串 '2026/11/21 15:08:09' 塞不进读数条。 */
+    syncedAt: d.synced_at || null,
+  };
+  ```
+
+- `buildRain()` 三列改成自己的键 `['待做','works'] / ['待考','exams'] / ['同步','sync']`，值节点 `data-hw=<key>`，补回 `segs.appendChild(s)`。
+- `sync()` 从 `window.__HWSTAT` 取数，同步时刻自己格式化。
+
+CSS 那边不用动 —— `web/nova-organs.css:876-897` 的两段式布局（标题一行、读数行三列 `flex:1 1 0; min-width:0` + `ellipsis`）本来就是对的。
+
+#### 三、顺手修的口径错：未开考的考试不算「待考」
+
+这是第二格读数暴露出的事，但它是产品逻辑错，不是显示错。原来：
+
+```js
+const openExams = items.filter(x => x.kind === 'exam' && x.open && !x.expired);
+```
+
+而 `web/app.js:873-874` 里，未开考的考试 `open` 恒为 `false`：
+
+```js
+const notStarted = upcoming || ke === 'notstart';
+if (notStarted) e._open = false;
+```
+
+于是「两天后有一场考试」在待考格印 0，可下面列表里明明躺着那一场。新口径：
+
+```js
+/* v2.7.0：待考的判据改成「没交卷、也没过期」，不再要求 open。
+ * open 对考试的含义是「平台说还在进行」，于是还没开考的考试 open=false，
+ * 「待考」就印成 0 —— 可下面列表里明明躺着一场两天后要考的。
+ * 「待考」该数的是「你还有几场要考」，没开考不等于不用考。 */
+const openExams = items.filter(x => x.kind === 'exam' && !x.expired
+  && !isDoneStatus(x.status));
+```
+
+注意作业那一行（`openWorks`）**没动**：作业的 `open` 语义是「已下发且未收」，与考试不同，照旧。
+
+#### 四、同步时刻的统一短格式
+
+`web/nova-organs.js` 在 `curWeek()` 之后提了两个模块级函数：
+
+```js
+/* 同步时刻印成最短的可识别形式：今天只印时分，昨天印「昨天」，更早印「11/19」。
+   整串 2026/11/21 15:08:09 在半栏（≈130px）里只能读到「2026/1…」，等于没印。
+   两个地方要用它：截止矩阵的读数条、设备铭牌的「课表同步 / 作业同步」。
+   v2.7.0 从 buildRain 的闭包里提出来，避免两处各写一份（那种副本一定会走样）。 */
+function syncText(ts) { /* 今天→HH:MM / 昨天→'昨天 HH:MM' / 更早→'M/D' */ }
+
+/* 「2026/11/21 15:17:31」这类整串 → 秒级时间戳。app.js 的 fmtTs 就是这个格式。
+   解析不出来返回 null，让调用方退回原样搬运。 */
+function parseStamp(t) { ... }
+```
+
+这两个函数原来是 `buildRain()` 闭包里的私有实现，只服务读数条一处。「我的」页的设备铭牌也要印同样的两个时刻，**复制一份必然走样**（本仓库已经有过一次教训：`learnplus.js` 抄 `fmtLeft` 抄漏了进位归一化，v2.7.0 一起修了 —— 见第七节），所以提到模块顶层，一处定义两处用。
+
+铭牌的 `sync()` 里加特判，把长串压成短形式，全称放 `title`：
+
+```js
+if (src === 'syncAt' || src === 'hwSyncAt') {
+  var ts = parseStamp(t);
+  if (ts != null) {
+    vals[i].textContent = syncText(ts);
+    vals[i].title = t;
+    continue;
+  }
+}
+```
+
+#### 五、三处视觉收尾
+
+- **课表底部两颗按钮在 NOVA 下是一团灰**。`web/nova-skin.css:307-309` 的 `html[data-skin="nova"] .btn.soft` 把全站 soft 按钮统一压成中性灰 —— 这条规则本身是对的，「soft」的意思就是「次要」。但课表底部只有这两颗动作按钮，「次要」在这里没有别的更重要的事可让位，一片灰等于没有主次。**只给这一处补回主色，不动全局 `.btn.soft`**：浅色档 `background:var(--n-accent)` + 白字，深色档 `linear-gradient(160deg,var(--n-cyan),#6D57D8)` + `#120C22` 字。
+- **「我的」页顶部一根孤立波浪线**。那是 `buildDoodle()` 画的 SVG 三笔（波浪 / 折线 / 五角星），`web/nova-organs.css` 早前按「D 级只许一笔」的设计把后两笔 `display:none` 收掉了。收完剩下的那一笔单独看不像笔触，像误留的装饰。整块 `display:none`；DOM 留着（`sync()` 还要插回去），只是不显示、不占位。
+- **「教务学号」一格印的是一句话**。`refreshLoginUI()` 的 `!hasHost()` 分支原来写 `#whoami.textContent = '（需在 App 内使用）'`，而设备铭牌会把 `#whoami` 的 textContent 直接搬进「教务学号」格 —— 于是一个值的位置上放了一句环境说明。改成 `'--'`，环境差异由「登录状态 → 浏览器预览」那一行讲。
+
+#### 六、一处跨版本的旧账：`relText` 抄漏了进位归一化
+
+同一批截图里，「今日一行」的副行印着「最近截止 生物化学 · 还剩 11 小时 60 分」，而下面作业卡印的是「还剩 12 小时」。同一个时刻、两种说法。
+
+原因：`web/learnplus.js` 的 `relText(left)` 是 `web/app.js:671 fmtLeft(h)` 的手抄副本，抄的时候漏了这一段归一化：
+
+```js
+let hh = Math.floor(h);
+let mm = Math.round((h % 1) * 60);
+if (mm >= 60) { mm -= 60; hh += 1; }   // ← 抄丢的就是这行
+```
+
+`app.js::fmtLeft` 的注释本来就写着「分钟四舍五入会进位到 60（还剩 25 小时 60 分），这里先归一化再拼字」，抄的人没看见。
+
+改法不是再抄一遍，而是**先借正主，借不到才用副本**：
+
+```js
+function relText(left) {
+  if (left == null) return '截止未读到';
+  if (left < 0) return '已过截止';
+  if (typeof fmtLeft === 'function') return fmtLeft(left);
+  // …以下为逐行对齐 fmtLeft 的兜底副本（离线测试与单独 require 时用）…
+}
+```
+
+并把它加进导出表，让测试能直接钉：`return { init, paintToday, paintTarget, todaySummary, undoneText, gpaNeed, relText };`
+
+`tools/test_learnplus.js` 新增第 ⑨ 组，做法是**从 app.js 里抠出真函数来对照**（不是对照副本）：正则取 `function fmtLeft\(h\)\s*\{[\s\S]*?\n\}`，`new Function('return (' + m[0] + ')')()` 造出函数赋给 `global.fmtLeft`，然后跑 23 个边界值 + 扫遍 0~48h 全部 2881 个分钟点，断言两边逐字一致、且绝不出现「 60 分 / 0 分 / NaN / undefined」。
+
+顺带确认**不要一起改**的几处（语义不同，各有各的分档）：`web/learnplus.js:77` 的默认 fmt、`web/nowline.js:184`（还剩 N 分钟下课）、`web/focus.js:279`（秒级）、`web/app.js:5265`（防忘关剩余秒）、`web/waterwatch.js:308 hms(ms)`。
+
+#### 七、这一轮的五个教训
+
+1. **改 CSS 没生效，先找 `!important` 的归属层**。同一个属性在 `app.css` / `nova-skin.css` / `nova-medium.css` / `nova-cyber.css` 里可能有四份，先 `grep` 全部命中再动手。第一、二轮的失败就是在这个上面浪费的。
+2. **重拍验证必须固定「改了什么就该变什么」**。三轮里前两轮都重拍了、都看了图、都发现「还是竖排」—— 如果只看「改了代码」就收工，这个 bug 会活到用户手上。
+3. **手抄副本一定会走样**。`relText` 抄漏归一化、`syncText` 差点被复制第二份。能借正主就借正主，不能借就提到模块顶层让两边共用。
+4. **`data-src` 抠别人的 textContent 是反模式**。上游一改文案，下游的读数就跟着变成一句人话。「我要数字」就该让数据源给数字（`window.__HWSTAT`），格式化放在展示层。
+5. **离线夹具注入早于页面自渲染时，被渲染函数覆盖的全局必须「事后重赋」**。`window.__HWSTAT` 被页面自己的 `DOMContentLoaded → renderHomework()` 覆盖成全 0，探针里三个读数一直是 `--`。修法是在 `load` 事件里重跑一次夹具再 `sync()` —— 这恰好复现了真机「打开 → 数据到达 → 器官 700ms 轮询再读一遍」的真实时序。
+
+#### 八、门禁与出包
+
+`tools/check_web.js` 新增 v2.7.0 段 8 条断言（课卡断行三处、`span > 1` 只印结束钟点、`__HWSTAT` 存在、`data-hw` 用自有键、`syncText`/`parseStamp` 各一份、待考口径正则、`.kb-bar-acts .btn.soft` 主色、`.nv-doodle` 已关、`#whoami` 不再放假值、`syncText` 只许出现一次）。
+
+`tools/check_apk_inside.py` 新增 v2.7.0 段 —— 这一版全是 CSS 与文案的小改，最容易「改的是 `web/`、包里的还是旧那份」：断言 `nova-skin.css` 里有 `.kb-bar-acts .btn.soft` 与 `3px 1px 3px 3px !important`、`nova-organs.css` 的 `.nv-doodle{` 后面紧跟 `display:none`、`nova-organs.js` 有 `syncText`/`parseStamp`/`src === 'syncAt' || src === 'hwSyncAt'`、`app.js` 有 `window.__HWSTAT`、`!hasHost()` 分支里是 `'--'`。
+
+出包：`python -X utf8 tools\bump_ver.py 2.7.0 2700` → `python -X utf8 tools\build_apk.py` → `apk/xxmu-helper-v2.7.0.apk` **1057211 字节 `27d48eed9260`**，签名证书 SHA-256 `0e684845…7799` 未变（可覆盖升级）。七道门禁全绿：`check_web` PASS、`check_notes` 7 项 PASS、`check_tutorial` 39 项 PASS、`check_skin` 55 passed、`tools/test_*.js` 47 套 fail=0、`verify_apk` 五件套 PASS、`check_apk_inside` 全 True。
+
+实拍：五 tab × 四组合（nova/classic × light/dark）共 20 张全部重拍，`design/sketch/shots/uix-<tab>-<skin>-<theme>.png`。这一轮还修好了截图脚本自己的测高 bug —— `heightOf()` 原来量 `body.scrollHeight`，而 `web/app.css:115` 是 `#app{overflow:hidden}`、`:177` 是 `main{flex:1;overflow:auto}`，滚动发生在 `main` 里，于是 `body.scrollHeight` 恒等于视口、`me`/`campus`/`wiki` 三页全部被压成 808 高、`me` 页下半截被底部导航压掉。改量 `main.scrollHeight + header.offsetHeight + #tabs.offsetHeight` 之后：`me` 1490、`campus` 1202、`wiki` 1643。
+
+#### 九、真机待看
+
+1. 换 NOVA 皮肤 + 深色档，课表里的课名是不是两行（浅色档与经典皮肤离线已验）。
+2. 学习页三格读数是不是「2 / 1 / 15:17」这种纯数字，标签与数字对得上。
+3. 有一场「未开考」的考试时，待考那格是不是 1（这一条是真机才有的数据）。
+4. 课表底部「AI 改课表」是不是深青绿实底白字（浅色档）/ 紫色渐变（深色档）。
+5. 「我的」页最上面还有没有那根灰波浪线。
+6. 「本机规格」表里「课表同步 / 作业同步」是不是「15:17」这种短的，长按有没有全称。
+7. 「今日一行」副行的「还剩 X 小时 Y 分」与作业卡的时长说法是不是完全一致（重点看 11 小时 59 分 附近）。
+
+### v2.6.0（2026-11-21）—— 成绩自己从教务进来：一条一条试，读到的还是盖着（**本地包 2.6.0 / 2600，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：档 C。四档构想里最后一档，也是唯一一档「别人拿不到、只有这个 App 能拿到」的东西 —— 成绩本来就在教务服务器上，只是从来没有一条路把它请进来。到 v2.5.0 为止，想用「绩点 / 目标绩点」两个功能，得先在电脑上跑 `core/kingo.py`、把打出来的 JSON 复制到手机上、再粘进成绩面板的导入框。对一个只想看自己绩点的学生来说，这条路的每一段都长得没有道理。
+
+**这一版做的事只有一件：把那段路缩短成两下点击。** 不加新页面，不改成绩的显示方式，不改绩点算法。
+
+#### 一、为什么能这么省事：Cookie 与请求桥早就在了
+
+`web/sync.js` 里的 `netCk(url, method, body, contentType, headers, cookieUrl, referer)` 从 v1.0 就存在，它走 `Host.httpFetchCkAsync`，Java 侧从 `CookieManager.getCookie(cookieUrl)` 现取 Cookie —— 学习通、雨课堂、喜鹊三家的抓取全都建在它上面。教务这套也一样：登录一次之后 Cookie 就在 WebView 的 CookieManager 里，和抓课表用的是同一份。
+
+所以这一版**一行 Java 都没加**。翻 `MainActivity.java` 的 `fetchScheduleHtmlAsync`（2291-2316 行）就是现成范本：带 Cookie + Referer，GET 一个 JSP，把响应原样交回 JS。成绩页要的完全是同一件事。
+
+#### 二、新增 `web/gradepull.js`（16904 字节）
+
+七个 `/* @testable:xxx */` 纯函数，全部可离线测：
+
+- `cellText(html)` —— 去 `script`/`style`/注释，去标签，还原 `&nbsp;/&ensp;/&emsp;/&lt;/&gt;/&quot;/&#39;/&amp;`，最后压空白。教务表格里的中文全是 `&nbsp;` 占位，不还原就是一片豆腐块。
+- `rowsOf(html)` —— 按 `<tr>` 切行、按 `<td|th>` 切格。
+- `colsOf(cells)` —— **按关键字找列，不按位置**。`scoreAt = find(/成绩|分数/)` 先找，`point = find(/绩点/, skip i === scoreAt)` 后找。这条不是洁癖：青果不同学院导出的表列序不一样，今年「学分/成绩/绩点」，明年可能插一列「考核方式」；更坏的情况是某一版把「绩点」放在「成绩」前面，按位置取就会把 3.7 当成绩、把 87 当绩点 —— 然后绩点算出来还挺像回事。
+- `parseGradeTable(html)` —— 找第一行「既有课程列又有成绩列」的当表头；分段表（一学期一张）遇到第二个表头就换列号并 `tables++`；`BAD_NAME = /^(合计|总计|平均|小计|备注|说明|课程名称|课程名)$/` 的行丢掉。返回 `{list, matched, rows, tables, header}`，**`matched === false` 时 `list` 一定是空数组** —— 不允许半张表冒充成绩。
+- `looksStale(text, raw)` —— 照 `sync.js` 的 `kbExpired` 收紧版：正文含「凭证已失效」「请重新登录」、含登录表单特征、或短正文里带 `location.href='/'`。
+- `isGradeWord(s)` —— 非数字、1~6 个中文/字母/`+-` 就算文字等级（优秀、良好、合格、不合格、通过、不通过、A、B+）。
+- `mergeInto(oldList, freshList)` —— 按 `term|name` 对齐合并，返回 `{list, stats:{added, updated, kept}}`。**三条规矩**：新值读得到分就用新值；新值读不出而旧值读得出，**保留旧分**（降级覆盖等于把已经知道的事忘掉）；教务这次没返回的旧课，原样留着。纯函数，不改入参。
+
+网络层两个：`pullOne(path)` 只试一条；`pull()` **顺序试、命中即停**。不并发是刻意的 —— 三个请求同时打到教务，既不礼貌，出问题时也不知道是哪条出的。
+
+#### 三、界面：从「成绩」按钮里长出来
+
+`web/grades.js` 的 `open()` 里，在「全部翻开 / 重新盖上」之后多一颗「从教务读成绩」。点开是一个半框面板（照 `REMINDER.openSettings()` 的范式自建 DOM 塞 `#sh-body`），标题「从教务读成绩」，两颗按钮「读一次」「复制诊断」。
+
+面板上真会写东西：
+
+- 「试过的路径」逐条列出 —— `/student/xscj.stuckcj.jsp?menucode=S40303` · 814 字节 · 读到 6 门；没读到的写没读到的原因（框架页 / 凭证失效 / 表头里没有成绩列）。
+- 成功：`读到 6 门 / 来自 … · 2 门是文字等级` + `合并后一共 7 门：新增 6 门、更新 0 门，教务没返回的 1 门原样留着。` + 一颗「写入成绩（默认盖着）」。
+- 失败：凭证失效就说「先去「登录教务」重登一次」；三条都不通就说「把上面的「复制诊断」发过来就能对」。
+
+**读完不自动展开。** 分数是隐私，成绩面板本来就有「全部翻开 / 重新盖上」这一层，从教务读进来也一样默认盖着 —— 用户自己决定什么时候在什么场合翻开。
+
+#### 四、文字等级绝不换算
+
+成绩里有「优秀 / 合格 / 不及格 / 通过」这类文字等级。把「优秀」硬映射成 95、把「合格」映射成 75，绩点立刻就能算得很漂亮 —— 但那个绩点是编的。这一版的选择是：**原样保留，`scoreOf` 照旧判成 null，`computeGpa` 照旧把它算进 `unknown` 而不是 0 分**。面板底部明写一句「换算出来的绩点看着专业，其实是编的。想按自己的口径算，可以把它们改成数字再「导入成绩 JSON」」。
+
+`tools/check_web.js` 为此加了一条反向断言：`/优秀['"]?\s*[:=]\s*\d/` 一旦出现就判红。
+
+#### 五、七个坑与教训
+
+1. **`XXMU.netCk` 的第三个参数是 body** —— 写 `netCk(url, 'GET')` 会让 body 变 `undefined`，Java 侧 `Http.request` 收到 null 走 GET 分支没意见，但换个方法就出事。四条空串要写齐。
+2. **`decodeAuto` 是按字节还原的，不是 `TextDecoder('gbk')`** —— 它先按 UTF-8 fatal 试、失败再按 charCode&0xff 还原字节后按 GBK 解。测试夹具造 HTML 必须走 `TextEncoder` → `String.fromCharCode`，不能直接拿 JS 字符串当响应体。
+3. **夹具里 `QUIET` 必须注入在正文脚本之前** —— `QUIET` 会 `clearTimeout(1..20000)`，排在后面就把正文自己那两处 `setTimeout`（点按钮、测高）清掉了。第一版实拍 15183 字节、图里只有一个空面板，就是这个原因。
+4. **皮肤/主题必须在 `<head>` 后立刻写 localStorage** —— `nova-skin.js` 在文档很靠前的地方就跑起来并按 pref 设 `data-skin`。只在末尾改 attribute 会被它覆盖回默认，四档会得到四张一模一样的图。
+5. **测高 JS 必须写进 `wrap()` 的数组参数** —— 字符串拼接会漏掉闭包，那段 JS 被当纯文本渲染到页面上（v2.5.0 踩过一次，这次直接照定案写法写）。
+6. **找绩点时必须跳过已经被认成「成绩」的那一格** —— 两者都含「绩」字的表头（例如「成绩(绩点)」）会让两个索引指到同一列，结果就是绩点顶替成绩，算出来的绩点还挺像回事。`skip i === scoreAt` 就是让两个索引永不合流。
+7. **测试第一版数错行** —— `HTML_A` 我写「六行」实际七行（漏了学号那一行）。这类「产品对、断言错」的红要改断言，不是改产品。
+
+#### 六、测试与门禁
+
+- 新增 `tools/test_gradepull.js`：6 组 65 项。含「`matched === false` 时 list 必须是空数组」「文字等级原样留着不变成数字」「`mergeInto` 不许改入参」「新值 0 学分保留旧学分」「源码里不许出现 `cells[2-9]`」。
+- `tools/test_*.js` 46 → **47 套，全过**。
+- `tools/check_web.js` 加 v2.6.0 段 19 条：不许 fetch/XHR/POST、必须走 `XXMU.netCk(`、三条候选路径齐全、域名正确、不许把文字等级映射成数字、`index.html` 里 `gradepull.js` 必须在 `grades.js` 之后 `app.js` 之前、双皮肤都有 `.gp-row`/`.gp-sum`。
+- `tools/check_apk_inside.py` 加 v2.6.0 段：读 `assets/gradepull.js` 断言七个函数名、三条路径、`XXMU.netCk(`、无 POST/fetch、以及 `grades.js` 真挂了按钮。
+- 教程契约双写：`TUT_CONTENT_VER` 8→9、`TUT_FEATURES` 加 `'gradepull'`（24 条）、「课」页 `since: '2.6.0'` 正文 6→9 条；`docs/handoff/tutorial-contract.json` `version` 8→9。
+- 出包：`apk/xxmu-helper-v2.6.0.apk` 1053115 字节 `a7453da854ec…`，签名与历史一致（可覆盖升级）。**未上线**，`cfg.latest` 一个字没动。
+
+#### 七、真机待看
+
+1. 教务没登录时点「从教务读成绩」，面板是不是明说「先去登录」而不是三条都报「读不到」。
+2. 真的登录后读一次，读到的门数与学生自己数的对不对；`2 门是文字等级` 的数字对不对。
+3. 分段表（一学期一张）的年份学期是否都进来了，`tables` 大于 1 时列有没有串。
+4. 教务里有重修课（同名不同学期）时，合并是按 `term|name` 对齐的，会不会把两门并成一门。
+5. 面板上「试过的路径」那条 800 多字节的数字，是不是真的等于教务返回的字节数。
+6. 读进来之后回成绩面板，是不是还盖着（不能被自动翻开）。
+
+#### 八、没做的事
+
+- 没做「自动定时读」——读一次是用户明确的动作。定时读等于后台反复打教务，而且成绩出来本来就没那么频繁。
+- 没做「按绩点反查哪门课拖后腿」这种分析。数据够了，但那是另一个功能。
+- 没做「导出给同学」。成绩是个人信息。
+
+### v2.5.0（2026-11-21）—— 你的数据能带走了：设置里多一行「备份与导出」（**本地包 2.5.0 / 2500，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：档 D。四档构想里这一档排第三，但它是唯一一档「不加任何新功能、只是把已有的东西交还给用户」的活。到 v2.4.0 为止，课表、待办、专注记录、成绩、饮水机清单、自己发的 WIKI，全部只存在一台手机的 SharedPreferences 里。换手机、清数据、重装、卸载重登，一样都带不走，而界面上从来没有一句话提过这件事。这不是功能缺失，是**没有出口**。
+
+### 改了什么
+
+新增 `web/export.js`（18455 字节）：
+
+- `FORMAT = 1`、`K_LAST = 'xxmu_export_at'`、`MAX_VALUE = 512 * 1024`（单个键超过半兆就不进备份，进 `skipped` 并写明原因——静默丢一行比报错更坏）。
+- `SECRET` 23 个键，四类，**永远不导出**：第三方登录态（`xxmu_water_token` / `xxmu_water_uid` / `xxmu_ykt_auth` / `xxmu_zhs_auth`）、教务账号与原始页面（`xxmu_acct_cx` / `xxmu_acct_kb` / `xxmu_cx_homework` / `xxmu_cx_at`）、票据与密钥（`xxmu_license` / `xxmu_license_id` / `xxmu_ticket` / `xxmu_ticket_exp` / `xxmu_admin_key` / `xxmu_fp` / `xxmu_verified` / `xxmu_role`）、纯游标（`xxmu_upd_at` / `xxmu_upd_skip` / `xxmu_upd_mute` / `xxmu_export_at` / `xxmu_last_check` / `xxmu_notice_seen` / `xxmu_disc_done`）。
+- `PICK` 40 个键的**白名单**。为什么不用「扫所有 `xxmu_` 前缀」：扫前缀看着省事，但哪天有人加了新键（尤其哪个平台的 token），它会自动进备份文件，而备份文件是会被发到群里、发到网盘、发到别人手机上的。白名单每加一个键都要人想一次「这个能不能给出去」，这个摩擦是有用的。
+- `/* @testable:buildBackup */ buildBackup(now, read)`：`read` 可注入（测试用），每键单独 try/catch——一个键读崩了不该让整份备份生不出来；`SECRET` 在循环里再挡一次（双保险，防止哪天有人把敏感键误加进 `PICK`）；空串跳过不占位；另外用 `Host.cachedSchedule()` / `Host.cachedHomework()` 把两个原生缓存文件原文也带上。
+- `/* @testable:countOf */ countOf(data)` 与 `/* @testable:summary */ summary(b)`：「可导出：3 条待办 · 10 天专注记录 · 3 门成绩 · 2 台饮水机 · 1 条我发的 WIKI」——**先让人看清有什么，再让人决定要不要**。空机写「这台手机上还没有可导出的数据：先登录教务同步一次课表，或者加几条待办再来。」
+- `stamp()` 用本地时间拼 `YYYY-MM-DD HH:mm:ss`，**不用 `toISOString`**：那是 UTC，东八区会显示成早上五点，用户看着像坏了。
+- `saveFile()` **严格读 `"OK:"` / `"ERR:"` 前缀**再判断成败。这里特意不写 `if (Host.clip(text))` 那种写法——v2.0.0 的 `learnplus.js:139` 就是栽在这上面：`Host.clip` 在 Java 侧是 `public void`，JS 侧恒为 `undefined`，判断永远假，功能靠兜底才没坏，但逻辑是错的。
+- `copyText()` 三级降级：`Host.clip` → `navigator.clipboard.writeText` → 临时 textarea + `execCommand`，**每一级都读结果**，全败时把字符数报出来（「复制不了（文本 4210 字符）。试试「导出为文件」」）。
+- `openPanel()` 复用 `REMINDER.openSettings()` 那套半框范式（`#sh-body` / `#sh-name` / `#sheet` + `parkTools()`），不新开页面。
+- 末尾自启动守卫写 `if (typeof document !== 'undefined' && typeof module === 'undefined')` ——**绝不能写 `!module.exports`**，v2.0.0 的 learnplus 就是那样写的，浏览器里 `module` 未定义直接 ReferenceError，而且抛在 try 外面，整个 `init()` 从来没跑过。
+
+Java 侧新增一条桥（`android/src/com/xxmu/helper/MainActivity.java`）：
+
+- `Host.exportText(String name, String content)`（779 行）→ `MainActivity.this.exportTextFile(...)`（145 行）。**必须写在 `class Host` 的花括号里**，写外面就成了 MainActivity 的方法，JS 侧 `typeof Host.exportText === 'function'` 恒假、静默退回（v0.9.3 那三个 HTTP 方法踩过一模一样的坑，注释里留着）。
+- 落盘策略：API 29+ 走 `MediaStore.Downloads` + `RELATIVE_PATH = "Download/河医大助手"` + `IS_PENDING 1→0`——**这条路不需要任何存储权限**，Manifest 里一条都没加。API 24–28 没有 `RELATIVE_PATH`，写公共下载目录要 `WRITE_EXTERNAL_STORAGE`，本工程从不为一次导出让所有用户常驻一条权限，所以退回 `getExternalFilesDir(DIRECTORY_DOWNLOADS)`，面板上写出完整路径。
+- 失败一律 `"ERR:"` + 一句人话（「建不了导出目录」「写文件失败（可能是磁盘满了）」）；系统下载目录写失败但私有目录成功时，返回 `"OK:路径（系统下载目录没写成：…）"`，**半成功也要说清**，不能让人以为文件在下载目录里。
+
+页面与样式：
+
+- `web/index.html`：设置页「数据与更新」卡里，`#rowUpd` 之后、`#resync` 之前插 `#rowExport`「备份与导出 ›」。这两个动作是一对（一个进、一个出），挨着才想得起来。`<script src="export.js">` 排在 `app.js` 之后（`openPanel` 要调 `parkTools`），`nova-organs.js` 之前。
+- `web/app.css` +4 条、`web/nova-skin.css` +7 条双皮肤。经典皮肤里成功**不加绿色**——牛皮纸上再多一种「成功绿」只会更花。
+
+### 实拍抓出来的一处排版问题（产品代码真改了）
+
+第一版面板里「这份备份」那块直接用了 `.row`（`display:flex;justify-content:space-between` + `.row .v{text-align:right}`）。实拍一看：「可导出：3 条待办 · 10 天专注记录 · 3 门成绩 · 2 台饮水机 · 1 条我发的 WIKI」被右对齐折成两截，读起来像两行不相干的字。
+
+改成独立的 `.ex-stat` 卡片：`.ex-cap`「这份备份里有什么」+ `.ex-sum` 让长句左对齐、`line-height:1.55`、数字 `tabular-nums`。骨架类的东西（`.row`）是为「左边名目、右边一个短值」设计的，一句话塞进去必然错位——这条以后遇到「长句进列表」都要先想起来。
+
+### 实拍夹具踩的三个坑（都记下来）
+
+`design/sketch/_shot_export.js`，出四张 390 宽、**高度随内容**的图（372 / 372 / 408 / 408）。
+
+1. 第一版想「藏掉设置页只留面板」，写 `#app{display:none}` → **整张图全白**。原因：`#sheet` 是 `#app` 的子节点（`index.html:1168`），不是兄弟。藏父等于藏子。
+2. 第二版改 `visibility:hidden` + `#sheet{visibility:visible}` → 面板出来了，但上边留了 570px 空白（`#app` 的 padding 和 min-height 还在）。
+3. 定案：`#app` 归零（height/padding/margin/border/background/overflow 全清）+ `#app > *:not(#sheet){display:none}` + `#sheet` 从 `fixed` 改 `static`、去 `backdrop-filter`、`max-height:none`。这样面板就是一张普通文档流里的卡。
+4. 截图高度改成自适应：注入的脚本在 260ms 后读 `#sheet .sh-box` 的 `getBoundingClientRect().bottom`，写进 `data-shot-h`；外层先用 `--dump-dom` 跑一次拿到这个值，再决定 `--window-size` 的高。**不要为了省事把这段 JS 拼进字符串**——拼错一层闭包，它会被当纯文本渲染到页面上（第一版图上就出现过一行 `setTimeout(function(){ try { var box = ...`）。
+
+### 测试
+
+新增 `tools/test_export.js` → **72 项全过**。8 组：白名单形状与 12 条敏感键不在 `PICK`；`PICK ∩ SECRET` 必须为空；`buildBackup(FIXED, reader(store))` 的形状与 counts；**敏感值绝不出现**（连「把敏感键临时塞进 PICK」都要被 `SECRET` 挡住）；读坏的键进 `skipped`（`ok:false` 与抛异常两条都测）；空机说人话；`summary` / `fileName` / `stamp` / `stampFile` 精确值；源码纪律。
+
+第八组有一个反复踩的坑：**源码纪律断言必须先剥注释再判**。文件头注释里正在解释「绝不能写 `!module.exports`」「不要用 `toISOString`」「不要写 `window.APP_VERSION`」，直接 `indexOf` 会把说明文字判成违规。这已经是第三次（v2.1.0 的 `check_apk_inside`、v2.5.0 的 `check_web` 各一次）。
+
+`tools/check_web.js` 新增 v2.5.0 段 21 条；`tools/check_apk_inside.py` 新增一段（`assets/export.js bytes = 18873`、dex 里真有 `exportText` 桥与 `MediaStore` 写入）。
+
+### 门禁（全绿）
+
+`check_web` PASS（含 v2.5.0 段 21 条 + 备份导出离线测试 PASS）；`check_notes` 7 项 PASS（`apk/v2.5.0.notes.txt` 821 字八条）；`check_tutorial` 39 项 PASS（`TUT_CONTENT_VER` 7→8、契约 `version` 7→8、新增 feature `exportdata`）；`check_skin` 55 passed；`verify_apk` 五件套 PASS；`check_apk_inside` 全 True；`tools/test_*.js` **46 套全过**（45→46）。
+
+### 出包
+
+`python tools/bump_ver.py 2.5.0 2500` 三处同步 → `apk/xxmu-helper-v2.5.0.apk` **1044858 字节** `c7c724d95b98…`，`assets 已同步 (53 个文件)`（50→53），签名证书 SHA-256 `0e684845…7799` 不变，可直接覆盖升级。
+
+### 没有做的事（有意的）
+
+- **没有导入**。只有导出、没有还原，是半套。真要做导入要处理「合并还是覆盖」「旧版本备份字段不认识怎么办」「导入的成绩要不要覆盖手输的」三个冲突问题，每一个都能做出错数据。先把出口打通，入口等有人真的换手机了再说。
+- **没有云**。这份备份是一份文件，存哪由用户决定（发给自己、放进网盘、拷到电脑）。App 不碰任何服务器，导出过程零网络请求——`check_web` 里专门有一条断言 `export.js` 里不许出现 `fetch` / `XMLHttpRequest`。
+- **没有把课表缓存格式当协议**。`schedule_cache` / `homework_cache` 原样带出来，但备份的 `FORMAT` 只管 pref 那一层；缓存格式变了不影响备份能不能读。
+
+### 真机待看
+
+1. Android 10 及以上点「导出为文件」，手机「文件」App 里能不能在「下载 / 河医大助手」下找到那个 JSON。
+2. Android 9 及以下有没有真的退到私有目录、面板上那条完整路径能不能照着找到文件。
+3. 导出成功后面板是不是只显示一行路径、按钮没有卡在禁用态。
+4. 断网时导出是否照样成功（应当照样成功，全程不发请求）。
+5. 复制成文本在真机上粘到微信/备忘录，中文与换行是否完整。
+6. 换一台手机按这份 JSON 手工核对：待办条数、专注天数、成绩门数对不对得上。
+
+### v2.4.0（2026-11-21）—— 专注计时下面多一排柱子：最近 14 天你到底学了多少（**本地包 2.4.0 / 2400，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：用户原话「别一项一项做，把你能想到的有用的东西，有提升的东西都做出来，一直做就行」。这是四档构想之外的**第五块真空**里的第一件——`web/focus.js` 从 v0.x 起就把每次专注按天累进 `state.log['YYYY-MM-DD']`，保留 90 天，但**全库没有一处界面读过这个 log**：`stats()` 只吐「今日 / 本周」两个数，那 13 天就白记了。
+
+### 改了什么
+
+`web/focus.js`（504 → 618 行）
+
+- 加 `const HIST_DAYS = 14;`（柱状图显示最近多少天；14 天两周一屏刚好）。
+- 加 `dayBase(iso)`：把 `'YYYY-MM-DD'` 解析成本地零点 Date，解析不出来退回今天。用本地零点而不是 `new Date(iso)`，因为后者按 UTC 解析，东八区会整体偏一天。
+- 三个带 `/* @testable:xxx */` 标记的纯函数：
+  - `histo(log, n, endIso)` → 最近 cnt 天 `[{key, min, level}]`，**按时间正序**。`level` 按**窗口内最大值**归一（`Math.min(4, 1 + Math.floor(x.min / max * 4))`），0 分钟恒为 0。窗口参数夹取：`const want = Math.round(Number(n)); const cnt = Number.isFinite(want) ? Math.max(1, Math.min(MAX_LOG_DAYS, want)) : 14;`。
+  - `streak(log, endIso)` → 连续天数。**今天还没开始不算断**（`if (i === 0) continue;`）——昨晚学了、今晚十点还没坐下，不该显示「连续 0 天」。
+  - `peakOf(log, n, endIso)` → 窗口内最大的一天 `{key, min}`，空时 `{key:'', min:0}`。
+- `paintHisto(state)`：往 `#focusHisto` 里画 14 根 `<i class="fh-bar fh-lN">`，`title` 写「日期　N 分钟」；高度按本窗口最大值归一、最低 12%；**0 分钟那天改 class `fh-bar fh-zero`、height 0 加一条 2px 细线**，不是空白。`#focusHint` 写「最近 14 天专注 N 分钟 · M 天有记录」，连续两天以上再追加「连续 K 天」。
+- `paint()` 里接上 `paintHisto(state)`；导出加 `histo, streak, peakOf, paintHisto, HIST_DAYS`。
+
+`web/index.html` +2 行（`#focusStat` 之后）：`<div class="focus-histo" id="focusHisto" aria-hidden="true">` + `<div class="focus-hint" id="focusHint">`。
+
+`web/app.css` +12 行、`web/nova-skin.css` +22 行：两套皮肤的柱子。经典档是铅笔柱（`--accent` 按 level 调透明度 .34/.52/.72/.95）；NOVA 档是 HUD 迷你频谱（主色 + 四档透明度，深色档走 `--n-cyan`，而该令牌在深色档已被重定义成 `#9E8CFF`，所以深色档是紫罗兰 —— 见下面「一个不是 bug 的颜色」）。
+
+### 测试：先抓住一个真 bug
+
+新建 `tools/test_focuslog.js`（7 组 46 项）。做法与 `test_nowline.js` / `test_hwremind.js` 一致：`cut(src, name)` 按花括号配平切真函数 + `vm.createContext`，并把 `todayIso` 的函数体开头替换成 `if (!d) d = new Date(2026, 10, 21, 15, 30, 0);` 来钉死「今天」，否则断言会随跑测试的那天漂移。
+
+首轮 39 pass / 5 fail，其中**只有一条是产品 bug**：
+
+```
+✗ 4.4 n=0 夹到 1 条  →  got 14
+```
+
+`histo` 原来写 `Math.round(Number(n) || 14)`，n=0 时 `0 || 14` 得 14，于是「只要 1 天」会被当成「要 14 天」。改成先 `Number.isFinite` 判定再夹取。这条只在传 0 时出现，线上永远传 `HIST_DAYS`，属于测试才打得出来的边界。
+
+另外四条是我自己断言写错，产品没动：`peakOf` 取的是**窗口内**最大，我按「全库最大」写期望（14 天窗口从 11-08 起，所以 11-10 的 200 分钟就是正确答案；7 天窗口从 11-15 起，答案该是 11-18 的 95）；`7.5` 断言写成 `/histo:\s*histo/`，但导出表是短属性名 `histo, streak, peakOf, paintHisto,`。
+
+### 一个不是 bug 的颜色
+
+第一次看 NOVA 深色档截图，柱子是紫的，我以为 `html[data-skin="nova"][data-theme="dark"] .fh-bar{background:var(--n-cyan)}` 没生效。查下来 `web/nova-skin.css:419-420` 写着：
+
+```css
+/* 紫色升为主光：深色档的 cyan 变成紫罗兰青 */
+--n-cyan:#9E8CFF;  --n-coral:#FF6E8F;
+```
+
+也就是深色档的 `--n-cyan` 本身就是紫色。这是皮肤既有口径（同一令牌在深色档跟着片子换色相），不是写错。我把注释改成说明这件事，代码不动。
+
+### 实拍抓到的真问题：`.focus-face::after` 刻度压字
+
+出图后放大一看，提示文字下面浮着一排小竖线，紧贴着「连续 5 天」。
+
+用四步把它指认出来，没有靠猜：
+
+1. `_diag_focus.js` 量盒子 → `hist=593,42 | hint=643,14`，柱状图高 42、文字高 14，两者不重叠，所以不是布局挤。
+2. `_diag_focus2.js` 逐个报 `.focus-face` 的子节点 → `focusPhase@490h12 / focusTime@514h47 / focusStat@567h12 / focusHisto@593h42 / focusHint@643h14`，到 656 就结束了。
+3. `_diag_focus3.js` 沿 `elementsFromPoint(60, y)` 每 2px 走一遍 → 644–656 是 `DIV.focus-hint`，656–668 是同属 `DIV.focus-face` 的空白。**刻度不在任何真实元素里。**
+4. `_diag_focus4.js` 问每个祖先的 `::before` / `::after` 的 `content` → `.focus-face::after{content:""; background:repeating-linear-gradient(90deg, rgba(234,246,250,.28) 0 1px, transparent 1px 9px); height:6px}`。找到了，在 `web/nova-organs.css:1129`。
+
+那条刻度尺（「专注仪表」的量程刻度，`position:absolute;bottom:6px;height:6px`）原本压在 `#focusStat` 下面的空白里。我把柱状图塞进 `.focus-face` 之后，面变高、`#focusHint` 成了面内最后一行，刻度正好落在字底下。**这是我这次改动引入的视觉冲突，不是既有 bug。**
+
+修法：`web/nova-organs.css` 的 `html[data-skin="nova"] .focus-face` 底部留白 `10px → 26px`，把刻度留在面板底部的空白里，语义仍是「仪表量程」。
+
+### 「测试没发现字段名错」的同类风险，这次提前堵了
+
+v2.3.0 踩过 `room` / `name` 字段名，测试和产品一起错还全绿。这次 `histo` 的入参就是 `state.log` 本身（`{ 'YYYY-MM-DD': 分钟 }`），形状由 `merge()` 的 `/^\d{4}-\d{2}-\d{2}$/` 正则唯一决定，没有第二个字段名可错；测试里的 log 也直接写成那个形状，不再另造一层。
+
+### 门禁
+
+- `node tools/check_web.js` → `[PASS] 静态体检全部通过`（新增 v2.4.0 段 10 条，含「histo 体内不许 localStorage」「paintHisto 要接收 state」，末尾 spawn 跑离线测试并打印 `专注记录离线测试 = PASS`）
+- `node tools/check_notes.js` → `[PASS] 发版说明 7 项全过`
+- `node tools/check_tutorial.js` → `[PASS] 教程契约 39 项全过`（`TUT_CONTENT_VER` 6→7、`TUT_FEATURES` 加 `focuslog`、契约表 `version` 6→7）
+- `node tools/check_skin.js` → `check_skin: 55 passed, 0 failed → PASS`
+- `python -X utf8 tools/verify_apk.py` → `[PASS] 五件套全部通过`
+- `python -X utf8 tools/check_apk_inside.py` → 全 True（`assets/focus.js bytes = 21855`，`has histo/streak/peakOf/paintHisto`、`HIST_DAYS is 14`、`paints into #focusHisto`、`keeps zero-day baseline` 全 True）
+- `tools/test_*.js` → **45 套 pass=45 fail=0**（44→45）
+
+出包：`python -X utf8 tools\bump_ver.py 2.4.0 2400` → `python -X utf8 tools\build_apk.py` → `apk/xxmu-helper-v2.4.0.apk` **1036604 字节**，签名证书 SHA-256 `0e684845…7799`（可覆盖升级）。**未上线**：`cfg.latest` 一个字没动，线上仍 1.1.97 / 1197。
+
+### 四档实拍
+
+`design/sketch/_shot_focuslog.js` → `v240-focus-{nova,classic}-{light,dark}.png`（各 390×900），`design/sketch/_sheet_focuslog.py` 拼成 `_v240_focus_overview.png`（1610×944）。
+
+图上真渲染：`25:00` / `今日 70 分钟 · 本周 310 分钟` / 14 根柱子（含两根贴底细线，对应两个 0 分钟的日子）/ `最近 14 天专注 595 分钟 · 12 天有记录 · 连续 5 天`。595 = 种子数据的实际和，不是编的。
+
+**专注卡在 `#toolPark` 里**（`display:none` 的停车场），只有 `openToolCard('focusCard')` 会把它搬进 `.sh-box` 并触发 `FOCUS.paint()`（`web/app.js:2794`、`2813`）。实拍夹具必须调那个函数，不能原地去掉 `display:none` —— 原地去掉的话卡片会以 tab 内联样式渲染，跟真机上半框的观感完全两回事。这条写进夹具注释，免得下次又试错。
+
+### 真机待看
+
+1. 真机上专注满 25 分钟后，柱子是否立刻长高一格（`addLog` → `save` → `paint` 这条链在 `FOCUS.pause()` 里）。
+2. 换手机/清数据后柱子是否全变成贴底细线（`state.log` 只在本机，不跟着账号走 —— 这是有意的）。
+3. 90 天滚动之后最早的柱子是否正常退出（`addLog` 里裁切；短期内看不出来，属于长期观察项）。
+4. NOVA 深色档柱子是紫色 —— 这是 `--n-cyan` 在该档的定义，不是显示异常，验收时不要当 bug 报。
+5. `.focus-face` 底部现在多留 16px 空白，真机上量程刻度是否仍稳稳落在面板底部（改之前它压在字上）。
+
+---
+
+### v2.3.0（2026-11-21）—— 课表顶上多一行「现在」：正在上什么、还剩几分钟下课、这一节哪几间教室空着（**本地包 2.3.0 / 2300，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：用户原话「别一项一项做，把你能想到的有用的东西，有提升的东西都做出来，一直做就行」。这是四档构想里的**档 B**。
+
+### 为什么是这一行
+
+课表页原来的第一屏是：一行状态条、然后就是那个 16×7 的网格。想知道「现在上什么」得自己拿当前钟点去数格子，还得记得今天是周几。这不是难，是**每次都要重算一遍**，一天重算十几次。
+
+而「现在」这个问题的答案，全部已经在内存里了：`blocksOf(day, week)` 早就把当天该上的课算成分块（连堂合并、重叠占位都处理过），`TIMES` 有每一节的上下课钟点，`KFREE.state()` 有教务那份教室占用矩阵。**数据齐、就是不给人看。**
+
+### 新增 `web/nowline.js`（11390 字节）
+
+`const NOWLINE = (() => { ... })();`，导出 `{ init, paint, nowInfo, roomNow, roomsText, parseSeg, currentPeriod, fmtHM }`。三个纯函数带 `/* @testable:xxx */ ... /* @end */` 供测试切片：
+
+- `parseSeg(seg)` —— `'08:00~08:45'` → `{s:480, e:525}`（分钟数）。分隔符认 `~ - ～ – —` 五种（教务后台导出的分隔符历史上变过）。终点不晚于起点、或超出 0~1440，一律 `null`。
+- `nowInfo(blocks, times, nowMin)` —— 返回 `{has, cur, next, unknown, over}`。三条规矩：
+  1. **连堂块的下课时间取最后一节的**。`periods:[1,2,3]` 合并成一块，不能拿第 1 节的 `08:45` 说「还剩 5 分钟下课」。
+  2. **课间那 10 分钟仍算在这一块里**（`nowMin < e` 而非 `<= s` 之类）。学生体感是「还在上这门课，中间歇一会儿」，说成「已下课」会被当成 bug 报上来。
+  3. **任一节读不到钟点就 `unknown = true`，且永不判 `over`**。宁可写「今天的课钟点还没同步」，也不猜「今天的课上完了」。
+- `roomNow(rooms, day, p)` —— 数这一节哪几间空。**故意不给「空」兜底**：某间教室 `g[String(p)]` 这一行不存在（教务只给了部分节次）算 `unknown`，不算空。`free` 按座位数降序 —— 大教室先出现，学生要的是「能坐下」。
+- `roomsText(r, p)` —— 四句话：`还没查过（点右边按钮查）` / `这一节的教室数据教务没给` / `第 N 节全被占了` / `A101、B202 等 N 间`（≤3 间全列，多了写「等 N 间」）。
+- `currentPeriod(times, nowMin)` —— 按钟点反查现在第几节。课间停在上完那一节；没到第一节返回 0。
+- `paint()` —— 画面四态：`now`（正在上，主色点 + 竖痕）/ `next`（下一节几点）/ `warn`（数据读不到）/ `''`（没课）。无课时写「今天没有课」，全上完写「今天的课上完了」，钟点缺写「今天的课钟点还没同步」。
+- `init()` —— 绑 `#nowFree`（→ `KFREE.open()`）、画一次、排下一次、监听 `visibilitychange`，并且**包一层 `window.__onResume` 保留原回调**（不覆盖 v1.1.81 那个自动刷新的钩子）。
+- `schedule()` —— **递归 `setTimeout` 60 秒**，不是 `setInterval`。`document.hidden` 或 `CUR_TAB !== 'kb'` 就**不排下一次** —— 切到别的页、App 在后台，这个定时器就该停，没必要每分钟唤醒一次 WebView。`tools/check_web.js` 里有反向断言盯着这两条（`/setInterval\s*\(/` 和 `/(fetch|XMLHttpRequest|Host\.http)\s*\(/` 一出现就红）。
+
+### `web/index.html` 两处
+
+1. `#tab-kb` 里、`#kbBar` 之后 `#grid` 之前插 `#nowLine`：`.nl-top`（`.nl-dot` + `#nowMain`）、`#nowSub`（`hidden` 控制）、`.nl-rooms`（`#nowRooms` + `#nowFree`「查空教室」）。放在网格上方而不是并进 `#kbBar` —— 那条是「有没有数据」的状态条，语义不同，混在一起以后谁都不敢动。
+2. `<script src="nowline.js">` 插在 `learnplus.js` 之后、`nova-organs.js` 之前。它要用 app.js 的 `DATA`/`TIMES`/`PERIODS`/`blocksOf`/`weekOf`/`CUR_TAB`，也要用 free.js 的 `KFREE`。顺序错了就是 `undefined`，不报错、功能静默消失 —— 所以 `check_web.js` 里做了 `idx(app.js) < idx(nowline.js) < idx(free.js)` 的顺序断言。
+
+### 双皮肤样式
+
+`web/app.css` +45 行：`.now-line` 沿用 `.today-line` 那套牛皮纸便签（不等圆角 `5px 2px 6px 3px / 3px 6px 2px 5px`、硬投影 `1.5px 1.5px 0`、左侧 3px 竖痕按 `data-tone` 换色）。
+`web/nova-skin.css` +65 行：白瓷读数条（`--n-surface` + 1px 弱线 + 2px 主色竖痕 + `--n-elev-1`），`#nowMain` 用 `font-variant-numeric: tabular-nums` 让「还剩 25 分钟」换数字时不跳；深色档换玻璃片 `rgba(255,255,255,.05)` + 青色竖痕。
+
+### 两个真 bug（都是我自己写出来、被测试和实拍抓到的）
+
+**① `FREE` 变量名撞车 —— 最阴的一个。** 第一版 `freeRooms()` 里写 `FREE.state()`，抄的是以为的名字。全库有两个像的东西：`web/free.js:1341` 的 `const KFREE`（教务真实矩阵，有 `state()`）和 `web/water.js:31216` 的 `const FREE`（老的「本机按课表估算版」，只有 `allRooms`/`busyRooms`/`compute`，**没有 `state()`**）。后果是 `typeof FREE === 'undefined' || !FREE || !FREE.state` 成立 → 每帧 `catch` 掉返回 `[]` → 界面永远「空教室　还没查过」，**不报错、不崩、永远不出数据**。是 `design/sketch/_dbg_now.js` 把 `document.title` 写成 `SET ERR FREE.state is not a function` 才抓住的。修法：11 处 `FREE` 全改 `KFREE`，并在 `tools/test_nowline.js` 加反向断言 `!/FREE\s*\./.test(SRC)` 与 `!/typeof FREE/.test(SRC)` —— 这类撞名光看代码是看不出来的，只能靠断言钉住。
+
+**② 教室字段名是 `room` 不是 `name`。** `roomNow()` 原本读 `r.name` 拼名单，但 `web/free.js:204` 的 `parseMatrix()` 产出的是 `{ room, type, seats, g, bang }`。真机上每间教室 `name` 都是空串 → 永远显示「空教室　N 间」而说不出是哪几间。**而我的 62 项测试因为夹具也用了 `name` 而全绿** —— 测试和产品一起错了同一个字段名。修法：`name: (r && (r.room || r.name)) || ''`，两个都认（防以后有人改回 `name`），并在测试里补两条用 `room` 字段的断言（64 项）。
+
+### 一条被确认为「产品更对」的测试红
+
+`tools/test_nowline.js` 第一轮 11 项失败，全部是我自己断言写错、**产品代码一行没改**：课间该不该算在块内、`room.g['3']` 的下标是周几、`roomsText` 的入参是 `roomNow` 的产物、`currentPeriod` 的边界、以及自启动守卫那两条 —— 对原文直接 `indexOf` 会把注释里「不要写 `!module.exports`」也数进去，必须先剥注释再判。同类坑此前在 `check_apk_inside.py`（waterwatch 段）踩过一次。
+
+另外 `tools/test_remind_modes.js` 有两条 v2.2.0 遗留的红：断言钉死了单行 `MODE_ALARM.equals(mode) ? CHANNEL_ALARM : CHANNEL_SILENT`，而 v2.2.0 已经把四分通道抽成 `final boolean loud = MODE_ALARM.equals(mode)` + `chId` 三元。改成断言 `loud` 变量 + `new Notification.Builder(context, chId)`（建 channel 与用 channel 同源，这才是要保的性质）。
+
+### 门禁
+
+- `node tools/test_nowline.js` → **64 项全过**
+- `tools/test_*.js` 共 **44 套**，`pass=44 fail=0`
+- `check_web.js` `[PASS]`（v2.3.0 段 15 条 + `现在一屏离线测试 = PASS`）
+- `check_notes.js` 7 项 `[PASS]`；`check_tutorial.js` 39 项 `[PASS]`（契约 version 5→6、`TUT_CONTENT_VER` 5→6、新增 `nowline` feature）
+- `check_skin.js` 55 passed；`verify_apk.py` 五件套 `[PASS]`；`check_apk_inside.py` 全 True（`assets/nowline.js = 11390`）
+- `apk/xxmu-helper-v2.3.0.apk` **1032508 字节**，签名证书 SHA-256 `0e684845...7799` 与历史一致（可覆盖升级）
+
+### 四档实拍
+
+`design/sketch/_shot_nowline.js` + `_sheet_nowline.py`，390×900 × 四档拼成 `_v230_nowline_overview.png`（1610×944）。图上真渲染：`● 系统解剖学 · A201` / `还剩 25 分钟下课` / `空教室　3401、3301` / 右侧「查空教室」，网格里同时能看到周五第 3 节那门课。
+
+实拍踩到的两件事：
+1. **必须冻结时钟**。不冻结的话深夜跑图出来是「今天的课上完了」，看着像 bug 其实是当下真的没课。`CLOCK` 段在 App 脚本之前替换 `window.Date`，钉在 09:50。
+2. **`FakeDate` 的七参 spread 会造出 Invalid Date**。第一版写 `super(a[0],a[1],...,a[6])`，于是 `new Date(2026,10,16)` 后面五个是 `undefined` → `mondayOf()` 拿到 Invalid Date → 周次条显示「第 1 周　NaN/NaN - NaN/NaN」。改成 `if (a.length === 0) super(T); else super(...a);` —— 与 `test_hwremind.js` 那次「夹具吃掉参数」是同族 bug，方向相反（那次吞参数，这次补了多余参数）。
+3. 空教室矩阵要按「今天」算：写死 `[1,1,1,0,1,1,1]`（周四空）在别的星期跑就变成「第 3 节全被占了」。改成运行时用 `(getDay()+6)%7` 决定哪一格置 0。
+
+### 真机待看
+
+1. 钟点真的走起来：等到下课那一刻，那行是否从「还剩 1 分钟」变成下一节 / 「今天的课上完了」。
+2. 课间那 10 分钟是否仍显示正在上（这是有意的设计，不是漏判）。
+3. 切到别的页再回来，是否立刻对时（`visibilitychange` + `__onResume` 两条路）。
+4. 教务数据没同步时是否写「今天的课钟点还没同步」而不是「今天没有课」。
+5. 「查空教室」点进去是不是教务真实矩阵（而不是老的本机估算）。
+6. 后台放半小时回来，那一行的时间是否立刻正确（而不是停在半小时前）。
+
+### v2.2.0（2026-11-21）—— 截止哨兵：作业快到截止、考试快到开考时各来一条通知（**本地包 2.2.0 / 2200，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：用户原话「推进呀，把能更新的地方都更新，ui设计，新功能什么的都搞起来」。这是「值得加的功能」四档构想里的**档 A**。
+
+先说清楚它原来为什么一条都没有：`web/reminder.js` 的 `build()` 从头到尾只遍历 `DATA.courses`（课程表），产出的每一条都是「X 分钟后上课」。而作业清单里明明有 `end`（截止时刻）、考试有 `start`/`end`，`data/homework.json` 里连 `left_hours` 都算好了 —— **数据齐、通道齐（响铃/静默/短信草稿三档 v1.1.x 就在），就是没人把这两头接起来**。学生最容易忘的两件事，一件一直在提醒，另一件一条提醒都没有。
+
+设计上定了一条：**课程提醒和作业提醒分成两个独立开关**。理由不是洁癖 —— 课表是每周固定的、作业是这周才三门，一个总开关会逼人在「关掉天天响的上课提醒」和「不要作业提醒」之间二选一。同时**作业截止默认关**（`KEY_HW` 不写入即视为关）：老用户升级后不该凭空多出一条他从没开过的提醒；要的人自己在设置里打勾。
+
+改动 `web/reminder.js`（主体，+约 260 行）：
+
+- 新常量：`KEY_HW = 'xxmu_remind_hw'`、`KEY_HW_LEAD = 'xxmu_remind_hw_lead'`、`KEY_EXAM_LEAD = 'xxmu_remind_exam_lead'`；`HW_LEADS = [3, 6, 12, 24, 48]`（小时）、`EXAM_LEADS = [1, 3, 6, 12, 24]`；默认作业 12 小时、考试 6 小时（作业怕忘、考试怕起晚，提前量不该一样）。
+- `hwOn() / hwLead() / examLead()`：三个纯函数，脏值（空串、负数、不在档位里）一律回落默认，不抛。
+- `buildHw()`：读 `window.__HWITEMS`（**v2.0.0 起 `renderHomework()` 就把算好的条目挂这里了，口径只有一处，不再自己解析原始 JSON**）。三条**不提醒**：`x.expired === true`、`x.left != null && x.left < 0`、`isDoneStatus(x.status)`。考试取 `raw.start || raw.end`、作业取 `raw.end`，**解析不出来就整条 return**（宁可不提醒，也不提醒一个猜的时间）。`at = dueMs - lead`，若 `at` 已过但现在还没到期，则**立刻补一条**（`at = now + 30 秒` 的 `GRACE`），保证「已经进入提前量窗口」的那几条不会静默消失。产出 `{at, name, room: course, mins, mode, due, kind}` —— `kind` 是这一版新加的字段，Java 侧靠它决定标题和去处。
+- `build()` 里给课程条目补 `kind:'class'`、`due`；新增 `buildAll()` = 课程 + 作业合并后按 `at` 排序。`apply()` 改用 `buildAll()`，并**去掉了原来的 `if (!on()) return 0;` 提前退出**（否则只开作业提醒、关掉上课提醒的人一条都挂不上），toast 文案改成「已设置 N 个提醒（课程 C · 作业 H）」。
+- `openSettings()` 里新增一整块：`#rmHwSw` 开关、`#rmHwLead`（截止前 N 小时）、`#rmExamLead`（开考前 N 小时）、`#rmHwHint`（写「现在有 N 件还没做完的作业/考试会按上面的时间提醒。已交的和已过截止的不提醒；读不到时间的那条也不提醒。」，N 由 `window.__HWITEMS` 现场数）、`#rmHwPreview`（「试一下作业提醒」）。关掉作业开关时两个下拉置灰（`opacity:.45` + `disabled`），但仍可见 —— 隐藏会让人以为这功能不存在。
+- `paint()` 改成两行：`#remindStat` 只说课程、`#remindHwStat` 只说作业（「截止前 12 小时 · 考前 6 小时」）。
+- `refresh()` 改成同一 tick 合流：`renderHomework()` 每刷一次都会喊它，不去重就会在 200 条闹钟上限上反复全撤全挂。
+
+改动 `web/app.js`（两处）：
+
+- `renderHomework()` 末尾补 `REMINDER.refresh()`（`typeof REMINDER !== 'undefined'` 守卫）。理由：后台 `autoSync` 刷出新作业时，闹钟也得按新数据重挂，否则新作业要等下次开 App 才有提醒。
+- 新增启动 IIFE `applyLaunchTab()`：读 `Host.getPref('xxmu_launch_tab')`、**读后立刻清空**、只认 `'learn'` 才 `switchTab('learn')`。这是给「点通知直接进学习页」用的，一次性投递，用户下次正常打开不会被莫名其妙拽到学习页。
+
+改动 `web/index.html`（+3）：`#remindCard` 标题「课程提醒」→「提醒」，第一行 label「状态」→「上课」，新增第二行 `#remindHwRow` + `#remindHwStat`。两件事都是「到点提醒我」，分成两张卡只会让人以为要分别去两个地方设。
+
+改动 Java 侧（这是这一版真正的工作量所在）：
+
+- `ReminderScheduler.java`：`schedule()` 里给 Intent 补 `putExtra("kind", …)` 与 `putExtra("due", …)`。原来的 Intent 只带 name/room/mins/mode，Receiver 根本分不清来的是课还是作业。
+- `ReminderReceiver.java`：新增 `CHANNEL_TASK = "xxmu_task_reminder"` / `CHANNEL_TASK_SILENT`、`KIND_CLASS/KIND_HW/KIND_EXAM`、`normKind()`；`show()` 拆成 5 参重载（转调）+ 7 参新版，**通道按「上课 / 作业任务」×「响铃 / 静默」四分** —— 学生可能想让上课响铃、作业只静默，一个通道做不到。标题文案：上课仍是「N 分钟后上课」，作业是「还有 12 小时截止」/「截止时间到了」，考试是「6 小时后开考」/「开考时间到了」；`due` 缺失时退回用 `mins` 并加「约」字。通知 id 从「当前毫秒 mod MAX_INT」改成 `(isClass ? 10000 : 20000) + now % 10000`，否则同一毫秒挂的两条会互相覆盖。非课程的那条点进去带 `xxmu_tab=learn`。
+- `MainActivity.java`：`Host` 桥新增 `previewTaskReminder(kind, name, course)`。**没有复用 `previewReminder`**，因为那版没有 `kind`，拿它预览作业会弹出「15 分钟后上课」——预览就是给人确认文案的，文案错了不如不给。`onCreate` 在 `setContentView(web)` 之后把 `getIntent().getStringExtra("xxmu_tab")` 写进 pref 并 `removeExtra`，避免旋转屏幕时重复触发。
+
+**测试抓到一个夹具 bug（不是产品 bug，但差点被当成产品 bug）**：新建 `tools/test_hwremind.js`（约 300 行，`cut()` 配平切函数 + `vm` 沙箱跑真的 `buildHw()`），第一版 8 项断言集体报错，看起来像 `buildHw` 全崩。查下来是夹具自己的 `FakeDate` 写成了 `function FakeDate(){ return new RealDate(nowMs); }` —— **它把 `new Date('2026-11-21 06:00')` 的参数整个吞掉了**，于是每条的 `due` 都变成「现在」。改成 `class FakeDate extends RealDate { constructor(...a){ if (a.length === 0) super(nowMs); else super(...a); } static now(){ return nowMs; } }` 后 52 项全过。教训：测试夹具吃掉参数，是最容易误判成产品 bug 的一类坑，报错先怀疑夹具。
+
+`tools/check_web.js` 尾部加了 v2.2.0 检查段：正面断言 `#remindHwRow`/`#remindHwStat`/`KEY_HW`/`buildHw()`/`buildAll()`/`kind:`/`due:`/`window.__HWITEMS` 都在；**反向断言** `buildHw` 体内不许出现 `fetch(` / `XMLHttpRequest` / `Host.http`（提醒算在本地，不该在挂闹钟时联网）；Java 侧断言 `CHANNEL_TASK`/`KIND_HW`/`KIND_EXAM`/`normKind(`/`putExtra("kind"`/`putExtra("due"`/`previewTaskReminder` 都在，且课程文案仍是「分钟后上课」；最后 spawn 一次 `tools/test_hwremind.js`。
+- 这里也踩了一次空：本来照 `learnplus.js`/`waterwatch.js` 的样子断言了一句「有自启动守卫」，直接红 —— `reminder.js` **没有**自启动守卫（它一律由 `app.js` 显式 `REMINDER.init()`，因为闹钟要等课表加载完才算得出来）。改成反向断言：文件尾部不许出现顶层 `REMINDER.init(`，且必须以 `})();` 收尾。
+
+教程与契约双写：`web/tut.js` `TUT_CONTENT_VER` 4 → **5**，`TUT_FEATURES` 加 `'hwremind'`，「学习」页整页重写（`since` 2.0.0 → **2.2.0**，body 从 6 条到 8 条，新增「作业那条盯截止、考试那条盯开考，提前量分开设」「已交的、过截止的、时间读不出来的都不催，已经进窗口的会立刻补一条」「作业截止默认关」），`covers` 加 `hwremind`；顺手删掉原来那句「设置里点『试一下当前方式』」——现在是两个试号按钮并列。`docs/handoff/tutorial-contract.json` `version` 4 → **5**，features 加 `hwremind`（since 2.2.0），`mustMention` 加 `"作业截止"`。
+
+门禁：`node --check` 0 失败；`test_*.js` **43 套全过**（42 → 43）；`check_web.js` `[PASS] 静态体检全部通过`（v2.2.0 段全 true）；`check_notes.js` `[PASS] 发版说明 7 项全过`；`check_tutorial.js` `[PASS] 教程契约 39 项全过`（38 → 39，`mustMention` 多了一条）；`check_skin.js` `55 passed, 0 failed`；`verify_apk.py` `[PASS] 五件套全部通过`；`check_apk_inside.py` 全 True。
+
+出包：`apk/xxmu-helper-v2.2.0.apk` **1024253 字节 db27bbd75385…**（`android/build/app-signed.apk` 1000.2 KB，javac 11 源文件 / d8 124 class 1 jar），签名同前（证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`，可覆盖升级），交付目录逐字节校验通过。`apk/v2.2.0.notes.txt` 八条学生视角（约 1300 字）。
+
+**未上线**（线上实读仍 1.1.97 / 1197，cfg.latest 一个字没动）。
+
+四档实拍（`design/sketch/_shot_hwremind.js` + `_sheet_hwremind.py`，读的是**真实 `web/index.html`**）：`shots/v220-remind-nova-light.png` 142568 B / `v220-remind-nova-dark.png` 131077 B / `v220-remind-classic-light.png` 65052 B / `v220-remind-classic-dark.png` 63961 B（学习页提醒卡，390×900，拼成 `_v220_hwremind_overview.png` 1610×944）；`v220-remindset-*` 四张 125843 / 107119 / 64009 / 59180 B（设置面板，390×1240，拼成 `_v220_hwremset_overview.png` 1610×1284）。图上两行真实渲染：「上课　响铃提醒 · 提前 15 分钟」「作业截止　截止前 12 小时 · 考前 6 小时」；设置面板里作业那一段完整（开关、两个提前量下拉、说明、两个试号按钮）。
+
+实拍踩的坑（第一次出图两行都写「未开启」）：
+1. **`REMINDER.paint` 没有导出**。诊断脚本读到的 `pERR` 是 `REMINDER.paint is not a function` —— `function paint()` 是模块内部函数，只在 `init()`/`refresh()` 里被调。夹具改调 `REMINDER.refresh()`（它内部先 `paint()` 再 `apply(true)`）才有值。
+2. **`DATA.courses` 在 stock 数据里是空的**，原来「取 `DATA.courses.slice()` 再改 `weeks`/`day`」的写法等于什么都没做，今日一行恒为「今日无课」。必须自己造课（`DATA.courses = [...]` + 重建 `TIMES` 16 档字符串 + `curWeek` + `renderWeek()`）。补上之后今日一行才显示「11:00　生理学 · B305」。
+3. 造完课今日一行仍然说「今日无课」——因为 `renderWeek()` 只重画课表，今日一行是 `learnplus.js` 自己读 DATA 画的，而它是按启动时的空数据算过一次就不管了。夹具里补一句显式 `LEARNPLUS.paintToday()`。
+4. 老坑复用：headless Edge 的 `--window-size=390` 只定画布不定布局宽，得注入 CSS 钉布局盒；NOVA 的 tape/clip 器官会克隆覆盖层，得 `display:none`。
+
+真机待看：① 设置里打开「作业截止提醒」后回到学习页，那行是否显示「截止前 12 小时 · 考前 6 小时」；② **把某门作业的截止改到 10 分钟内**（或用「试一下作业提醒」），通知文案是否是「还有 N 分钟截止」而不是「N 分钟后上课」；③ 关掉「课前提醒」只留作业那档，作业通知是否照常来（这是 `apply()` 去掉 `if(!on()) return` 的那条）；④ 已交的作业是否确实不催；⑤ 点作业通知是否直接进学习页（`applyLaunchTab`），且第二次正常开 App 不被拽过去；⑥ 作业提醒不勾选时下拉是否置灰但可见。
+
+---
+
+### v2.1.0（2026-11-21）—— 出水看护：按了机器上的停止键，App 自己查到「已经停了」（**本地包 2.1.0 / 2100，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：用户原话「你先做吧，饮水机能不能做个自己检索是否停止，因为软件上点停止有延迟，所以更喜欢按饮水机上的停止按钮。但是软件不会检索是否停止」。
+
+要在先讲清楚这版**没有**改的东西：`goods/water/unlock` 依然只是解锁、不是开阀；结算链路依然不接（v1.1.16 按用户要求整块删掉，`createOrder` 只当协议记录）；用量依然只说「平台结算回报 amount，原样，不换算毫升」。这一版只解决「停没停，App 不知道」。
+
+三个具体的窟窿，正好一条补药：
+
+1. **点「停止」之后那几秒**：`endWater` 只是把命令下发到串口/2G 通道，机器真停阀要几秒，原来只有 sheet 里一行「等机器停阀…第 N 次」，关掉 sheet 就什么都没有。
+2. **`watchVolume` 12 分钟上限一到就撒手**（`const MAX = 900`），此后界面归零，人若不盯着，机器到底停没停无从得知。
+3. **`RUNNING` 只存内存**（`web/app.js` 的 `let RUNNING = {}`，注释写着「只存内存，重启 App 后回到『放水』」）——App 一被杀，回来看到「放水」两个字，人以为还在出水，其实可能早停了；反过来也可能已经出水而界面不知道。
+
+新增 `web/waterwatch.js`（**425 行**，IIFE，导出 `{init, arm, disarm, disarmDev, has, list, pollOnce, kick, setBusy, paint, onEnd, K_LIVE, GAP, HIDDEN_GAP, NO_FLOW_MS, STALE_MS}`）：
+
+- 持久化键 `K_LIVE = 'xxmu_water_live'`，形状 `{ 'devId:skuId': { dev, devName, sku, name, at } }`，走 `XXMU.pref`（= `Host.getPref/setPref`）——**存本机，所以 App 被杀掉再打开还认得**，这是它和 `RUNNING` 的本质区别。
+- `pollOnce()`：`ticking` 单飞 + 串行 `chain`；`WATER.syncWater(sku)` 读到 status 3/5 → 收掉并 `notifyEnd`；status 6 → 收掉并说「报故障」；其它只写 `lastState`。**catch 只记 `err`，绝不因此判「已停」** —— 这是这块功能最容易做错、也最伤人的地方。
+- 节流：`GAP = 8000`（前台）/ `HIDDEN_GAP = 30000`（后台，看 `document.hidden`）；`busy` 为真时直接让 `watchVolume` 独占，不打双份接口。
+- `NO_FLOW_MS = 3 * 60 * 1000`：解锁了但一直没出水（status 1/4 且超 3 分钟）就改文案提示「去机器上按一下出水键」，不是干等。
+- `STALE_MS = 30 * 60 * 1000`：认了半小时还没结论就放弃看护（`notifyGiveUp`，**不弹 toast**，免得人误以为发生了大事），把记录清掉、按钮回到「放水」。
+- `init()`：`visibilitychange`（hidden 换长间隔、可见立刻 `kick()`）、`online` 补查、**包一层 `window.__onResume` 而不覆盖**（app.js 的自动同步也要跑，谁都不能把另一个挤掉）。
+- `lineOf()` 五态文案：`● 正在出水（已 N）· 在机器上按停止键，这边会自动跟着变` / `○ 已解锁，等你去机器上按出水键` / `○ 解锁了但一直没出水（已等 N）` / `? 暂时读不到状态，继续试` / `· 状态 X`。
+- 自启动守卫写 `if (typeof module === 'undefined' && typeof window !== 'undefined')` —— 直接沿用 v2.0.0 那个教训的正确写法（`!module.exports` 在浏览器里必抛，而且抛在 `try` 外面）。
+
+改动 `web/app.js`（六处，全部用 `typeof WATERWATCH !== 'undefined'` 守卫，退化成旧行为也不报错）：
+
+- 新增 `runningOf(dev, fn)`：先查内存 `RUNNING`，再查 `WATERWATCH.has(dev.id, fn.id)`；`renderDevs()` 里三处按钮态判断全改成它 —— **这样「放水/停止」两态不再只依赖内存表**。
+- `startWater` 解锁成功、写 `RUNNING` 之后立刻 `WATERWATCH.arm(dev, usedFn)`；`stopWater` 与 `startWater` 的 `pending` / 网络断 / 停止命令发不出去三个分支都保留/补上 `arm(dev, fn)`，文案统一补一句「这边会继续在后台盯着，一停就告诉你」；成功与故障分支 `disarm`。
+- 进出 sheet 时 `setBusy(true/false)`；「移除」按钮 `disarmDev(dev.id)`；退出胖乖账号 `disarmDev()` 全清（token 没了继续轮询只会报「登录过期」）。
+- `CampusUI.init(); CampusUI.refresh();` 之后挂 `WATERWATCH.onEnd(() => CampusUI.renderDevs())` + `WATERWATCH.init()`；**顺序必须在 CampusUI 之后**（它要读 `WATER.loadDevs()`），`onEnd` 只重画列表、不碰 sheet。
+
+改动 `web/index.html`（+2）：`#waterDevCard` 说明段之后插 `<div id="waterLive" class="water-live" style="display:none">`；`waterwatch.js` 排在 `water.js` 之后、`mytodo.js` 之前（**必须在 app.js 之前**——CampusUI 要查它）。
+
+改动 `web/app.css`（+26）与 `web/nova-skin.css`（+48）：两套皮肤各一套。经典是牛皮纸便签（不等圆角 `6px 2px 7px 3px / 3px 7px 2px 6px` + 硬投影 + 虚线分隔），NOVA 是白瓷读数条（左侧主色竖痕 `border-left:2px solid var(--n-accent)` + `tabular-nums`），正在出水那个点有一个 `liveBreath` 呼吸动画，并且带 `prefers-reduced-motion` 关闭。
+
+**测试抓到一个真 bug**：`tools/test_waterwatch.js`（**新建**，约 200 行）第 `[4]` 组断言「amount=0 时如实说平台没给结算量」直接红了 —— `notifyEnd` 的 toast 只在 `amt > 0` 时拼后半句，`amt === 0` 时**整句尾巴都没了**（只有 `pushLine` 那条写全了）。也就是说真机上会遇到「饮水机已经停了：三号楼 · 冷」后面什么都没有，人不知道是平台没给量还是被吞了。修好后 47 项全过。
+
+测试的做法值得记一笔：**不再像 `tools/test_water.js` 那样按花括号配平切单个函数**，而是直接取 IIFE 本体（`src.slice(0, src.indexOf('})();') + 5)`）整段塞进 `vm`，沙箱只给假 `XXMU`（`pref` 走 store、`toast` 收进数组）与假 `WATER`（`syncWater` 按 routes 顺序发）、**不给 `document`/`window`** —— 于是 `paint()` 与 `init()` 自己早退，正好只测逻辑层。13 组 47 项覆盖：登记/注销/`disarmDev()` 无参返 -1 全清、重复 arm 不重置 `at`、status 3 与 5 收掉且 amount 原样带出、status 6 说「报故障」而**不说**「已经停了」、status 1/4 继续看护、网络错**不收掉也不弹提示**只把 err 记进 list、31 分钟前登记则放弃且不弹 toast、`setBusy(true)` 时零请求、单飞跳过、空清单跳过、坏 JSON 当空不抛。
+
+教程与契约双写（**加功能不改教程，`check_tutorial.js` 会红**）：
+
+- `web/tut.js`：`TUT_CONTENT_VER` 3 → **4**；`TUT_FEATURES` 加 `'waterwatch'`；饮水机页整页重写（`since` 1.1.42 → **2.1.0**，`covers` 加 `waterwatch`），**顺手删掉一句从 v1.1.60 起就已经是假的文案**——原文写「想定量就设好水量，到量 App 自动帮你停，不用守着」，而平台在放水途中根本不给实时用量，这句一直在骗人。改成实话：手机上只能解锁和停止，开阀要人在机器边按；按完这边会自己查停没停，读不到就说读不到。
+- `docs/handoff/tutorial-contract.json`：`version` 3 → **4**，features 加 `waterwatch`（since 2.1.0），`mustMention` 里把 `"定量"` 换成 `"出水看护"`。
+
+`tools/check_apk_inside.py` 补一段（这就是 v2.0.0 那次「包里还是旧 learnplus.js」教训的延续）：读 `assets/waterwatch.js` 断言 `const WATERWATCH` / `function pollOnce` / 守卫写法 / `WATER.syncWater` / 「绝不判停」的说明，再断言包里 `index.html` 有 `#waterLive` 且引入了 `waterwatch.js`、`app.css` 与 `nova-skin.css` 都有 `.water-live`、`app.js` 里既有 `WATERWATCH` 也有 `function runningOf`。第一版断言写成「不含 `!module.exports`」，**误报了**——文件头注释里正解释着这个坑，字面上就出现了这个词。改成断言正面写法（`if (typeof module === 'undefined' && typeof window !== 'undefined')`）后 12 项全 True。
+
+门禁：`node --check` 0 失败；`test_*.js` **42 套全过**（41 → 42）；`check_web.js` `[PASS] 静态体检全部通过`；`check_notes.js` `[PASS] 发版说明 7 项全过`；`check_tutorial.js` `[PASS] 教程契约 38 项全过`；`check_skin.js` `55 passed, 0 failed`；`verify_apk.py` `[PASS] 五件套全部通过`；`check_apk_inside.py` 全 True。
+
+出包：`apk/xxmu-helper-v2.1.0.apk` **1020157 字节 fd3d1f7c305d…**（`android/build/app-signed.apk` 996.2 KB），签名同前（证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`，可覆盖升级），交付目录逐字节校验通过。
+
+**未上线**（线上实读仍 1.1.97 / 1197，cfg.latest 一个字没动）。
+
+四档实拍（`design/sketch/_shot_waterlive.js` + `_sheet_waterlive.py`，前者读的是**真实 `web/index.html`**，不是拼出来的假图）：`shots/v210-water-nova-light.png` 132315 B / `v210-water-nova-dark.png` 135796 B / `v210-water-classic-light.png` 114650 B / `v210-water-classic-dark.png` 114369 B，四张拼成 `shots/_v210_water_overview.png` 1610×1282 580236 B。图上 `#waterLive` 两块都真实渲染：`● 三号楼一层饮水机 · 冷 · 正在出水（已 3 分 12 秒）· 在机器上按停止键，这边会自动跟着变` + `○ 图书馆三层饮水机 · 常温 · 解锁了但一直没出水（已等 7 分），去机器上按一下出水键`；按钮态也跟着对（正在出水那口的按钮是「停止·冷」，其余是「放水·热」/「放水」）。
+
+实拍踩的两个坑，下一个做截图的人别再踩：
+1. **NOVA 的 tape/clip 器官会把卡片内容克隆成 fixed 覆盖层**，渲染在上层压住真卡片（第一次出图整页都是克隆体）。`HIDE` 段里补 `#eg-stage,.nv-tape-world,.nv-clip-world,.nv-swipe{display:none!important}`。这一条和 v2.0.0 那次「以为 `#sh-body` 被刷卡器官吃了」是同一类问题的不同表现：器官确实会动 DOM，但真出问题的是它克隆出的覆盖层，不是它 append 进容器的那个节点。
+2. **`--window-size=390` 在 headless Edge 下不生效**：布局仍按 ~492px 排，然后bitmap 裁到 390，右侧整块被切掉（第一版图里卡片右边全被拦腰截断，连「2 台」都只露出「2 台/」）。修法是在注入 CSS 里直接钉布局盒：`html,body{width:390px!important;min-width:390px!important}` + `#app{width:390px!important}`，跟 `make_nova_real.js` 用的是同一招。**只看图不看宽度的人会以为是 CSS 溢出，其实是被裁了。**
+
+真机待看：① 解锁后去机器上按出水键，卡片那行是否从「已解锁，等你按出水键」变成「正在出水（已 N 分）」；② **直接在机器上按停止键**（不点手机），几秒后按钮是否自己变回「放水」、是否弹「饮水机已经停了」——这是这一版的正题；③ 杀进程再打开，那行是不是还在（存本机才成立）；④ 断网时那行是否写「暂时读不到状态，继续试」而**不是**「已停止」；⑤ 结算 amount 出来时是否原样显示、带不带「以胖乖账单为准」的字。
+
+---
+
+### v2.0.0（2026-11-21）—— 「看一眼就走」：今日一行、一键复制未完成、目标绩点反推（**本地包 2.0.0 / 2000，未上线；线上实读仍 1.1.97 / 1197**）
+
+触发：m00252 原话「今天进行一个超级大版本的更新迭代，进化到2.0版本」+ m00528 原话「由你改问题，提功能性建议，ui建议。给我一个比现在效果翻倍的成品」。
+
+三件事的同一个出发点：学习页被打开的次数最多，但每次都只被「看一眼就走」。这一眼要能回答三件事——下节课在哪、还有什么要交、这学期绩点还能不能救。原来这三件都要点进二级页，或者自己拿计算器按。
+
+新增 `web/learnplus.js`（16315 字节，IIFE，导出 `{init, paintToday, paintTarget, todaySummary, undoneText, gpaNeed}`）：
+
+- `todaySummary(blocks, times, items, nowSec)`：三条「不编数据」的硬约束——①只在 `.gh.today` 那一列真存在时才算今日课；②节次钟点只认 `TIMES` 或 DOM 上真写着的，读不到就 `unknown = true`，绝不说「今日课程已结束」；③`at >= nowMin` 才算还没上完，`ended` 只在「有课 + 所有课都有钟点 + 都上完」时才为真。
+- `undoneText(items)`：把未完成条目拼成一段能直接粘到群里/发给同学的纯文本。
+- `gpaNeed(stat, target, remainCredits)`：按 `p = (T*(C+R) - cur*C) / R` 反推剩余学分要考到多少绩点，再折成百分制（`p >= 4 → 90`、`p <= 0 → 0`、否则 `50 + p*10`）。追不上就直接写「已经追不上了，剩余 N 学分全拿 90 分也只有 X」，不粉饰。
+- `patchGrades()` 包一层 `GRADES.open`（判 `GRADES.__lpPatched`），往 `#sh-body` 末尾追加 `#gpaTargetBox`；偏好键 `xxmu_gpa_target` / `xxmu_gpa_remain`。不新开入口——目标绩点是「看成绩时会顺手想算一下」的东西，单独开一页没人去点。
+
+改动 `web/app.js`（+6 行）：`renderHomework()` 末尾挂 `window.__HWITEMS = items;`。这一份才算过 `left` / `expired` / `notStart`；让 learnplus 各自再算一遍就多出一份会和这里走偏的口径。
+
+改动 `web/index.html`（+21/-4）：`.learn-head` 之后插 `#todayLine`（`.tl-top` + `#todayMain` + `#copyUndone` + `#todaySub`）；`<script src="learnplus.js">` 排在 app.js 之后、nova-organs.js 之前。
+
+改动 `web/app.css`（+56）与 `web/nova-skin.css`（+102）：两套皮肤各一套——经典是牛皮纸便签（不等圆角 + 硬投影 + 手写感），NOVA 是白瓷读数条 + 主色竖痕 + 等宽数字。数字全部 `font-variant-numeric: tabular-nums`。
+
+**写的时候被自己的实拍抓到三个真 bug**：
+
+1. **自启动守卫在浏览器里必抛**：原来写 `typeof document !== 'undefined' && !module.exports`。浏览器里没有 `module`，`!module.exports` 直接 ReferenceError，而它在 `try` **外面** → `LEARNPLUS.init()` 在真机上从未执行过（定时器、`renderHomework`/`renderWeek` 的包装全都没挂上）。改成 `typeof module === 'undefined'`。**这一条如果没抓到，2.0 的三个新功能在真机上全是死的。**
+2. **`todaySummary` / `undoneText` 把「明天有一场考试」整条吞掉**：初版对 `x.open === false` 一律 `return`，但 `open = false` 有三种来路（已完成 / 未开考 / 截止已过），只有第三种该被挡住，而它已经由 `expired` 拦下了。改成只留 `expired` + `isDone(status)` 两道过滤。
+3. **`.gt-form label` 把「目标」压成竖排「目/标」**：label 里的裸文本节点作为 flex item 被压到一字一行。改成 `flex: 0 1 auto` + `white-space: nowrap` + `min-width: 0`，输入框 `flex: 1 1 40px`。
+
+测试 `tools/test_learnplus.js`（**新建**，6643 字节）：27 条断言直接 `require` 真代码跑（不切字符串、不 mock DOM），覆盖 `todaySummary` 的三条不编数据约束、`undoneText` 的过滤面（`open=false` 三种来路各一条）、`gpaNeed` 的三段折线与「追不上」判据。全套从 40 套变 **41 套**。
+
+顺带把「账本」这件事也补上（三本账一直是手工维护，才烂成 59 个包没说明）：
+
+- `tools/check_notes.js` 新增 `GATE_FROM = [2,0,0]` + `verOf/cmpVer`：**v2.0.0 起「每个 .apk 必须有同名发版说明」变成硬卡口**；历史缺的 59 个只打印清单、不失败（追不回来了，但不再新增）。
+- `tools/build_apk.py` 新增 `# 8c. 重算账本（v2.0.0 新增）`：出包后自动跑 `tools/state.py` 重写 STATE.md，失败只打印、不中断出包。以前 STATE.md 停在 1.1.59，就是因为出包流程里根本没有这一步。
+- `tools/verify_apk.py` 的 `check_launcher()` 与 `tools/check_web.js` 的图标段都改成「先找 `design/icons/<slug>`，再找 `design/icons_v2/<slug>`」，并在 `check_web` 里断言 `design/icons/CURRENT.txt` 的 slug 是 `07_ink`、五档 res 与源图逐字节一致。
+
+图标换成 G 号 `07_ink`（墨迹）：深青底 + 亮青「河」字 + 右上一条 ECG 心电波形（一图两义：河流的波纹 + 生命体征，与 NOVA 的 HUD 读数语言同源）。48px 下的六条硬标准是这一轮的沉淀：字高 ≥ 0.45S、装饰线宽 ≥ 0.012S、不给字形加高斯黑影、不画密阵（> 10 格必糊）、弧形高光两端渐隐、描边字必须配极淡内填充。落地用 `python -X utf8 tools/apply_icon.py --v2 07_ink`。
+
+契约同步：`docs/handoff/tutorial-contract.json` version 2 → 3，features 新增 `today` / `copyundone` / `gpatarget`（since 2.0.0）；`web/tut.js` 的 `TUT_CONTENT_VER` 同步 2 → 3，「课表」「学习」两页的 covers + since 一起改。加功能不改教程文案，`check_tutorial.js` 会红。
+
+门禁：`node --check` 全量 0 失败；`test_*.js` **41 套全过 pass=41 fail=0**；`check_web.js` `[PASS] 静态体检全部通过`；`check_notes.js` `[PASS] 发版说明 7 项全过`（含新硬卡口）；`check_skin.js` `55 passed, 0 failed → PASS`；`verify_apk.py` `[PASS] 五件套全部通过`。
+
+另外新写了 `tools/check_apk_inside.py`（**新建**）：不问「源文件对不对」，只问「**打进包里的那份是不是新代码**」——直接开 zip 读 `assets/learnplus.js`、`index.html`、`app.css`、`nova-skin.css`，断言守卫写法、`#todayLine` / `#copyUndone` / `learnplus.js` 的引入、`.gt-form label` 的 `nowrap`、`.gpa-target` 全都存在，并核对 `assets/about.js` 的版本号与 `index.html` 的 `#aboutVer` 一致。**这条检查是有来由的**：上一版 APK 打出来时 `learnplus.js` 还是修守卫之前的 16113 字节（新的是 16315），也就是说 2.0 的三个新功能在真机上根本不会跑——只看 `web/` 目录永远发现不了，必须读包。
+
+出包：`apk/xxmu-helper-v2.0.0.apk` **1007803 字节 DFB6F760202A…**（`javac (11 个源文件)` / `d8 (124 个 class, 1 个 jar)`），签名同前（证书 SHA-256 `0e6848450afca6dfba98588c1c684367ee38a9e5752706a80f88ee8a11157799`，可覆盖升级），交付目录逐字节校验通过。
+
+四档实拍（两个皮肤各两张，不挑皮肤才是真验过）：
+
+- 学习页 390×1700（NOVA，`design/sketch/shots/v200-learn-light.png` / `v200-learn-dark.png`）—— `#todayLine` 主行「● 08:00　系统解剖学 · A201」+ 右侧「复制未完成 · 5」，副行「最近截止　病理学 · 还剩 25 小时 59 分　·　还有 4 件」，下方 2 待做 / 3 未开始 / 1 已过截止。
+- 成绩面板 390×1240 —— 经典皮肤 `v200-sheet-light.png` 60205B / `v200-sheet-dark.png` 59264B；NOVA 皮肤 `v200-sheet-nova-light.png` 86159B / `v200-sheet-nova-dark.png` 96876B。两个皮肤都是：「绩点 2.28 / 已修 13 学分 · 2 门通过 · 1 门分数情况不明」、四门课全部「点一下翻开」、底部 `#gpaTargetBox` 写「目标 3.50 已经追不上了（剩余 18 学分全拿 90 分也只有 3.28）」。**第三态（药理学空分）没被当 0 分**，这是这一版最该守住的一条。
+
+**一个被我自己误判过、后来推翻的结论，记在这里免得下次再撞**：中途观察到 NOVA 皮肤下 `#sh-body` 里出现 `div.nv-swipe`（刷卡器官），当时判断「刷卡器官用 MutationObserver 接管了 `#sh-body`，`#gpaTargetBox` 活不下来，成绩面板只能用经典皮肤出图」。为这次补拍 NOVA 版专门加了调试读数，实测 `#sh-body` 的子节点是 `hint, grade-stat, grade-acts, grade-box, grade-imp, gpaTargetBox, nv-swipe` 共 7 个，`gpaTargetBox` 活着且 `offsetTop=555`——`nv-swipe` 确实被 append 进来了，但它默认 `display:none`（`nova-organs.css` 里只有 `.nv-swipe.on{display:block}`，而 `.on` 只在真出现「正在把解锁命令」这类文字时才加），所以它只是静静躺在那里，既不显示也不遮挡。**真因还是上面第 1 条那个 `init` 守卫 bug**：`patchGrades()` 没挂上 → `GRADES.open` 没被包 → `mountTarget()` 从没被调用。皮肤一直是无辜的。教训：离线夹具里「某块 DOM 不见了」先怀疑自己的时序，别急着给皮肤定罪。
+
+**「矮屏不挤按钮」不是嘴说的，量过了**：发版说明里写了「矮屏幕上作业很多时也不会把按钮挤到屏幕外」，而 todo.md 里「矮视口 492×700 复查」一直是未勾项。为了不让这句话变成空话，新写了 `design/sketch/_check_overflow.js`（**新建**，约 300 行，ASCII-only）：读**真实 `web/index.html`**（就是 App 里 WebView 跑的那一份，不是拍图夹具），在 `</body>` 前注入四段——隐藏首启遮罩、造四门课与五条作业、把成绩面板连目标绩点一起打开、再封掉 `setInterval`/`rAF`/`fetch`/`XHR`；然后一次 Edge 启动、六个不同宽度的 iframe 同时量「有没有元素右边界超出视口」「复制未完成按钮有没有被顶出 `.tl-top`」「两个目标绩点输入框还够不够宽」。
+
+跑出来的账（**浅/深 × NOVA/经典 四组合 × 360/390/412/492（900 高）+ 492×700 + 360×640 共 24 次，全 PASS**）：
+
+- 六档全部 `over=0`（`#tab-learn` 与 `#sheet` 子树里没有任何元素右溢），`scrollWidth` 恒等于视口宽；
+- `#copyUndone` 宽度 NOVA 99px / 经典 97px，六档一样——**没被挤压、也没换行把它顶出去**（`vOver=0`）；
+- `#gpaTargetIn` / `#gpaRemainIn` 宽 108/101（360 宽）到 168/168（492 宽），都远大于 28px 的可点下限；
+- `#todayLine` 高 68（NOVA）/ 66（经典），四组合一致。
+
+三个把这条路堵住的坑，写在代码注释里了：①`#app.locked{display:none}`（`app.css:795`，激活门盖着时整个 App 是隐藏的）——不解锁量出来全是 0，会误判成「按钮被挤没」；②headless Edge 的 `--virtual-time-budget` 遇到真页面自己的 30 秒刷新与 700ms 器官轮询会永不收敛（第一版直接 `ETIMEDOUT`），必须封定时器；③`TIMES` 是「作息串」数组（`'08:00~08:45'`），不是 `{start,end}` 对象数组——喂对象进去 `hhmm()` 认不出，今日一行会退回「第 1 节」而不是真实钟点。
+
+**未上线**（线上实读仍 1.1.97 / 1197，cfg.latest 一个字没动）。
+
+真机待看：① 学习页顶部今日一行是否显示「下一节课 + 教室」，无课时是否写「今日无课」而不是空白；② 「复制未完成」粘到群里是否是完整清单、条数与按钮上的 N 对不对；③ 成绩面板最底下目标绩点是否算得对，追不上时是否直说而不是硬凑一个漂亮数字；④ **换 NOVA 皮肤后成绩面板还能不能看到目标绩点**（离线实拍两个皮肤都验过是好的，但真机上 `#sh-body` 会被刷卡器官 append 一个元素，仍值得看一眼）。
+
+---
+
+> **补记说明（2026-11-21）**：下面 v1.1.97 ~ v1.1.78 共 20 条是事后补的。当时的发版说明只写了 78~82 与 95~97（83~94 共 12 个包一个说明都没留），changelog 则一直停在 v1.1.77。这批条目的改动清单全部来自 `apk/` 里**逐版出差分**——assets 逐文件 sha256 比、`classes.dex` 的 ASCII token 集合差、以及从 dex 里提出来的 WebView 注入长串做字符级 diff——不是凭印象写。凡是差分里看不出来的（当时的实拍图、真机抽查结论），一律不写；拿不准的会明说「只改了这一层」。
+---
+
+### v1.1.97（2026-11-18）—— 空教室「内容看不懂」的真凶是教务票据失效，面板内一键重登（**本地包 1.1.97 / 1197，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：学生截「查空教室」报「教务返回的内容看不懂，可能正在维护」，反复出现。
+
+诊断：教务对未登录请求回的是一段约 **515 字节的脚本**（`location.href='/'` 那一套），既不含「凭证已失效」「请重新登录」这两个中文词，也没有 `id="dosub"` / `name="randnumber"` 这些登录表单特征 —— `sync.js` 的 `kbExpired()` 认不出来，于是落到了「内容看不懂」这个通用兜底。学生看到的是「可能在维护」，真实原因是登录过期。
+
+改动 `web/free.js`（本版**只改这一个文件**）：
+
+- `looksLikeLogin(t)` 加长到与 `sync.js` 的 `kbExpired` 对齐：`b.length > 0 && b.length < 1500` 且含 `location.href='/'`，或含 `id="dosub"` / `name="randnumber"`。
+- 状态加 `authBad: false`；`loadMatrix` 里成功/失败分别置位，只有「票据失效」才置 `authBad`。
+- 新增 `reloginAndReload()`：临时包一层 `window.__onLoginSuccess`，登录成功后 `prev(chk)` + `loadMatrix(true)` 自动重查；5 分钟兜底 `setTimeout(restore, 5*60*1000)` 防悬挂；`Host.openLogin` 不存在时立刻 `restore()`（老版本 App 不至于卡死）。
+- `free.js:565`：票据失效时在错误区直接给一个面板内登录入口。原来要「退出面板 → 去设置 → 重新登录教务 → 回学习页 → 再进空教室 → 再查一次」六步，现在一步。
+
+测试：`tools/test_free.js` 补「票据失效页不含旧关键词时也要认出来，并给出登录入口」。
+
+出包：`apk/xxmu-helper-v1.1.97.apk` **962682 字节 4e6d69ede79d…**，dex `678564` 字节（与 v1.1.94 逐字节相同 —— 这一版纯前端），assets 49 个 / 1756499 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.96（2026-11-16）—— 知到读不出自动重试、雨课堂「已交显示未交」、四张连接卡常驻复制诊断（**本地包 1.1.96 / 1196，未上线；线上实读仍 1.1.65 / 1165**）
+
+三条来自同一批真机回报。
+
+改动 `web/zhihuishu.js`：
+- `post()` 加第 5 参 `diag`，配 `note()` / `failText()`：网络层失败（HTTP `-1` 或 `ok:false`）**自动重试一次**。约束写进注释了——「零额外请求，绝不换域、绝不改 cookieUrl」，重试只重发同一条。
+- 知到偶发 `HTTP -1` 之前被当成「读不到」，学生看到的是空清单。
+
+改动 `web/yuketang.js`：
+- `353-369` 行：时间轴活动**自身**也可能带截止/提交字段，补上兜底链 `a.end_time → endTime → deadline → due_time → end_date → dueTime`。注释点明「`create_time` 是「创建时间」不是截止，绝不能当截止时间用」。这修的是「雨课堂截止日期显示 `-`」。
+- `460` 后：新增 `actStatus = str(a.status) || str(a.homework_status) || str(a.submit_status)`；`655-664` 行新增 `actDone = (a.finished === true) || (CX.classify(a.status) === 'done')`。**只认明确完成词，绝不凭 `is_finished === false` 或空 `status` 推断已交**。这修的是「已交作业仍显示未完成」。
+
+改动 `web/app.js`（`1599` 行附近）：`bDiag.style.display` 从「仅 degraded / stale 时显示」改成恒 `'block'` —— 按孤汩要求「每个软件都加复制诊断」，四张连接卡（学习通 / 喜鹊 / 雨课堂 / 知到）常驻「复制诊断」。
+
+测试：`tools/test_yuketang.js` 新增 ⑰⑱⑲ 三组（自带截止字段 → 补到作业卡 / 明确已提交状态词 → 判完成 / 空 status + 未做完 → 仍是待做，不能误伤）；`tools/test_zhihuishu.js` 新增 ⑮（首次 `HTTP -1` → 重试一次认出）。
+
+出包：`apk/xxmu-helper-v1.1.96.apk` **962682 字节 53ae5d454743…**，dex `678564`（与 94 相同，纯前端），assets 49 个 / 1753813 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.95（2026-11-16）—— 登录挪进设置页、学习页进来自动刷、雨课堂「已交仍显示未完成」（**本地包 1.1.95 / 1195，未上线；线上实读仍 1.1.65 / 1165**）
+
+改动全在 assets（dex 与 v1.1.94 逐字节相同）：
+
+改动 `web/app.js`：
+- `document.getElementById('refresh').onclick`（`2148` 行起有长注释）从「只刷学习通」重写成「**串行刷所有已登录来源**」——一门刷完再下一门，不并发。学习通并发敏感（`chaoxing.js:499` 记过「一次打十门课大概率被限流成 3004」），多平台更不能一起打。
+- `2841` 行起：点进「学习」页时调 `SOURCES.autoSync(cb, {reason:'learn-tab'})` 自动读一次，10 分钟内不重复读。
+- `6208` 行：设置页里的账号绑定入口指向同一张 `#bindCard` 半框（登录入口从散落的卡片收进「我的 → 设置」的「账号绑定」卡）。
+
+改动 `web/yuketang.js`：
+- `put()` 改口径：`status === '已完成'` 强覆盖任何非完成态；已存在的完成态不许被空串 / 「待做」降级。**只能往「完成」升，不能往「未完成」降。**
+- `leafStatus` 补两条：`if (lf.userScore > 0) return '已完成'`、`if (lf.totalScore > 0 && lf.userScore >= lf.totalScore) return '已完成'`。
+
+出包：`apk/xxmu-helper-v1.1.95.apk` **958586 字节 089d81831327…**，dex `678564`，assets 49 个 / 1751024 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.94（2026-11-16）—— 空版（只改 Manifest 与版本号）（**本地包 1.1.94 / 1194，未上线；线上实读仍 1.1.65 / 1165**）
+
+`classes.dex` 与 assets 逐字节比：dex 从 `678548` 变 `678564`（+16 字节，全部是版本号字符串），ASCII token 集合差集为 **0**；assets 层零改动。
+
+这一版的实质改动在 v1.1.93 就已经落盘了，94 是补一次干净出包。
+
+出包：`apk/xxmu-helper-v1.1.94.apk` **958586 字节 249da61df419…**，dex `678564`，assets 49 个 / 1745948 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.93（2026-11-16）—— 失效判据收窄：宁可漏一次，也别把正常课表判成失效（**本地包 1.1.93 / 1193，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：v1.1.90~92 那套判据太宽，开始出现「课表明明好好的，却被判成登录失效」。
+
+改动 `web/sync.js` 的 `kbExpired(text, raw)`（`160` 行起）重写判据：
+
+- **明确不要** `login.action`（登录成功后业务页的登出链接也指向它）、**不要裸 `frmbody`**（青果到处都在的全局 frame 变量）。
+- 改为三组，命中任一组才算失效：①含「凭证已失效」或「请重新登录」；②`b.length > 0 && b.length < 1500` 且含 `location.href='/'` 或 `location.href="/"`；③含 `id="dosub"` / `name="randnumber"` / `id="username"`。
+
+注释里记了实测：**未登录时青果对任何业务页都回同一段 547 字节的 alert 脚本（UTF-8）** —— 所以「短 + 带跳转」这个组合是可信的，而单独一个中文词不是。
+
+`classes.dex` 同步：新增 `location.href` 锚点（+32 字节）。
+
+出包：`apk/xxmu-helper-v1.1.93.apk` **958586 字节 b207ff12a435…**，dex `678548`，assets 49 个 / 1745948 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.92（2026-11-16）—— 登录真校验的长度阈值第三次调：40 字节（**本地包 1.1.92 / 1192，未上线；线上实读仍 1.1.65 / 1165**）
+
+v1.1.90 拍的长度阈值 `1200` 是错的，v1.1.91 试着放宽到 `300` 依然偏高 —— 因为**登录成功后的 `/frame/homes.action` 可能只回不到 60 字节的紧凑 frameset**，300 会把真登录判成没登录。
+
+改动 `android/src/com/xxmu/helper/WebActivity.java`（`932-937`）：
+
+- `if (body.trim().length() < 40) { return new Verdict(false, "还没登录成功：拿到的不是登录后的页面"); }` —— 只挡空响应。
+- `if (body.length() < 1000 && body.indexOf("location.href") >= 0) { return new Verdict(false, "还没登录成功：密码或验证码没填完"); }` —— 这一条才是真正干活的判据：短 + 带跳转 = 还是那段 alert 脚本。
+- 探针失效锚点里**拿掉 `login.action`**（登录成功后登出链接也指向它，会误判），改由 CAS 表单独靠特征判。
+
+`classes.dex` +72 字节：新增 `id="dosub"`、`id="username"`、`name="randnumber"`，删 `login.action`。
+
+出包：`apk/xxmu-helper-v1.1.92.apk` **958586 字节 5cd6548009b2…**，dex `678516`，assets 49 个 / 1745097 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.91（2026-11-16）—— 空版（只改 Manifest 与版本号）（**本地包 1.1.91 / 1191，未上线；线上实读仍 1.1.65 / 1165**）
+
+`classes.dex` 与 v1.1.90 **完全同大小（678444）且 ASCII token 集合差集为 0**；assets 层零改动。只改了 `AndroidManifest.xml` 和三处版本号。
+
+出包：`apk/xxmu-helper-v1.1.91.apk` **958586 字节 3c1e73a7de12…**，dex `678444`，assets 49 个 / 1745097 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.90（2026-11-14）—— 登录结果的真校验：学号填了、密码没填，也不再报「登录成功」（**本地包 1.1.90 / 1190，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：学生在青果登录页只填了学号就点「完成」，App 报登录成功；回头查课表全是空的，人也以为已经登好了。
+
+根因：`WebActivity` 的「完成」按钮无条件 `finishWithResult(true)` —— 用户什么都不填直接按，也算成功。而 WebView 拿不到「是否真登录」的信号，因为**未登录时青果对 `/frame/*` 一律回 200，只是正文换成那段 547 字节的 alert 脚本，状态码毫无区分度**（2026-11-14 实测五次探针全 200 / 547B）。
+
+改动 `android/src/com/xxmu/helper/WebActivity.java`：
+
+- 新增 `WebActivity$Verdict`、`verifyUrl` / `verifyAt` / `verifying` / `verifyFail` 状态、`verifyLogin()` / `judgeLogin()` / `originOf()` / `resolveVerifyUrl()` / `loginHintsHit()` / `getProtocol()` / `toastToUser()`；extra 键 `EXTRA_VERIFY_URL`、`verify_url`，pref 键 `xxmu-login-verify`。
+- 探测地址按域名推导，落到 `https://qgjw.xxmu.edu.cn/frame/homes.action`。
+- 四条判据：①HTTP 200 ②正文去空白 ≥ 40 字节 ③不含「凭证已失效」「请重新登录」（UTF-8 与 GBK 两种字节位都查）④不含 `id="dosub"` / `name="randnumber"` / `id="username"`。
+- 「完成」按钮：`if (verifyFail >= 1) { finishWithResult(true); return; }` —— **已经失败过一次的第二下放行**。理由写在注释里：「万一学校改了页面结构、探针失效，用户还有出路」。不能把人卡死在登录页。
+
+改动 `web/sync.js`：新增 `kbExpired(text, raw)`（`160` 行，注释「青果「凭证已失效」判定（v1.1.90）」）。用 **`raw`（Java 按 ISO-8859-1 原样搬的字节位）+ `text`（`decodeAuto` 猜出来的正文）双源**判失效 —— 只信其中一路都会漏。
+
+`classes.dex` 670260 → 678444（**+12184，本轮最大的一跳**）。
+
+出包：`apk/xxmu-helper-v1.1.90.apk` **958586 字节 2e041e3e992b…**，dex `678444`，assets 49 个 / 1745097 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.89（2026-11-14）—— 打开教务/平台时把标题带上，不再一律写「学习通」（**本地包 1.1.89 / 1189，未上线；线上实读仍 1.1.65 / 1165**）
+
+以前不论从哪儿打开 WebView，标题栏都写「学习通」，从教务入口点进去也是。
+
+改动 `android/src/com/xxmu/helper/MainActivity.java`：新增 `openInAppTitled`、`titleForUrl`，配域名 → 标题映射表（`chaoxing.com` / `passport2.chaoxing.com` / `yuketang.cn` / `zhihuishu.com` / `qgjw.xxmu.edu.cn`）。
+
+改动 `web/app.js`（`5768` 行起）：
+
+```js
+if (Host.openInAppTitled) Host.openInAppTitled('https://qgjw.xxmu.edu.cn/', '教务系统');
+else Host.openInApp('https://qgjw.xxmu.edu.cn/');
+```
+
+注释：「v1.1.89：顺手把标题带上。老版本 App 没有 `openInAppTitled`，退回 `openInApp` 也只是标题写「学习通」，功能不受影响」——**新 Host 能力一律要有一层降级**，否则前端先上线会白屏。
+
+`classes.dex` +672 字节。
+
+出包：`apk/xxmu-helper-v1.1.89.apk` **954490 字节 24b79cc0ef9d…**，dex `674416`，assets 49 个 / 1743988 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.88（2026-11-14）—— 校讯图改按结构选择器藏，不再靠文件名（**本地包 1.1.88 / 1188，未上线；线上实读仍 1.1.65 / 1165**）
+
+v1.1.87 用 `img[src*='xiaoxun']` 按 URL 关键字藏校讯图，学校一换文件名就失效。
+
+改动：换成结构选择器 `.logo-div td:last-child img{display:none!important}`。**这个版本 assets 层零改动，全部改动在 `classes.dex` 里注入的 `FIT_CSS`**（`673728` → `673744`）。
+
+出包：`apk/xxmu-helper-v1.1.88.apk` **954490 字节 5533c3000881…**，dex `673744`，assets 49 个 / 1743708 字节（与 83~87 逐字节相同），签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.87（2026-11-14）—— 藏掉青果登录页右边的校讯图（**本地包 1.1.87 / 1187，未上线；线上实读仍 1.1.65 / 1165**）
+
+登录页重排之后，右侧那张校讯图还占着一块空白。
+
+改动（`FIT_CSS`，`673704` → `673728` 字节）：删掉 `display:inline-block!important`，新增 `img[src*='xiaoxun']{display:none!important}`。
+
+出包：`apk/xxmu-helper-v1.1.87.apk` **954490 字节 f97b8fb5262c…**，dex `673728`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.86（2026-11-14）—— 破图隐藏改成函数 + 三次重试（**本地包 1.1.86 / 1186，未上线；线上实读仍 1.1.65 / 1165**）
+
+v1.1.84 的 `hideBroken()` 是内联循环，只在 `onPageFinished` 那一刻跑一次；青果的图加载慢，跑的时候还是 `naturalWidth === 0`，图后来又加载成功、或者反过来晚一步坏掉，都处理不到。
+
+改动（`FIT_JS`，`4406` → `4548` 字节）：
+
+- 内联循环重构成具名函数 `var hideBroken = function () { … var g = im[i2]; if (g.complete && g.naturalWidth === 0) … }`。
+- 加 `setTimeout(hideBroken, 600)` / `1800` / `3500` 三次重试。
+
+出包：`apk/xxmu-helper-v1.1.86.apk` **954490 字节 64e0e15c11ef…**，dex `673704`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.85（2026-11-14）—— 登录页连验证码图一起藏掉（**本地包 1.1.85 / 1185，未上线；线上实读仍 1.1.65 / 1165**）
+
+改动（`FIT_CSS` `673544` → `673564` 字节）：选择器加 `#randpic,`（隐藏验证码图容器）。`FIT_JS` 一个字节没动。
+
+**这一版的 assets 层与 v1.1.84 逐字节相同 —— 也就是说 `app.js` / `yuketang.js` 里那批名为「v1.1.85」的改动（刷新 = 所有来源、点进学习页自动刷新、雨课堂合并同一门课同一标题的多路证据）在 85 这个包里根本没有进 APK。** 差分显示 `app.js` 到 v1.1.89 才第一次变、`yuketang.js` 到 v1.1.95 才第一次变。真正落地是后面几个包，只是注释上仍写着 v1.1.85。
+
+出包：`apk/xxmu-helper-v1.1.85.apk` **954490 字节 b767fe9edd36…**，dex `673564`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.84（2026-11-14）—— 登录页从 `zoom` 缩放改成纯 CSS 重排（**本地包 1.1.84 / 1184，未上线；线上实读仍 1.1.65 / 1165**）
+
+这是青果登录页手机适配的第二步，也是 v1.1.83 那个 `FIT_CSS` 长出来的原因。
+
+问题：`cas/login.action` 的 `.login-info-div` 固定 760px 宽（380 内容 + 380 `padding-left`），整页 `scrollWidth` 约 1280px；手机 WebView 布局视口只有 360~412px，账号/密码/验证码三行输入框被推到屏幕右外侧。v1.1.38~1.1.83 一直用给 `html` / `body` 设 `zoom` 的办法，760px 缩到 412px 只有 0.54 倍，16px 的字变成 8.6px，输入框实际只剩 200px 宽；而且只给 `html` 设 `zoom` 会被 `body` 的 `width` 二次覆盖，实测仍向右溢出 210px。
+
+改动（`FIT_CSS` `3361` → `3355` 字节、`FIT_JS` `4037` → `4406` 字节，字符级 diff 逐条核过）：
+
+- `.mainbanner` 加 `,.mainbanner1`，且由「限高 88px + `object-fit:contain` + `opacity`」改为 `display:none`。
+- `.login-info-div` 加 `,input.login`；`.logo-div` 加 `float:none`；圆角 6 → 8px。
+- 登录按钮：`color:#fff` + `background:#2f7bd6` + `background-image:none` + `border:0` + `border-radius:8px`。
+- 新增 JS：`var bt = document.getElementById('login'); … bt.value = '\u767b\u5f55'`（青果那个按钮原本是空的，补成「登录」）+ `hideBroken()`（`g.complete && g.naturalWidth === 0` 的图 `display:none`）。
+- 三行 tab 改成 100% 宽 + `table-layout:fixed`，输入框保持 16px，登录按钮 48px 满宽；412 / 360 / 492 三种视口实测横向溢出元素 = 0。
+
+注入面的两条纪律（写在 `WebActivity.java` 的注释里）：**只在青果登录页注入**（靠 `#login-info-div` / `.login-div-float` / `form#dosub` 三个特征判断），**幂等**（注入前查 `style#xxmu-fit`）。
+
+出包：`apk/xxmu-helper-v1.1.84.apk` **954490 字节 36386567ee56…**，dex `673544`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.83（2026-11-14）—— 登录页适配起步：`FIT_CSS` 第一次进 dex（**本地包 1.1.83 / 1183，未上线；线上实读仍 1.1.65 / 1165**）
+
+**这一版 assets 层零改动**（`about.js` / `index.html` 只是版本号），改动全部在 `classes.dex`：`666260` → `673184`（+6924 字节），首次出现 3361 字节的 `FIT_CSS` 长串。
+
+也就是说：83 只是把 CSS 注入这套机制搭起来，真正的样式在 84 才写进去。
+
+出包：`apk/xxmu-helper-v1.1.83.apk` **954490 字节 3e30f01642e4…**，dex `673184`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+---
+
+### v1.1.82（2026-11-14）—— 雨课堂的作业不再重复出现（**本地包 1.1.82 / 1182，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：雨课堂同一条作业列成两张卡 —— 一张是带课程名、待做状态、截止时间的作业卡，另一张带 📝 当成考试又列一遍。
+
+根因：`upcomingExam` 接口会把**带截止时间的作业**也塞一遍，前端两路都收，于是同一条出两张。
+
+改动 `web/yuketang.js`（`460` 行起「v1.1.82 去重：作业被 upcomingExam 又塞了一遍」整段）：
+
+- 按「课程 + 归一化标题」合并；同一场考试被平台重复推两遍的也只合一张。
+- **真考试不误删**：名字不同、或名字碰巧一样但考试时间对不上的，照旧单独列。
+- 作业卡没读到截止时间的，拿重复那张里的时间补回来，倒计时不丢。
+- 去重逻辑写进适配器、**不写进 `app.js` 渲染层** —— 渲染层拿不到来源信息，跨来源同名会误删。
+
+测试 `tools/test_yuketang.js` 新增 ⑭⑮⑯ 三组（去重主路径 / 截止差大是真考试 + 名字归一化 / 作业卡没截止时把考试卡的截止补回来）。
+
+出包：`apk/xxmu-helper-v1.1.82.apk` **954490 字节 2d7b0fb710a9…**，dex `666260`，assets 49 个 / 1743708 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 待完成里同一条雨课堂作业是否只剩一张卡、条数是否变对；② 真考试（名字不同 / 时间不同）是否还在；③ 作业卡的截止时间是否还有倒计时。
+---
+
+### v1.1.81（2026-11-14）—— 作业考试打开就自己刷一遍 + 雨课堂扫码不再秒关（**本地包 1.1.81 / 1181，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：孤汩原话「雨课堂喜鹊知到能不能像学习通一样自动重新抓取」。
+
+诊断：逐文件核对后发现**学习通也不是后台轮询** —— `CX.sync` 只在登录成功 / 点刷新 / 解锁时触发，靠 cookie 长效撑着。三个新平台真正缺的是「登录态有效时，冷启动 / 切回前台 / 前台常驻到点，就静默补刷一次」。
+
+改动 `web/sources.js`（`26-46` 行长注释「v1.1.81：自动刷新调度器（方案 B）」）：新增 `autoSync()`，由 `app.js` 挂冷启动、`window.__onResume`（`MainActivity.onResume` 已在喊）、30 分钟前台定时器。学习通（builtin）不参与，它有自己的触发链。
+
+三条保护（学习通并发敏感，`chaoxing.js:499` 记过「一次打十门课大概率被限流成 3004」，多平台更不能并发）：
+
+1. **单飞**：`AUTO_RUNNING` 期间再来一次 `autoSync` 直接跳过，防三个钩子叠加。
+2. **串行**：一个来源刷完再下一个，不并发。
+3. **最小间隔**：每来源距上次成功 `synced_at` 不满 `AUTO_GAP = 600` 秒不刷（`sources.js:54`）。
+
+两条诚实底线：
+
+4. 跳过没登录 / 明确要重登（stale）/ 从没成功过（`synced_at === 0`）的来源，**不给它们盲发请求**（发了必然 401 / 50000，还会在卡上刷出假「暂不可用」）。
+5. **静默**：自动刷只落盘 + 回调重画一次，绝不弹 toast / `showTip`。失效原因交给连接卡自己显示。自动刷新也**不许走 `SrcUI.sync`**（那条路会弹满屏 toast）。
+
+天花板写在注释里：登录态过期（雨课堂微信扫码、知到/喜鹊 cookie）机器代不了，调度器只做「失效明确提示 + 一键直达重登」，不假装能自动重登。
+
+改动 `web/yuketang.js`：登录链路修复（仿知到 v1.1.79）—— `okHints` 里那串 `/web/course`、`/web/student` 业务页片段会被登录页自己命中，一 `onPageFinished` 就秒关。根因与知到 v1.1.78 同款。真登录判据独立成 `AUTH_KEY`，只在用户点「完成」（ok）时写。失效时卡片写清「区域选错了 / 扫完没真登进去或二维码过期」并给重扫按钮，**已读到的数据不丢**。
+
+测试 `tools/test_sources.js` 新增 ⑧~⑪（自动刷新的单飞 / 串行 / 最小间隔 / 绝不弹 toast）；`tools/test_yuketang.js` 新增 ⑬（杜绝「扫码登录了没成功」）。
+
+出包：`apk/xxmu-helper-v1.1.81.apk` **950394 字节 ab59eec02580…**，dex `666260`，assets 49 个 / 1739504 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 冷启动 / 切回前台时三个新平台是否真自己补刷；② 后台时是否确认不刷；③ 雨课堂扫码后页面是否停住、点「完成」才关。
+---
+
+### v1.1.80（2026-11-14）—— 知到定 B 主线：接口直连读清单（**本地包 1.1.80 / 1180，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：v1.1.79 的模式 B 真机诊断坐实：课程列表返回 `{result:{totalCount:0, courseOpenDtos:[]}}` —— 链路是活的，是请求体字段名错了。
+
+根因：v1.1.79 发的 `{pageSize:5, pageNum:0, status:0}` 字段名不对（平台要 `{pageNo, pageSize}` 这一套），于是 `totalCount` 永远是 0，看起来像「一门课都没有」。
+
+改动 `web/zhihuishu.js`：
+
+- 请求体改成 `{status:0, pageNo:1, pageSize:5}`。
+- `400` 行起：直接吃 `j.result.courseOpenDtos` 数组，**不再用 `deepArray` 猜层级**（猜层级是 v1.1.78 方案 C 的临时手段，会静默返回空数组，和「这学期真没课」无法区分）。
+- `626` 行起：定 B（接口直连）为默认主线，A（读官方作业页 DOM）留作兜底、仍可切。
+- 删掉 CAS 换票 GET（多一次请求、还会被平台当异常）。
+- `604` 行：诊断包首行标注「知到 v1.1.80 诊断包 · 模式 X · AES 自检 …」，方便学生一键复制回来定位。
+
+「读不到就写清原因，不拿空清单冒充没作业」这条在 `zhihuishu.js` 里成为硬约束：**只有每门课都确实读通、且平台确认当前没有待交，才显示「当前没有待交作业」。**
+
+测试 `tools/test_zhihuishu.js` 新增 ⑭（`extract_course_id` 口径从 `courseInfo.courseId` 下探 / 缺 `recruitId` 跳过 / 分页），并改 ③ 断言默认模式是 B。
+
+出包：`apk/xxmu-helper-v1.1.80.apk` **946298 字节 68e38f66b2ab…**，dex `666260`，assets 49 个 / 1727564 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 知到是否默认「接口直连」、点「重新抓一次」是否真列出来；② 读不到时的原因文案是否具体到「哪一门 / 为什么」。
+---
+
+### v1.1.79（2026-11-14）—— 知到登录页不再一闪就关（**本地包 1.1.79 / 1179，未上线；线上实读仍 1.1.65 / 1165**）
+
+触发：上一版点「登录 / 重新登录知到」，登录页刚打开就自动关掉，账号根本来不及输。
+
+根因：`okHints` 里写了裸域名 `zhihuishu.com` —— 登录页自己就在这个域下，`onPageFinished` 一触发就被判成「已经到目标页」直接 `finish()`。
+
+改动 `web/zhihuishu.js`：
+
+- `okHints` 换成**永不命中的哨兵 `OK_SENTINEL`**（不再靠 URL 猜登录是否成功）。
+- 真登录判据独立成 `AUTH_KEY = 'xxmu_zhs_auth'`，只在用户点右上「完成」（ok）时写。v1.1.78 秒关时写下的假 `__bound` 不再被认作已登录；`logout` 时顺手清掉它。
+- 覆盖 `SOURCES.define` 装的默认登录回跳 —— 默认版只写 `__bound`，而 v1.1.78 的秒关也会触发它，等于写假登录。
+
+测试 `tools/test_zhihuishu.js` 新增 ⑬（杜绝「打不开登录页面」：哨兵不命中 / 只有 `AUTH_KEY` 算登录 / `logout` 清遗留 `__bound` / 诊断首行标注不再自动秒关）。
+
+出包：`apk/xxmu-helper-v1.1.79.apk` **946298 字节 8ec8155a47b4…**，dex `666260`，assets 49 个 / 1722146 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 点「登录知到」页面是否稳稳停住；② 登进去点「完成」再回来点「重新抓一次」是否才去读清单。
+---
+
+### v1.1.78（2026-11-13）—— 连堂课只提醒一次 + 提醒改按系统闹钟挂 + 知到有登录入口（**本地包 1.1.78 / 1178，未上线；线上实读仍 1.1.65 / 1165**）
+
+三件事，都在这一版第一次进包。
+
+改动 `web/reminder.js`（`94-97` 行注释「v1.1.78 连堂去重」）：
+
+- **连堂去重**：同一门课同一天可能连着上好几节（`periods:[1,2,3]`），以前对每一节都挂一条提醒，三节课就响三次。用户原话「同一门课只提醒一次」。现在按「一门课 × 一周」只取当天最早那一节（`build()` 内 `if (at === null || t < at) at = t;   // 连堂只留最早一节`），在它前面 N 分钟提醒一次。顺带把 200 条上限里被连堂重复项占掉的名额省出来 —— 学期后半段不再被吃光。
+- **准时性**：以前偶尔晚几分钟、甚至不响，是系统把提醒当普通定时任务，省电模式下被拖住。改按**系统闹钟**（`setAlarmClock`）挂，穿透 Doze，锁屏和省电模式下也按时响。三档（响铃 / 静默 / 短信草稿）照旧。
+
+改动 `web/zhihuishu.js`：接入知到（智慧树）**方案 C 双探针**——探针 A 读官方作业页 DOM、探针 B 直连只读接口。学习页里知到有自己的登录入口。只读：不代签到、不代交作业、不代发帖，登录态只存在这台手机上。
+
+改动 `web/app.js`：知到探针模式可切（`A 读页 / B 直连`），换模式清旧快照；「打开官方作业考试页」走真实 WebView，看到清单后按返回。
+
+测试 `tools/test_reminder_fix.js`（**新建**，7399 字节）：覆盖连堂去重与准时性两个修复的离线断言。`tools/test_zhihuishu.js` 起步。
+
+出包：`apk/xxmu-helper-v1.1.78.apk` **942202 字节 dd04d82f540d…**，dex `666260`，assets 49 个 / 1718697 字节，签名同前。
+
+**未上线**（线上实读仍 1.1.65 / 1165）。
+
+真机待看：① 连堂课是否只响一次；② 锁屏 / 省电模式下是否按时响；③ 知到登录入口是否能开、登完能否试着同步。
+---
+
 ### v1.1.77（2026-11-12）—— 已过截止移出「待完成」，排序按截止时间从近到远（**本地包 1.1.77 / 1177，未上线；线上仍 1.1.65**）
 
 触发：m04098 原话「已过期的不显示在待完成里，这个按时间从近到远排序，就是按紧急程度排序」+ 截图 m04099（雨课堂待完成 11 条全是已过期作业，09-27 / 10-06 / 10-11 越老越靠前）。

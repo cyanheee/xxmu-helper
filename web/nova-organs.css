@@ -201,8 +201,11 @@ html[data-skin="nova"] .nv-tape-shell:active{transform:scale(.985);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 1px 0 rgba(16,24,40,.20)}
 html[data-skin="nova"] .nv-tape-shell.turning{cursor:grabbing;transform:none;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 3px 0 rgba(16,24,40,.20)}
+/* v2.8.0：8px → 10px。这几个字（SIDE A / ▶ PLAY / 时间码）是等宽大写英文，
+   letter-spacing 已经把它们撑开了，8px 在真机上等于是「看得见但读不清」。
+   10px 等宽大写 + 1px 字距在 47px 卡宽里仍然放得下，见下方 ellipsis 兜底。 */
 html[data-skin="nova"] .nv-tape-top,.nv-tape-bot{display:flex;justify-content:space-between;
-  align-items:center;gap:5px;font:8px var(--n-mono);letter-spacing:1px}
+  align-items:center;gap:5px;font:10px var(--n-mono);letter-spacing:1px}
 /* A/B 面徽标：这是状态标记，不是危险 → 主色 */
 html[data-skin="nova"] .nv-tape-top em{font-style:normal;background:var(--o-accent);
   color:var(--o-accent-on);padding:1px 5px;border-radius:var(--n-r-xs)}
@@ -347,7 +350,8 @@ html[data-skin="nova"] .nv-clip{margin:0 0 12px}
 html[data-skin="nova"] .nv-clip-bar{display:flex;align-items:center;gap:8px;margin-bottom:10px}
 html[data-skin="nova"] .nv-clip-tag{flex:0 0 auto;background:rgba(16,24,40,.06);
   color:var(--o-ink-3);border:1px solid var(--o-line);
-  font:700 8px var(--n-mono);letter-spacing:1.6px;padding:4px 9px;border-radius:var(--n-r-xs);
+  /* v2.8.0：8px → 10px，同上（等宽大写 + 1.6px 字距的小标） */
+  font:700 10px var(--n-mono);letter-spacing:1.6px;padding:4px 9px;border-radius:var(--n-r-xs);
   transform:rotate(-1.2deg)}
 html[data-skin="nova"] .nv-clip-strip{flex:1;min-width:0;display:flex;gap:7px;
   overflow-x:auto;padding:2px 0 4px;scrollbar-width:none}
@@ -431,7 +435,7 @@ html[data-skin="nova"] .nv-ticket-shell{position:relative;padding:10px 11px 16px
     52% calc(100% - 14px),46% 100%,40% calc(100% - 14px),34% 100%,28% calc(100% - 14px),
     22% 100%,16% calc(100% - 14px),10% 100%,4% calc(100% - 14px),0 100%)}
 html[data-skin="nova"] .nv-ticket-head{display:flex;justify-content:space-between;
-  align-items:center;font:9px var(--n-mono);letter-spacing:1.6px;
+  align-items:center;font:10px var(--n-mono);letter-spacing:1.6px;
   border-bottom:1px dashed var(--o-line);padding-bottom:6px}
 html[data-skin="nova"] .nv-ticket-state{font-weight:700}
 html[data-skin="nova"] .nv-ticket-gauge{display:flex;align-items:center;gap:12px;margin:10px 0 6px}
@@ -442,9 +446,9 @@ html[data-skin="nova"] .nv-ticket-gauge{display:flex;align-items:center;gap:12px
 html[data-skin="nova"] .nv-ticket-read{min-width:0}
 html[data-skin="nova"] .nv-ticket-read b{display:block;font:800 20px var(--n-sans);
   letter-spacing:.5px;font-variant-numeric:tabular-nums}
-html[data-skin="nova"] .nv-ticket-read u{display:block;text-decoration:none;font:9px var(--n-mono);
+html[data-skin="nova"] .nv-ticket-read u{display:block;text-decoration:none;font:10px var(--n-mono);
   margin-top:3px}
-html[data-skin="nova"] .nv-ticket-note{margin:8px 0 0;font:9px/1.6 var(--n-mono)}
+html[data-skin="nova"] .nv-ticket-note{margin:8px 0 0;font:10px/1.6 var(--n-mono)}
 html[data-skin="nova"] .nv-ticket-steps{display:flex;gap:6px;margin:2px 0 0;perspective:420px}
 html[data-skin="nova"] .nv-ticket-step{flex:1 1 0;min-width:0;padding:8px 2px;
   border:1px solid var(--o-line);border-radius:var(--n-r-sm);
@@ -574,6 +578,12 @@ html[data-skin="nova"] .nv-plate-row span{font:11px var(--n-sans);color:var(--n-
   white-space:nowrap}
 html[data-skin="nova"] .nv-plate-row b{font:700 11px var(--n-mono);color:var(--n-ink);
   text-align:right;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* v2.8.0：数据来源是长句（「内置（课表） / 内置（作业）」），两列格里只有
+ * 约 150px，nowrap 会把后半截裁成「内置（课表） / 内_」。整行占满两列、
+ * 读数允许折行左对齐，值仍然贴右侧读。 */
+html[data-skin="nova"] .nv-plate-row.wide{grid-column:1 / -1}
+html[data-skin="nova"] .nv-plate-row.wide b{white-space:normal;overflow:visible;
+  text-overflow:clip;text-align:right;line-height:1.5;word-break:break-word}
 /* 深色档：铭牌规格表必须整体换成夜航介质，否则浅底浅字糊成一片 */
 html[data-skin="nova"][data-theme="dark"] .nv-plate-sheet{
   background:linear-gradient(180deg,#26314C,#1B2540) !important;
@@ -782,10 +792,14 @@ html[data-skin="nova"][data-theme="dark"] .seg button.on{
 
 /* ---------- ⑪ 专注仪表（学习页 · 番茄钟/专注计时） ----------
  * 身份保留：大号等宽读数 + 底部量程刻度 + 阶段灯。
- * 浅色档深紫底换成冷墨仪表（见文末），深色档保持紫夜舱。 */
+ * 浅色档深紫底换成冷墨仪表（见文末），深色档保持紫夜舱。
+ * v2.4.0：底部留白从 10px 加到 26px —— 那个「量程刻度」是 .focus-face::after
+ * 的绝对定位（bottom:6px、height:6px），它原本压在 #focusStat 下方；加了
+ * 最近 14 天柱状图后 #focusHint 成了面内最后一行，刻度会直接压在字上（实测
+ * 截图里那排小竖线就是它）。把它留在面板底部的空白里，语义仍是「仪表量程」。*/
 html[data-skin="nova"] .focus-face{
   position:relative;overflow:hidden;text-align:left;
-  padding:14px 12px 10px;border-radius:var(--n-r-md);margin:0 0 10px}
+  padding:14px 12px 26px;border-radius:var(--n-r-md);margin:0 0 10px}
 html[data-skin="nova"] .focus-time{
   display:block;text-align:left;
   font:700 46px/1.02 var(--n-mono) !important;
@@ -801,6 +815,11 @@ html[data-skin="nova"] .focus-phase::before{
 html[data-skin="nova"] .focus-stat{
   font:10px var(--n-mono) !important;letter-spacing:.4px !important;
   color:var(--o-ship-ink-2) !important;margin-top:6px !important}
+/* v2.15.0：专注记录读不出来时的提示行。NOVA 用暖红等宽、左对齐，和仪表语言同源。 */
+html[data-skin="nova"] .focus-err{
+  font:10px var(--n-mono) !important;letter-spacing:.3px !important;
+  color:var(--n-warn, #E8704C) !important;margin-top:5px !important;text-align:left}
+html[data-skin="nova"] .focus-stat.warn{color:var(--n-warn, #E8704C) !important}
 html[data-skin="nova"] .focus-acts{display:flex;gap:8px;margin-top:10px}
 html[data-skin="nova"] .focus-acts .btn{
   flex:1;margin-top:0 !important;min-height:42px;
@@ -921,10 +940,10 @@ html[data-skin="nova"] .nv-polaroid-bar{display:flex;align-items:center;gap:9px;
 html[data-skin="nova"] .nv-polaroid-tag{
   background:#FBFAF7 !important;color:#3C4248 !important;
   padding:3px 9px;border-radius:var(--n-r-xs);transform:rotate(-1.4deg);
-  font:800 9px var(--n-mono) !important;letter-spacing:1.6px !important;
+  font:800 10px var(--n-mono) !important;letter-spacing:1.6px !important;
   box-shadow:1px 1px 0 rgba(16,24,40,.16)}
 html[data-skin="nova"] .nv-polaroid-note{
-  font:9px var(--n-mono) !important;color:var(--o-ink-3) !important;letter-spacing:.4px !important}
+  font:10px var(--n-mono) !important;color:var(--o-ink-3) !important;letter-spacing:.4px !important}
 html[data-skin="nova"] .nv-darkroom{
   border:1.5px dashed var(--o-line);border-radius:var(--n-r-md);
   padding:16px 12px;text-align:center;
@@ -1003,8 +1022,12 @@ html[data-skin="nova"][data-theme="dark"] .ph-sec::before{
    另两笔（折线 / 星形）连形状一起收掉。
    DOM 不删（那是 JS 的写域），这里用 display:none 让它们不占位。
    ====================================================================== */
+/* v2.7.0：三笔收成一笔之后，这一笔单独看不像笔触，像误留的装饰。
+   用户 m06500 的 6× 裁图里就是一根灰波浪线浮在「账号与数据」上面，
+   没有人能读成「手绘体温」。整块收掉：DOM 留着（sync() 还要插回去），
+   只是不显示，也不占位。 */
 html[data-skin="nova"] .nv-doodle{
-  display:flex;align-items:flex-end;gap:12px;margin:0 0 8px;padding:0;
+  display:none;align-items:flex-end;gap:12px;margin:0 0 8px;padding:0;
   color:var(--o-ink-3);opacity:.5;pointer-events:none}
 html[data-skin="nova"] .nv-doodle-svg{width:40px;height:16px;flex:0 0 auto;opacity:1}
 /* 第二笔（折线）与第三笔（星形）：D 级不加色，也不该有三个形状 */

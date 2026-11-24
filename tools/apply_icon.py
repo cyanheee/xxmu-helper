@@ -24,12 +24,18 @@ import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ICONS = os.path.join(ROOT, "design", "icons")
+ICONS_V2 = os.path.join(ROOT, "design", "icons_v2")
 RES = os.path.join(ROOT, "android", "res")
 
 # 方案序号 → 目录名（和 gen_icons.py 的 SCHEMES 顺序严格一致）
 SCHEME_DIRS = [
     "01_河字渐变", "02_课表网格", "03_医药十字",
     "04_极简线河", "05_三道河流", "06_夜空河字",
+]
+# v2 定稿批（design/icons_v2/gen_final.py），用 `--v2 07_ink` 这种写法指定
+V2_DIRS = [
+    "01_stamp", "02_rx", "03_pencil", "04_river",
+    "05_bandage", "06_seal", "07_ink", "08_green",
 ]
 # 密度目录 → 该密度要用的 PNG
 DENSITY = {
@@ -81,18 +87,34 @@ def restore():
 
 
 def main():
-    args = [a for a in sys.argv[1:] if not a.startswith("--")]
-    dry = "--dry" in sys.argv
-    if "--restore" in sys.argv:
+    argv = sys.argv[1:]
+    if "--restore" in argv:
         return restore()
-    if len(args) != 1 or not args[0].isdigit() or not (1 <= int(args[0]) <= 6):
-        raise SystemExit("用法： python -X utf8 tools/apply_icon.py <1~6> [--dry]")
-    n = int(args[0])
-    folder = os.path.join(ICONS, SCHEME_DIRS[n - 1])
-    if not os.path.isdir(folder):
-        raise SystemExit("找不到方案目录：" + folder + "\n先跑 python -X utf8 tools/gen_icons.py")
+    dry = "--dry" in argv
 
-    print("方案 %d：%s" % (n, SCHEME_DIRS[n - 1]))
+    # --v2 <slug>：换 design/icons_v2 那批定稿图标（G 号 = 07_ink）
+    if "--v2" in argv:
+        rest = [a for a in argv if not a.startswith("--")]
+        if len(rest) != 1 or rest[0] not in V2_DIRS:
+            raise SystemExit("用法： python -X utf8 tools/apply_icon.py --v2 <%s> [--dry]"
+                             % "|".join(V2_DIRS))
+        slug = rest[0]
+        folder = os.path.join(ICONS_V2, slug)
+        if not os.path.isdir(folder):
+            raise SystemExit("找不到方案目录：" + folder + "\n先跑 python -X utf8 design/icons_v2/gen_final.py")
+        print("v2 方案：%s" % slug)
+    else:
+        args = [a for a in argv if not a.startswith("--")]
+        if len(args) != 1 or not args[0].isdigit() or not (1 <= int(args[0]) <= 6):
+            raise SystemExit("用法： python -X utf8 tools/apply_icon.py <1~6> [--dry]\n"
+                             "      python -X utf8 tools/apply_icon.py --v2 07_ink [--dry]")
+        n = int(args[0])
+        slug = SCHEME_DIRS[n - 1]
+        folder = os.path.join(ICONS, slug)
+        if not os.path.isdir(folder):
+            raise SystemExit("找不到方案目录：" + folder + "\n先跑 python -X utf8 tools/gen_icons.py")
+        print("方案 %d：%s" % (n, slug))
+
     # 先把所有源都验一遍，缺一个都不动目标
     plan = []
     for d, size in DENSITY.items():
@@ -120,8 +142,8 @@ def main():
 
     # 落一份选择记录，免得下次开会话不知道当前用的是几号
     io.open(os.path.join(ICONS, "CURRENT.txt"), "w", encoding="utf-8", newline="\n").write(
-        "当前图标方案：%d  %s\n应用时间：%s\n备份：%s\n" %
-        (n, SCHEME_DIRS[n - 1], time.strftime("%Y-%m-%d %H:%M:%S"), bdir))
+        "当前图标方案：%s\n应用时间：%s\n备份：%s\n" %
+        (slug, time.strftime("%Y-%m-%d %H:%M:%S"), bdir))
     print("\n完成。记得跑 python -X utf8 tools/build_apk.py 才会进新包。")
     print("回滚： python -X utf8 tools/apply_icon.py --restore")
     return 0

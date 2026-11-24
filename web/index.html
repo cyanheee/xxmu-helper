@@ -123,6 +123,7 @@
     <div class="disc-body">
       <p>感谢使用！这是一款<b>非官方、免费、无广告</b>的校园学习工具，由个人开发维护，不代表河南医药大学或相关服务提供方。</p>
       <p>课表、作业、接水记录默认只保存在本机；连接学校或打开第三方网页时，会访问相应服务。开发者不收集、不上传你的账号、密码和课表。</p>
+      <p>进门时填写的号码只是让你先试用，<b>只有到教务网登录成功、学号被学校页面验证过的，才会计入使用名单</b>；手填或乱填的号码不会被记录。</p>
       <p>教务与学习通的信息可能因网络、学校系统调整或缓存而<b>延迟、缺失或出错</b>。考试时间、作业截止、成绩等重要事项，请以学校和老师的官方通知为准，并自行核对。</p>
       <p>应用仍在完善，可能存在错误。涉及钱的操作（充值、绑卡、下单）一律不代办，请去官方渠道。</p>
       <p class="disc-more">完整使用声明、数据隐私和开源致谢，见「我的 → 关于本软件」。</p>
@@ -224,6 +225,25 @@
         <button id="kbBarDiag" class="btn ghost" style="display:none">复制课表诊断</button>
       </div>
     </div>
+    <!-- v2.3.0：「现在」一屏。三件事压在最上面 —— 现在上什么 / 下一节几点 /
+         现在哪间教室空。为什么放网格上方：课表网格 14 行约 690px，用户打开
+         课表页第一屏只想看「我现在该去哪」，不想在 7 列里找今天那格。
+         为什么不并进 #kbBar：那条是「课表本身有没有数据」的状态条（还没同步 /
+         读不出来），这一行是「此刻的答案」，两者会同时出现且必须分清。
+         数据全部只读：课程来自 blocksOf()/TIMES，空教室来自 FREE.state()，
+         读不到就照实说读不到（见 nowline.js 文件头三条规矩）。 -->
+    <div class="now-line" id="nowLine" data-tone="">
+      <div class="nl-top">
+        <span class="nl-dot" aria-hidden="true"></span>
+        <b id="nowMain">—</b>
+      </div>
+      <div class="nl-sub" id="nowSub" hidden></div>
+      <div class="nl-rooms">
+        <span class="nl-rooms-t" id="nowRooms">空教室　还没查过（点右边按钮查）</span>
+        <button id="nowFree" class="nl-free" type="button">查空教室</button>
+      </div>
+    </div>
+
     <div id="grid" class="grid"></div>
     <p class="hint" id="kbtip"></p>
     <!-- v1.1.55：糖梨借鉴入口。AI 改课表是纯前端文本指令，成绩页是本机只读展示，
@@ -246,6 +266,20 @@
         <button id="focusEntry" class="pill">番茄钟 · <span id="focusEntryState">25:00</span></button>
         <button id="refresh" class="pill">刷新</button>
       </span>
+    </div>
+
+    <!-- v2.0.0：今日一行。三件事压在一行里——下一节课、最近截止、一键复制未完成。
+         为什么贴在作业列表最上面而不是单独开一张卡：学习页最常被「看一眼就走」，
+         这一行就是那一眼的全部内容；开卡会把作业列表又往下挤（v1.1.28 把待办/
+         番茄钟缩成小按钮，为的就是别把作业挤下去）。数据全部来自 renderHomework
+         算好的 window.__HWITEMS 和 blocksOf/TIMES，这里不自己算截止时间。 -->
+    <div class="today-line" id="todayLine" data-tone="">
+      <div class="tl-top">
+        <span class="tl-dot" aria-hidden="true"></span>
+        <b id="todayMain">今日无课</b>
+        <button id="copyUndone" class="tl-copy" type="button">复制未完成</button>
+      </div>
+      <div class="tl-sub" id="todaySub" hidden></div>
     </div>
 
     <!-- v1.1.66 / m00638：账号绑定收进二级半框，主窗口只留这一条细入口 +
@@ -291,6 +325,12 @@
         <div class="focus-phase" id="focusPhase">番茄钟 · 待开始</div>
         <div class="focus-time" id="focusTime">25:00</div>
         <div class="focus-stat" id="focusStat">今日 0 分钟 · 本周 0 分钟</div>
+        <!-- v2.15.0：本机专注记录读不出来时在这里说人话，默认隐藏。 -->
+        <div class="focus-err" id="focusErr" style="display:none"></div>
+        <!-- v2.4.0：最近 14 天柱状图 + 连续天数。数据就是原来那份 xxmu_focus.log，
+             不新增存储，只是终于把它画出来了。 -->
+        <div class="focus-histo" id="focusHisto" aria-hidden="true"></div>
+        <div class="focus-hint" id="focusHint"></div>
       </div>
 
       <div class="focus-acts">
@@ -323,15 +363,27 @@
     </div><!-- /toolPark -->
 
     <!-- v1.1.27：课程提醒。课前 N 分钟由系统闹钟弹本地通知（锁屏也收得到）。
-         开关/提前量在「设置」半框里调，入口放这里和专注计时一排。 -->
+         开关/提前量在「设置」半框里调，入口放这里和专注计时一排。
+         v2.2.0：同一张卡多了「作业截止」一行 —— 两件事都是「到点提醒我」，
+         分成两张卡只会让人以为要分别去两个地方设。 -->
     <div class="card" id="remindCard">
       <div class="card-title">
-        <span class="dot"></span>课程提醒
+        <span class="dot"></span>提醒
         <button id="remindSet" class="pill">设置</button>
       </div>
       <div class="row" id="remindRow">
-        <span>状态</span>
+        <span>上课</span>
         <span id="remindStat" class="v">未开启</span>
+      </div>
+      <div class="row" id="remindHwRow">
+        <span>作业截止</span>
+        <span id="remindHwStat" class="v">未开启</span>
+      </div>
+      <!-- v2.14.0：第三行「待办到期」。我的待办从 v1.1.60 起就有 due 字段，
+           但从来没接过提醒系统 —— 记了「周三前交实验报告」，到那天手机不吭声。 -->
+      <div class="row" id="remindTodoRow">
+        <span>待办到期</span>
+        <span id="remindTodoStat" class="v">未开启</span>
       </div>
     </div>
 
@@ -450,6 +502,12 @@
         接够了自己点「停止」。<b>平台放水时不给实时用量，结算值出来后原样显示，单位以胖乖账单为准，App 不换算毫升</b>；
         下面的「最长放水」只是防忘关的安全网，到点发一次停止，不是按水量停。
       </p>
+
+      <!-- v2.1.0 出水看护：解锁之后这边自己盯着，停没停不用你猜。
+           用户原话「软件上点停止有延迟，所以更喜欢按饮水机上的停止按钮。
+           但是软件不会检索是否停止」。内容由 waterwatch.js 写，空的时候整块隐藏。 -->
+      <div id="waterLive" class="water-live" style="display:none"></div>
+
       <div class="chips" id="waterTarget">
         <button data-sec="0">不限</button>
         <button data-sec="60">1分钟</button>
@@ -567,7 +625,7 @@
       <div class="card-title"><span class="dot"></span>课表与学期</div>
       <div class="row"><span>开学日（第 1 周周一）</span><span id="startday" class="v">--</span></div>
       <div class="row"><span>总周数</span><span id="totalweeks" class="v">--</span></div>
-      <div class="fr-row">
+      <div class="fr-row fr-row-term">
         <input id="setStart" class="fr-input" type="date">
         <input id="setWeeks" class="fr-input" type="number" min="10" max="30" step="1" placeholder="总周数">
         <button id="setSave" class="btn-sm">保存并立即生效</button>
@@ -595,6 +653,12 @@
     <div class="card">
       <div class="card-title"><span class="dot"></span>数据与更新</div>
       <div class="row click" id="rowUpd"><span>检查更新</span><span class="v dim" id="updJumpVer">›</span></div>
+      <!-- v2.5.0 档 D：把本机数据打包带走。放在「重新读取」上面 ——
+           这两个动作是一对（一个进、一个出），挨着才想得起来。 -->
+      <div class="row click" id="rowExport"><span>备份与导出</span><span class="v dim">›</span></div>
+      <!-- v2.13.0：课表 → 日历文件。放在「备份与导出」下面、挨着「重新读取」之前，
+           因为这三个都是「把数据搬出去/搬进来」的动作。 -->
+      <div class="row click" id="rowCalendar"><span>导出到手机日历</span><span class="v dim">›</span></div>
       <button id="resync" class="btn ghost">重新读取本地数据</button>
       <p class="hint tight">课表或作业读不出来时，点一下重读本机缓存。</p>
     </div>
@@ -696,31 +760,18 @@
 
         <div class="card">
           <div class="card-title"><span class="dot"></span>使用名单 <span id="admListCnt" class="adm-cnt"></span></div>
-          <!-- v1.1.63 校准：用户原话「把有异常的单独挑出来在一个二级菜单里面，
-               主菜单列表那就显示正常的，计数也分开计数」。正常/异常各自成表、各自计数。 -->
-          <div class="chips adm-subtabs" id="admListTab">
-            <button data-t="normal" class="on">正常名单 <span id="admNormalCnt" class="adm-tab-cnt"></span></button>
-            <button data-t="cal">校准 · 异常 <span id="admOddCnt" class="adm-tab-cnt"></span></button>
+          <!-- v2.16.0：名单只收教务网登录成功的真号，手填号/异常号不再进名单，
+               也不再有「校准 · 异常」二级菜单与三态计数。 -->
+          <p class="adm-tip" id="admListTip">这里只列在教务网登录成功、学号已验证的人。进门时手填的号码不会记录。</p>
+          <p class="adm-hidden" id="admListHidden"></p>
+          <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
+                 placeholder="搜学号（留空显示全部）">
+          <div class="chips" id="admFilter">
+            <button data-f="all" class="on">全部</button>
+            <button data-f="granted">正常</button>
+            <button data-f="revoked">已停用</button>
           </div>
-          <!-- v1.1.64 方案 C：三态计数汇总（用户原话「计数也分开计数」）+ 只看已确认开关 -->
-          <div class="adm-summary" id="admKbSummary"></div>
-          <div id="admNormalPane">
-            <p class="adm-tip" id="admListTip">上面粗的是进门填的学号，下面细的是教务网登录读回的真号；灰的是还没补录真号，可在「校准」里手动补。</p>
-            <p class="adm-hidden" id="admListHidden"></p>
-            <label class="adm-only"><input type="checkbox" id="admOnlyConfirmed"> 只看已确认（隐去待补录）</label>
-            <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
-                   placeholder="搜学号（留空显示全部）">
-            <div class="chips" id="admFilter">
-              <button data-f="all" class="on">全部</button>
-              <button data-f="granted">正常</button>
-              <button data-f="revoked">已停用</button>
-            </div>
-            <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
-          </div>
-          <div id="admOddPane" style="display:none">
-            <p class="adm-tip">这些是没绑教务网、或手填形状不对的号，单独放在「校准」里；主列表只显示正常名单。可逐个查看详情或停用。</p>
-            <div id="admOddList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
-          </div>
+          <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
           <button id="admListBtn" class="btn ghost">刷新名单</button>
           <!-- v1.1.65 方案 A：全员下线重绑教务网。破坏性动作走 #sheet 二次确认，
                按钮留给管理员自己点；服务端动手前自动备份，「撤销」一键还原。 -->
@@ -956,7 +1007,7 @@
     <div class="about-hero">
       <div class="gate-badge sm">河</div>
       <div class="about-logo">河医大助手</div>
-      <div class="about-ver" id="aboutVer">v1.1.97</div>
+      <div class="about-ver" id="aboutVer">v2.16.0</div>
       <div class="about-desc">河南医药大学 · 课表与作业助手</div>
     </div>
 
@@ -1035,7 +1086,8 @@
         漏考、漏交、多扣费等后果，开发者无法承担，请务必自行确认。
       </p>
       <p class="about-p dim">
-        1.1 版起取消了激活码：填学号即可使用，身份由学校登录页自证。
+        1.1 版起取消了激活码：填学号即可试用，身份由学校登录页自证。
+        进门时填写的号码只是让你先试用，<b>不计入使用名单</b>；只有到教务网登录成功、学号被学校页面验证过，才算正式用户。手填或乱填的号码不会被记录。
         软件目前仅限河南医药大学在校学生使用。
       </p>
     </div>
@@ -1082,8 +1134,8 @@
     <div class="card">
       <div class="card-title"><span class="dot"></span>安全与反馈</div>
       <p class="about-p">
-        全站走 HTTPS；服务器只保存「学号 + 是否可用 + 绑了几台设备」，
-        不保存密码、课表、作业内容。服务器代码开源在
+        全站走 HTTPS；服务器只保存「教务登录验证过的学号 + 是否可用 + 绑了几台设备」，
+        进门手填的号码不会记进去。不保存密码、课表、作业内容。服务器代码开源在
         <code>server/worker.js</code>。<br>
         但本软件<b>没有经过任何独立的安全审计</b>，无法承诺绝对安全、
         没有缺陷、或数据永不丢失。
@@ -1191,6 +1243,11 @@
 <script src="disc.js"></script>
 <script src="tut.js"></script>
 <script src="water.js"></script>
+<!-- v2.1.0：出水看护。必须在 water.js 之后（要用 WATER.syncWater / WATER.loadDevs，
+     XXMU.pref 存看护清单）、在 app.js 之前（app.js 里 CampusUI 的按钮态要查它）。
+     它自己会在 DOMContentLoaded 时 init 一次（幂等），app.js 里那次是给
+     「DOM 已就绪、脚本后加载」的兜底。 -->
+<script src="waterwatch.js"></script>
 <script src="mytodo.js"></script>
 <script src="focus.js"></script>
 <script src="reminder.js"></script>
@@ -1198,7 +1255,29 @@
 <script src="free.js"></script>
 <script src="lesson-cmd.js"></script>
 <script src="grades.js"></script>
+<!-- v2.6.0 档 C：成绩从教务直接读一次（GET 成绩页 → 解析表格 → 合并进 GRADES）。
+     必须在 grades.js 之后：成绩面板里那颗「从教务读成绩」按钮要探测 GRADEPULL。
+     用 XXMU.netCk 带教务 Cookie，只读、只 GET，不提交任何表单。 -->
+<script src="gradepull.js"></script>
 <script src="app.js"></script>
+<!-- v2.0.0：学习页今日一行 / 一键复制未完成 / 目标绩点。
+     必须在 app.js 之后：要用 TIMES、DATA、blocksOf、weekOf、showTip，
+     以及 renderHomework 挂出来的 window.__HWITEMS（那一份才算过 left）；
+     也要在 grades.js 之后（包一层 GRADES.open 往成绩面板底加目标绩点）。 -->
+<script src="learnplus.js"></script>
+<!-- v2.3.0：课表页「现在」一屏（现在上什么 / 下一节几点 / 现在哪间空）。
+     必须在 app.js 之后：要用 DATA、TIMES、PERIODS、blocksOf、weekOf、CUR_TAB；
+     也要在 free.js 之后（点「查空教室」调 FREE.open）。
+     它只读已有数据，不新增任何网络请求。 -->
+<script src="nowline.js"></script>
+<!-- v2.5.0：备份与导出（档 D「数据能带走」）。
+     只读本机 pref 与两个缓存文件，一次网络请求都不发；
+     绑定设置页那行 #rowExport。要在 app.js 之后（openPanel 会调 parkTools）。 -->
+<script src="export.js"></script>
+<!-- v2.13.0：课表导出成日历（.ics）。只读 DATA / TIMES / START 与作业缓存，
+     不发网络请求；绑定设置页那行 #rowCalendar。要在 app.js 之后
+     （openPanel 会调 parkTools），且在 export.js 之后（共用保存通道的写法）。 -->
+<script src="ics.js"></script>
 <script src="nova-organs.js"></script>
 <!-- v1.1.57：反馈层。给真实按钮加上「预备-命中-余势-收招」四拍与一次加色光，
      只加视觉不加行为（不绑业务、不改 app.js）。必须在 app.js 之后（真实 DOM 已建）

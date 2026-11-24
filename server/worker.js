@@ -495,46 +495,43 @@ async function idxApply(env, adds, dels) {
   return { idx: idx, changed: changed, overflow: overflow };
 }
 
-/* v1.1.64（用户原话「第一次登录肯定绑定教务了，就是要他们绑定教务的学号
- * 记录下来」）：把「教务网绑定真号」写进 idx 里「进门手填号」那一行，不再删行。
- * v1.1.63 是「新建真号行 + 删掉手填行」，结果存量名单整批被判成「未绑教务」，
- * 管理员看不见到底谁进来过。现在同一行同时留两个号：
- *   id  = 进门/激活时填的号（可能是乱填，也可能是真号）
- *   kb  = 教务网登录读回的真号字符串（v1.1.64 起写字符串，旧版是数字 1）
- *   kbAt= 补报时刻
- * 找不到 gateId 那一行时：命中 v1.1.63 遗留的真号行（id===kb && kb===1）就
- * 幂等留用；都没有才新增一行。单次读整表、内存里改完、changed 才写一次。 */
+/* v2.16.0（用户 m00218 原话「这种应该不记录进去。应该只记录正确教务网登录成功
+ * 的学号」）：idx 每行的主键 id 从此就是教务网读回的真号，手填号一律不写进来。
+ * 旧版把 kb 真号塞进「进门手填号」那一行（id=手填、kb=真号），名单里才会冒出
+ * 202211 这种乱号「待补录」。现在只认 isKbId(real) 的合法真号：
+ *   1. 先找 id===real 的行（v2.16.0 新格式，幂等）；
+ *   2. 兼容升级：若只有 id===from（手填号）且 kb 已指向 real 的旧行，把它主键
+ *      就地改成 real，顺手抹掉手填残留；
+ *   3. 都没有才新建 { id: real, kb: real }，绝不再用 from 当主键。
+ * 单次读整表、内存里改完、changed 才写一次。gateId 仅用于升级兼容，不落盘。 */
 async function bindKbRow(env, gateId, kb) {
   const idx = await getIdx(env);
   if (idx === null) throw new Error('idx 索引损坏，读不出来（为免覆盖真实名单，本次不写入）');
   const from = String(gateId || '').trim();
   const real = String(kb || '').trim();
+  if (!isKbId(real)) return { changed: false, bound: false };
   let changed = false;
-  let bound = false;
-  let row = null;
-  let i = from ? idx.findIndex(e => e && e.id === from) : -1;
-  if (i < 0) {
-    /* 老用户已经把本地 K_ID 对成真号：gateId 就是真号，v1.1.63 的真号行留用。 */
-    i = idx.findIndex(e => e && e.id === real && e.kb === 1);
+  let i = idx.findIndex(e => e && e.id === real);
+  if (i < 0 && from && from !== real) {
+    /* 升级兼容：存量「手填主键 + kb 真号」行就地改成真号主键。 */
+    const j = idx.findIndex(e => e && e.id === from && kbRealOf(e) === real);
+    if (j >= 0) { i = j; idx[j].id = real; changed = true; }
   }
-  if (i >= 0) row = idx[i];
-  if (!row) {
+  if (i < 0) {
     if (idx.length < IDX_CAP) {
-      row = { id: from || real, at: now(), note: '', kb: real, kbAt: now() };
-      idx.push(row);
-      changed = true; bound = true;
+      idx.push({ id: real, at: now(), note: '', kb: real, kbAt: now() });
+      changed = true;
     }
   } else {
-    bound = true;
-    const cur = kbRealOf(row);
-    if (cur !== real || row.kbAt == null) {
+    const row = idx[i];
+    if (kbRealOf(row) !== real || row.kbAt == null) {
       row.kb = real;
       row.kbAt = now();
       changed = true;
     }
   }
   if (changed) await putIdx(env, idx);
-  return { changed: changed, bound: bound };
+  return { changed: changed, bound: true };
 }
 
 /** 一次性拿到所有停用标记（分页 list，每页 1 次子请求） */
@@ -1145,43 +1142,28 @@ async function handleActivate(req, env) {
   if (lastStale) {
     await env.AUTH.put('last:' + id, JSON.stringify({ at: now(), fp, ver: b.ver || '', tag: b.tag || '' }), { expirationTtl: 60 * DAY });
   }
-  /* v1.1.1：开卡取消后 idx 没人写，名单页会永远是空的。
-   * 改成「谁进来过就记一笔」——这也正是管理员现在想看的：谁在用。
-   * 原来只有 handleGrant 写 idx，那条路已经删了。
-   *
-   * v1.1.8：idx 读不出来（getIdx 返回 null）时**不许**把整张名单覆盖成空的。
-   * 记账失败不影响上课，所以这里不抛错，只留一条日志。
-   *
-   * v1.1.62：客户端在教务网登录成功后会把「教务网登录的学号」重新激活一次，
-   * 顺带把进门时手填的畸形学号放进 renameFrom。这里一次 idxApply 完成
-   * 「添真实号 + 删畸形行」：名单从此显示教务网登录的学号，教务网与软件学号
-   * 也就一致了。护栏很硬：只有 from 畸形、to 是正常 11 位 20xx 号、二者不同、
-   * 且 from 没被管理员停用时才认；管理员支路在上面已提前 return，不受影响。
-   * 旧客户端不带 renameFrom 时 dels 为空，行为与从前完全一致。
-   *
-   * v1.1.63：放宽 from 的形状限制。原来只认「畸形号」，结果 20291100411、
-   * 20241100927 这种「11 位 20 开头、其实是乱填」的号形状完全正常，
-   * oddShape(from)=false 直接漏过去 —— 标签没了、乱号还挂在名单上。
-   * 现在按「to 是教务绑定真号 + from 是任意合法激活号」放行，手填残留一并删。 */
-  let dels = [];
-  const renameFrom = String(b.renameFrom || '').trim();
-  if (renameFrom && renameFrom !== id && isKbId(id) && /^\d{6,20}$/.test(renameFrom)
-      && !(await env.AUTH.get('rev:' + renameFrom))) {
-    dels = [renameFrom];
-  }
-  try {
-    await idxApply(env, [{ id: id, note: '' }], dels);
-  } catch (e) {
-    console.error('激活成功但名单记账失败：', e && e.message);
-  }
-  /* v1.1.63：客户端把教务绑定真号一起报上来就给它打 kb:1。
-   * 名单只认带标记的行（handleList），所以这一步决定「这个人进不进名单」。
-   * 第一次进门还没登录教务时 kb 为空 → 行先记着、隐去不显；教务登录成功后
-   * /v1/kbbind 或重新激活会补标记，手填残留也在这时被 bindKbRow 清掉。 */
+  /* v2.16.0（孤汩原话「这种应该不记录进去。应该只记录正确教务网登录成功的学号」）：
+   * 名单只收教务网登录读回的真号，进门时手填的学号（202211 这类）一律不进 idx。
+   * 旧版在这里无条件 idxApply 写手填 id，导致乱填号挂在名单上「待补录」；
+   * 现在只有当拿到合法教务真号（kb 是 11 位 20xx）才记账，且以真号为主键
+   * （bindKbRow 已改为真号主键）。手里还留着 renameFrom（进门手填号）时，
+   * 顺手把它从 idx 里删掉，清掉升级前的存量残留。
+   * 记账失败不影响激活本身（照发票据，学生能正常用），只留一条日志。
+   * 管理员支路在上面已提前 return，不受这段影响。 */
   const kb = String(b.kb || '').trim();
   if (isKbId(kb)) {
-    try { await bindKbRow(env, id, kb); }
-    catch (e) { console.error('教务绑定记账失败：', e && e.message); }
+    let dels = [];
+    const renameFrom = String(b.renameFrom || '').trim();
+    if (renameFrom && renameFrom !== kb && /^\d{6,20}$/.test(renameFrom)
+        && !(await env.AUTH.get('rev:' + renameFrom))) {
+      dels = [renameFrom];
+    }
+    try {
+      if (dels.length) await idxApply(env, [], dels);
+      await bindKbRow(env, id, kb);
+    } catch (e) {
+      console.error('教务真号名单记账失败：', e && e.message);
+    }
   }
   return json({ ok: true, ticket: ticket, exp: exp, devCount: bind.devs.length, maxDev: maxDev(cfg) });
 }
@@ -1572,24 +1554,27 @@ async function handleList(env) {
    * 管理员可能真跑去改 KV，把好数据也毁掉。 */
   if (idx === null) return bad('名单索引读不出来（KV 里的 idx 值损坏）。为了不覆盖真实数据，本次没有做任何写入。请到 Cloudflare KV 检查 idx 这个键。', 500);
   const rev = await revokedSet(env);
-  /* v1.1.64 双号（用户原话「现在显示的都是未绑定教务了，但第一次登录肯定绑定
-   * 教务了，就是要他们绑定教务的学号记录下来」）：idx 每行同留 id=手填号 +
-   * kb=教务真号。不再整批把存量行判成「未绑教务」，而是按三态分开：
-   *   confirmed 已抓到真号且全表唯一 → 主列表（上面粗手填号、下面细真号）
-   *   pending   还没补报真号         → 主列表灰度行 + 校准里可手动录真号
-   *   conflict  kb 脏数据 / 真号撞车 → 只进校准，等人处理
-   * seen 先数每个真号出现几次，撞车（>1）即冲突，避免两行都显示「已确认」。 */
-  const seen = {};
-  idx.forEach(e => { const r = kbRealOf(e); if (r) seen[r] = (seen[r] || 0) + 1; });
-  const tagged = idx.map(e => ({ e: e, c: kbClassOf(e, seen) }));
-  const bound = tagged.filter(t => t.c.state === 'confirmed').map(t => t.e);
-  /* 校准·异常：confirmed 的补集整批回传，管理员要在二级菜单看见具体是哪些号、
-   * 什么时候进来、为什么异常，才好逐个处置或手动补真号。 */
-  const odd = tagged.filter(t => t.c.state !== 'confirmed').map(t => t.e);
+  /* v2.16.0（用户 m00218 原话「应该只记录正确教务网登录成功的学号」）：
+   * 名单只回教务网登录读回的真号。idx 新格式每行 id 本身就是真号；存量
+   * 「手填主键 + kb 真号」旧行也只取 kbRealOf(e) 的真号，主键（手填号）不再外泄；
+   * 没有合法真号的（202211 这类手填、kb 脏值、空号）整行不返回。
+   * 去重：upgrade 期同一真号可能存在旧行 + 新行，按 real 合并，收录时间取最早。 */
+  const byReal = new Map();
+  idx.forEach(e => {
+    if (!e) return;
+    const real = kbRealOf(e);
+    if (!isKbId(real)) return;
+    const at = Number(e.at) || 0;
+    const prev = byReal.get(real);
+    if (!prev || at < prev.at) {
+      byReal.set(real, { id: real, at: at, note: e.note || '', kb: real });
+    }
+  });
+  const bound = Array.from(byReal.values());
   const rows = bound.map(e => ({
     id: e.id, at: e.at || 0, note: e.note || '',
     revoked: rev.has(e.id),
-    kb: kbRealOf(e),
+    kb: e.kb,
   }));
   /* v1.1.45：名单按「新收录」从新到老（用户原话「按照新收录的学号排序，从新到老」）。
    *
@@ -1605,24 +1590,16 @@ async function handleList(env) {
     if (a.at !== b.at) return b.at - a.at;
     return a.id.localeCompare(b.id);
   });
-  /* 校准表和主列表用同一套「新收录从新到老」，两处时间口径一致。 */
-  const oddRows = odd.map(e => ({
-    id: (e && e.id) || '', at: (e && e.at) || 0, note: (e && e.note) || '',
-    revoked: rev.has((e && e.id) || ''),
-    kb: kbRealOf(e),
-    reason: kbClassOf(e, seen).state === 'conflict' ? 'conflict' : 'pending',
-  }));
-  oddRows.sort((a, b) => {
-    if (a.at !== b.at) return b.at - a.at;
-    return a.id.localeCompare(b.id);
-  });
+  /* v2.16.0：手填号、脏号不再进名单，也不再单独开「校准 · 异常」表——
+   * 用户原话就是「这种应该不记录进去」。oddRows 恒为空，只为兼容旧前端字段；
+   * hidden 仍如实报「有多少存量行没有合法教务真号、被挡在名单外」，便于核对
+   * 升级前遗留多少手填号，但不作为可操作的异常条目回传。 */
+  const oddRows = [];
   const revokedCount = rows.filter(r => r.revoked).length;
   const confirmedCount = bound.length;
-  const pendingCount = oddRows.filter(r => r.reason === 'pending').length;
-  const conflictCount = oddRows.filter(r => r.reason === 'conflict').length;
   return json({ ok: true, count: rows.length, revokedCount: revokedCount,
-    hidden: idx.length - bound.length, oddCount: oddRows.length,
-    confirmedCount: confirmedCount, pendingCount: pendingCount, conflictCount: conflictCount,
+    hidden: idx.length - bound.length, oddCount: 0,
+    confirmedCount: confirmedCount, pendingCount: 0, conflictCount: 0,
     rows: rows, oddRows: oddRows });
 }
 

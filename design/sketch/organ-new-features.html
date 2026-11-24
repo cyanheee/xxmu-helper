@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="nova">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOVA 样张 · 成绩卷宗 / 指令终端</title>
+<link rel="stylesheet" href="../../web/app.css">
+<link rel="stylesheet" href="../../web/nova-skin.css">
+<link rel="stylesheet" href="../../web/nova-organs.css">
+<style>
+  html,body{width:390px!important;max-width:390px!important;min-width:390px!important;
+    height:auto!important;overflow:visible!important;overflow-x:clip!important}
+  body{background:linear-gradient(180deg,#E8EEF0,#D8E6EA);padding:14px 12px}
+  .card{padding:12px}
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-title"><span class="dot"></span>成绩卷宗（v1.1.55 新功能）</div>
+  <div class="grade-stat">
+    <b>绩点 3.62</b>
+    <span>已修 96 学分 · 26 门通过</span>
+  </div>
+  <div class="grade-acts">
+    <button class="btn ghost">全部翻开</button>
+    <button class="btn ghost">重新盖上</button>
+  </div>
+  <div class="grade-box">
+    <div class="hwsec">2026-2027-1</div>
+    <div class="grade-row covered"><b>系统解剖学</b><span class="grade-credit">5 学分</span></div>
+    <div class="grade-row"><b>生物化学</b><span class="grade-credit">4 学分</span><span class="grade-score">92</span><span class="grade-point">绩点 4.0</span></div>
+    <div class="grade-row"><b>病理生理学</b><span class="grade-credit">4 学分</span><span class="grade-score">86</span><span class="grade-point">绩点 3.7</span></div>
+    <div class="grade-row"><b>医学英语</b><span class="grade-credit">2 学分</span><span class="grade-score muted">--</span><span class="grade-point">情况不明</span></div>
+  </div>
+</div>
+
+<div class="card" style="margin-top:14px">
+  <div class="card-title"><span class="dot"></span>指令终端（v1.1.55 AI 改课表）</div>
+  <div class="cmd-step">① 复制课表说明给 AI</div>
+  <div class="cmd-ta" style="display:block;min-height:52px">开学日 2026-08-31 · 作息 08:00-12:30 / 14:30-18:10 …</div>
+  <div class="cmd-step">② 把 AI 回的指令粘在这里</div>
+  <div class="cmd-ta" style="display:block;min-height:52px">+ 生物化学 | 周三 | 3-4节 | 第10周 | C305</div>
+  <div class="cmd-result">
+    <pre class="cmd-pre">解析 1 行：
+  生物化学 周三 3-4节 第10周 C305
+对不上校方钟点，已整批拒绝（未写入）。</pre>
+  </div>
+  <div class="cmd-step">③ 确认 / 撤销</div>
+</div>
+
+</body>
+</html>

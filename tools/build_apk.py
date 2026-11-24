@@ -214,6 +214,23 @@ def main():
     except Exception as e:                                   # noqa: BLE001
         print("    !! 送桌面时出错：%s（不影响 apk/ 里的成品）" % type(e).__name__)
 
+    # 8c. 重算账本（v2.0.0 新增）
+    # 为什么放在出包里面：STATE.md 一直是「三本账里最先烂的那本」——
+    # 出包人记得改 AndroidManifest、记得改 about.js，就是不记得再跑一次
+    # state.py，于是 STATE 停在 1.1.59 而磁盘已经到 1.1.97。
+    # 让出包自己把账算完，比指望人记住靠谱。
+    try:
+        import subprocess as _sp
+        r = _sp.run([sys.executable, "-X", "utf8",
+                     os.path.join(ROOT, "tools", "state.py")],
+                    capture_output=True, text=True, encoding="utf-8", errors="replace")
+        for line in (r.stdout or "").strip().splitlines()[-4:]:
+            print("    " + line)
+        if r.returncode != 0:
+            print("    !! STATE.md 重算失败（不影响成品），手动跑 python tools/state.py")
+    except Exception as e:                                   # noqa: BLE001
+        print("    !! 重算 STATE 时出错：%s（不影响成品）" % type(e).__name__)
+
     # 9. 校验
     r = run(["java", "-jar", SIGNER_JAR, "verify", "--print-certs", out], "apksigner verify")
     for line in r.stdout.splitlines()[:2]:

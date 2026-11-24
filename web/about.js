@@ -11,7 +11,7 @@
  * 两者都通过才放行；服务器不可达时按本地码放行，联网后自动补验。
  */
 
-const APP_VERSION = '1.1.97';
+const APP_VERSION = '2.16.0';
 const DEV_NAME = '孤汩';
 const DEV_QQ = '692962849';
 const DEV_MAIL = '692962849@qq.com';
@@ -295,6 +295,30 @@ const About = (() => {
           + (unk ? '（其中 ' + unk + ' 条状态未读到）' : '（状态全部读到）');
       }
     } catch (e) {}
+    /* v2.15.0：自动刷新日志（sources.js 的 AUTO_LOG / autoDiag()）从 v1.1.81
+     * 就在写，每次跳过没登录/stale/间隔未满的来源都记一笔，但从没进过任何
+     * 诊断出口。用户报「作业好几天不更新」时，这条最能说明最近到底刷没刷、
+     * 跳过谁。取最近 8 条，人话化；一条都没有就明说。 */
+    let autoLine = '自动刷新：还没有记录';
+    try {
+      if (typeof SOURCES !== 'undefined' && SOURCES && SOURCES.autoDiag) {
+        const logs = SOURCES.autoDiag() || [];
+        if (logs.length) {
+          const lines = logs.slice(-8).map(x => {
+            const d = new Date(Number(x.at) || 0);
+            const ts = isNaN(d.getTime()) ? '--'
+              : ((d.getMonth() + 1) + '/' + d.getDate() + ' '
+                 + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0'));
+            const skipped = Array.isArray(x.results) && x.results.length
+              ? (' · ' + x.results.map(r => (r.id || '?') + ':' + (r.state || '?')).join(','))
+              : '';
+            return ts + ' ' + (x.reason || 'auto') + ' · 刷了 ' + (x.ran || 0) + ' 个'
+              + (x.changed ? ' · 有变化' : '') + skipped;
+          });
+          autoLine = '自动刷新（最近 ' + Math.min(8, logs.length) + ' 条）:\n' + lines.join('\n');
+        }
+      }
+    } catch (e) {}
     return [
       '【河医大助手 问题反馈】',
       '学号：' + id,
@@ -305,6 +329,7 @@ const About = (() => {
       '数据来源：' + src,
       '课程数：' + cnt,
       hwLine,
+      autoLine,
       '设备：' + deviceInfo(),
       'UA：' + (navigator.userAgent || '--'),
     ].join('\n');

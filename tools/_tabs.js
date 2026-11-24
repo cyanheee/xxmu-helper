@@ -1,0 +1,14 @@
+const fs = require('fs');
+const path = require('path');
+const ROOT = path.join(__dirname, '..');
+const s = fs.readFileSync(path.join(ROOT, 'web/index.html'), 'utf8');
+const re = /<script src="([^"]+)"/g;
+let m;
+console.log('--- scripts ---');
+while ((m = re.exec(s))) console.log(m[1]);
+console.log('--- tabs ---');
+const r2 = /<section id="(tab-[a-z]+)" class="tab([^"]*)"/g;
+while ((m = r2.exec(s))) console.log(m[1] + ' |' + m[2] + '|');
+console.log('--- nav ---');
+const i = s.indexOf('id="tabs"');
+console.log(s.slice(i - 200, i + 1500));

@@ -88,6 +88,11 @@ final class ReminderScheduler {
                  * optString 默认 alarm —— 老版本存的列表里没有这个字段，
                  * 重挂时照常响铃，不会因为升级就变成静默。 */
                 it.putExtra("mode", o.optString("mode", ReminderReceiver.MODE_ALARM));
+                /* v2.2.0：kind=class|hw|exam + due（真正的截止/开考毫秒）。
+                 * 老列表里没有这两个字段，optString 回到 "class"、due 回 0，
+                 * 于是照旧说「N 分钟后上课」，升级不多出一条怪通知。 */
+                it.putExtra("kind", o.optString("kind", "class"));
+                it.putExtra("due", o.optLong("due", 0L));
                 int flags = Build.VERSION.SDK_INT >= 23 ? PendingIntent.FLAG_IMMUTABLE : 0;
                 PendingIntent p = PendingIntent.getBroadcast(
                         ctx, keep.length() + 1, it,

@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head><meta charset="utf-8"><meta name="viewport" content="width=390">
+<link rel="stylesheet" href="../../web/app.css">
+<style>html,body{margin:0}#tab-learn{display:block!important}
+#RESULT{position:relative;z-index:999;font:20px/1.4 monospace;background:#fff;color:#000;
+  padding:10px;white-space:pre-wrap;word-break:break-all;border-bottom:3px solid red}</style></head>
+<body>
+<div id="RESULT">pending</div>
+<section id="tab-learn" class="tab"><div class="card"><div class="row"><span>x</span><span class="v">y</span></div></div></section>
+<script>
+var d=document, e=d.documentElement, b=d.body, c=d.querySelector('.card');
+d.getElementById('RESULT').textContent='RESULT innerWidth='+window.innerWidth
+ +'\nclientWidth='+e.clientWidth+' scrollWidth='+e.scrollWidth
+ +'\nbodyClient='+b.clientWidth+' bodyScroll='+b.scrollWidth
+ +'\ncardW='+(c?Math.round(c.getBoundingClientRect().width):-1)
+ +'\ndpr='+window.devicePixelRatio+' screen='+screen.width;
+</script>
+</body></html>

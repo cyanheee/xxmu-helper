@@ -85,6 +85,67 @@ list.forEach(rel => {
   ok(!/^\s*[-*]\s/m.test(s), '没有 Markdown 项目符号（App 里是纯文本弹层）');
 });
 
+/* ---- 覆盖检查（v2.0.0 新增）---------------------------------------
+ *
+ * 为什么加：账本三本（STATE.md / changelog.md / 每版 notes）里，
+ * notes 是唯一学生真的会读到的一份 —— App 的更新弹层就是它。
+ * 但 apk/ 里一直有一堆包没有对应 notes（最早的 0.x、1.1.24~1.1.36 连续
+ * 13 版、1.1.83~1.1.94 连续 12 版），因为出包和写说明是两件事，
+ * 忘了写也没人拦。
+ *
+ * 现在改成硬卡口：**从 2.0.0 起，出一个包就必须有同名 notes**。
+ * 历史缺口不追溯（那 59 个包的内容无法凭记忆补真），只统计打印出来，
+ * 让人知道洞在哪，不制造假红。
+ */
+const GATE_FROM = [2, 0, 0];
+
+function verOf(name) {
+  const m = /(\d+)\.(\d+)\.(\d+)/.exec(name);
+  return m ? [+m[1], +m[2], +m[3]] : null;
+}
+function cmpVer(a, b) {
+  for (let i = 0; i < 3; i++) if (a[i] !== b[i]) return a[i] - b[i];
+  return 0;
+}
+
+console.log('\n出包与说明的配对（自 v2.0.0 起强制）');
+{
+  const apkDir = path.join(root, 'apk');
+  const all = fs.readdirSync(apkDir);
+  const apks = all.filter(f => /^xxmu-helper-v\d+\.\d+\.\d+\.apk$/.test(f));
+  const notes = new Set(all.filter(f => /^v\d+\.\d+\.\d+\.notes\.txt$/.test(f)));
+  const missing = [];
+  const legacy = [];
+  apks.forEach(f => {
+    const v = verOf(f);
+    const want = 'v' + v.join('.') + '.notes.txt';
+    if (notes.has(want)) return;
+    (cmpVer(v, GATE_FROM) >= 0 ? missing : legacy).push(v.join('.'));
+  });
+  const byVer = (a, b) => cmpVer(verOf(a), verOf(b));
+  missing.sort(byVer);
+  legacy.sort(byVer);
+
+  ok(missing.length === 0, 'v' + GATE_FROM.join('.') + ' 起每个包都有同名说明',
+    missing.length ? missing.map(v => 'v' + v).join('、') : undefined);
+  if (legacy.length) {
+    /* 历史缺口：只报数，不算失败。分连续段打印，比列 59 个版本号好读。 */
+    const seg = [];
+    let cur = [legacy[0]];
+    for (let i = 1; i < legacy.length; i++) {
+      const a = verOf(cur[cur.length - 1]), b = verOf(legacy[i]);
+      const contiguous = b[0] === a[0] && b[1] === a[1] && b[2] === a[2] + 1;
+      if (contiguous) cur.push(legacy[i]);
+      else { seg.push(cur); cur = [legacy[i]]; }
+    }
+    seg.push(cur);
+    const brief = seg.map(s => s.length > 2
+      ? 'v' + s[0] + '~v' + s[s.length - 1] + '(' + s.length + ')'
+      : s.map(v => 'v' + v).join('/')).join('、');
+    console.log('  · 历史缺说明 ' + legacy.length + ' 个（不追溯）：' + brief);
+  }
+}
+
 /* 公告正文与更新说明是两套东西，别混。 */
 console.log('\n公告与更新说明分离');
 const app = read('web/app.js');

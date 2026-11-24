@@ -1,0 +1,11 @@
+const s = require('fs').readFileSync('make_nova_real.js', 'utf8');
+console.log('ph-rail       ', /ph-rail/.test(s));
+console.log('fb-rail       ', /fb-rail/.test(s));
+console.log('ph-hang       ', /ph-hang/.test(s));
+console.log('ph-page       ', /ph-page/.test(s));
+console.log('fb-page       ', /fb-page/.test(s));
+console.log('rail-dots     ', /rail-dots/.test(s));
+console.log('shot-polaroid ', /data-shot-polaroid/.test(s));
+console.log('old bare grid ', /var pg=document\.createElement\("div"\); pg\.className="ph-grid"/.test(s));
+console.log('non-ascii     ', /[^\x00-\x7F]/.test(s));
+console.log('bytes         ', Buffer.byteLength(s, 'utf8'));

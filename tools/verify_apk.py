@@ -89,18 +89,11 @@ NEW_JS_SYMBOLS = {
                           "\\d{6,20}"],
     "assets/app.js": ["kbMismatchAck", "kbMismatchToastShown", "APKDL",
                       "__onApkProgress", "重试下载",
-                      # v1.1.45 管理名单
-                      "function listNewFirst(a, b)", "function looksOddId(id)",
-                      "格式异常（手填）", "LIST.slice().sort(listNewFirst)",
-                      # v1.1.63 名单只认教务绑定号
-                      "教务已绑定", "admListHidden",
-                       # v1.1.63 校准：异常号单独进二级菜单、计数分开
-                       "function renderOdd()", "function switchListTab(t)",
-                       "ODD = res.oddRows || []", "admOddCnt",
-                        # v1.1.64 方案 C：双行 / 三态汇总 / 只看已确认 / 手动录真号
-                        "let ONLY_CONFIRMED = false;", "function renderKbSummary(res)",
-                        "function openKbFix(r)", "AUTH.Admin.kbFix(",
-                        "adm-kbline", "is-pending",
+                      # v1.1.45 管理名单（v2.16.0 起不再标异常号）
+                      "function listNewFirst(a, b)", "LIST.slice().sort(listNewFirst)",
+                      # v2.16.0 名单只记教务网登录成功的真号
+                      "教务已绑定", "admListHidden", "adm-kbline",
+                      "教务网登录学号 · 已验证",
                          # v1.1.65 方案 A：全员重绑二次确认半框
                          "function openRebind(all)", "AUTH.Admin.rebindAll(", "AUTH.Admin.rebindUndo(",
                       # v1.1.46 检查更新提速
@@ -183,9 +176,8 @@ NEW_JS_SYMBOLS = {
                           # 现在的等价约束：半框必须存在，且 sh-body / sh-name 都在
                           # （少一个，showDetail 会静默 return，点详情毫无反应）。
                           'id="sheet"', 'id="sh-body"', 'id="sh-name"',
-                          # v1.1.63 校准：名单卡二级菜单 + 两个独立 pane
-                          'id="admListTab"', 'id="admNormalPane"',
-                          'id="admOddPane"', 'id="admOddList"', 'id="admKbSummary"', 'id="admOnlyConfirmed"',
+                          # v2.16.0 名单卡：静态说明 + 隐去计数位（二级菜单/校准 pane 已删）
+                          'id="admListTip"', 'id="admListHidden"',
                           'id="admRebindGo"', 'id="admRebindUndo"', 'id="admRebindState"'],
     # v1.1.11：声明必须能独立工作（不联网、读不到 pref 当没看过）
     "assets/disc.js": ["xxmu_disc_done", "function afterUnlock", "function replay",
@@ -335,14 +327,12 @@ WORKER_SYMBOLS = [
     "xxmu-pages-proxy-v1",
     # v1.1.9：名单条数上限（假学号无限新增会把全站 KV 写额度刷爆）
     "const IDX_CAP = 5000;",
-    # v1.1.63：名单只认教务绑定号；v1.1.64 方案 C 升级为双号三态
-    "function isKbId(", "/v1/kbbind", "kb === 1", "async function bindKbRow(",
-    "function kbRealOf(", "function kbClassOf(",
-    # v1.1.64 方案 C：handleList 三态分类 + 手动录真号
-    "const bound = tagged.filter(", "const odd = tagged.filter(",
-    "confirmedCount: confirmedCount", "/v1/admin/kbfix", "async function handleKbFix(",
-    # 保留：handleList 把 confirmed 补集整批回传 oddRows / oddCount
-    "oddCount: oddRows.length", "oddRows: oddRows",
+    # v2.16.0：名单只记教务网登录成功的真号（bindKbRow 以真号为主键）
+    "function isKbId(", "/v1/kbbind", "async function bindKbRow(",
+    "function kbRealOf(",
+    # v2.16.0：handleList 按真号 Map 去重，异常行恒空、三态计数归零
+    "const byReal = new Map()", "const oddRows = []",
+    "pendingCount: 0, conflictCount: 0", "/v1/admin/kbfix", "async function handleKbFix(",
     # v1.1.65 方案 A：全员下线重绑（cfg.rebindAt 可逆，不写 rev: 免死锁）
     "function rebindKicks(", "async function handleRebindAll(",
     "async function handleRebindUndo(", "rebind:backup",
@@ -394,7 +384,15 @@ def check_launcher(apk):
     if not m:
         fail("CURRENT.txt 里读不出方案目录名")
         return
-    folder = os.path.join(ROOT, "design", "icons", m.group(1))
+    # v2.0.0：图标方案搬到 design/icons_v2（slug 形如 07_ink），老方案目录
+    # （06_夜空河字）仍在 design/icons 下。两处都找，别只认一处。
+    slug = m.group(1)
+    folder = os.path.join(ROOT, "design", "icons", slug)
+    if not os.path.isdir(folder):
+        folder = os.path.join(ROOT, "design", "icons_v2", slug)
+    if not os.path.isdir(folder):
+        fail("CURRENT.txt 声明了 %s，但 design/icons 与 icons_v2 下都没有这个目录" % slug)
+        return
     densities = [("mdpi", 48), ("hdpi", 72), ("xhdpi", 96),
                  ("xxhdpi", 144), ("xxxhdpi", 192)]
     with zipfile.ZipFile(apk) as z:

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="nova">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NOVA 器官样张 · 刷票</title>
+<link rel="stylesheet" href="../../web/app.css">
+<link rel="stylesheet" href="../../web/nova-skin.css">
+<link rel="stylesheet" href="../../web/nova-organs.css">
+<style>
+  /* 长图模式：钉死 390px，规避 headless Edge 的 ~492 CSS px 最小视口 */
+  html,body{width:390px!important;max-width:390px!important;min-width:390px!important;
+    height:auto!important;overflow:visible!important;overflow-x:clip!important}
+  body{background:linear-gradient(180deg,#E8EEF0,#D8E6EA);padding:16px 14px}
+  .sheet{
+    position:relative;margin:0 0 18px;padding:16px 14px 18px;border-radius:12px;
+    background:linear-gradient(180deg,#F5F9FA,#E3ECEF);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 3px 0 rgba(16,24,40,.13);
+  }
+  .sheet h2{margin:0 0 4px;font:800 15px var(--n-mono);letter-spacing:1.2px;color:var(--n-ink)}
+  .sheet p{margin:0 0 12px;font:11px/1.6 var(--n-mono);color:var(--n-ink-3)}
+  .demo{position:relative;margin:0 0 18px;padding:16px 14px;border-radius:12px;
+    background:linear-gradient(180deg,#F5F9FA,#E3ECEF);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.75),0 3px 0 rgba(16,24,40,.13)}
+  /* 静态样张：直接摆出「票正被刷」的那一帧（不用动画，避免截图停在 0 帧） */
+  .demo .nv-swipe-card{animation:none!important;transform:translateX(96px)!important}
+  .demo .nv-swipe-reader{animation:none!important;
+    box-shadow:inset 0 0 0 1px rgba(255,210,63,.9),0 0 16px rgba(255,210,63,.85)!important}
+</style>
+</head>
+<body>
+
+<div class="sheet">
+  <h2>器官 6 &middot; 刷票</h2>
+  <p>胖乖解锁后要轮询机器状态，机器↔服务器重连要好几秒。这段时间界面原本只有一行「等待机器响应…」。NOVA 把这段等待变成一次刷票：票在闸口被刷过去，读卡器亮灯，票上那句真话跟着滚。</p>
+  <div class="nv-swipe demo">
+    <div class="nv-swipe-gate">
+      <div class="nv-swipe-slot">
+        <div class="nv-swipe-card">
+          <span class="nv-swipe-h">WATER</span>
+          <span class="nv-swipe-t">等待机器响应… 第 3 次</span>
+        </div>
+      </div>
+      <i class="nv-swipe-reader"></i>
+    </div>
+    <div class="nv-swipe-label">正在刷票 · 等待机器响应… 第 3 次</div>
+  </div>
+</div>
+
+<div class="sheet">
+  <h2>状态机</h2>
+  <p>① 官方 unlock 只下发命令，人还要在机器上按物理键 —— 界面绝不写「正在出水」。<br>
+     ② 重连期间：票在闸口刷，读卡器亮。<br>
+     ③ 解锁成功：文案换成「已解锁，去出水口按一下」。<br>
+     ④ 定量放水：盯平台回报的原始数值，到量自动停。</p>
+</div>
+
+</body>
+</html>

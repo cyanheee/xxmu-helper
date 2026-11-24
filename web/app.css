@@ -19,7 +19,12 @@
   --grid:#DCCBAB;
   --ink:#3B3225;
   --ink2:#6A5842;
-  --pencil:#9C8B70;
+  /* v2.8.0：铅笔灰原来 #9C8B70，压在 paper(#EFE2C8) 上对比度只有 2.58、
+   * 压在 paper2(#FAF3E2) 上 2.99 —— 而它是 --mute 的本体，一路管着
+   * 截止时间、行尾「›」、「已过期」、「管理 ›」这些**要读的字**。
+   * WCAG 正文下限 4.5，实测新值 #706046 在 paper / paper2 / surface2
+   * 三底上分别是 4.75 / 5.50 / 5.10，全部过线，且仍是同一个色相（暖褐）。 */
+  --pencil:#706046;
   --line:#D3C0A0;
 
   --red:#B23B26;
@@ -40,7 +45,9 @@
   --accent:var(--red);
   --accent-soft:#F3DCCB;
   --danger:#A62B1C;
-  --warn:#B27A12;
+  /* v2.8.0：沙金 #B27A12 在 paper2 上只有 3.34（「还剩 11 小时 59 分」用它），
+   * 提到 #83560A 后 4.96 / 5.75，仍是琥珀金，不变成棕。 */
+  --warn:#83560A;
   --ok:#3F6B3C;
   --radius:4px;
   --radius-sm:3px;
@@ -86,6 +93,10 @@
   --edge:#A89070;
   --oncolor:#FDF6E6;
   --oncolor-dim:rgba(253,246,230,.86);
+  /* v2.8.0：黄底（--yellow #D9A32B）上的字色。浅色档用 --ink #3B3225 本来就有
+     5.53，够；这里显式给一个令牌，是为了让「黄底深字」这件事在两档里都是同一条规则，
+     不用 everywhere 判主题。 */
+  --on-yellow:var(--ink);
   /* 卡片轮换底色：三支笔的极淡版本 + 一根皮绳线 */
   --tint-blue:#E4EDF1;
   --tint-yellow:#F8EBC7;
@@ -212,17 +223,23 @@ main{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:c
    课名靠换行解决；层级不再靠「缩小字号」表达，改由字重 + 不透明度承担
    （§1.1 三级可读性：颜色/字重分级，字号只有一档）。
    行高 1.09 = 56px 行高扣 8px 内边距后正好 4 行（47.9），不用再猜。 */
+/* v2.7.0：左右内边距 6/4 → 4/2。
+ * 390px 下一天一列 (390-34-12-14)/7 ≈ 47px，卡片 47-2(gap) 后内容宽只有 30px，
+ * 11px 汉字一行只放得下 2 个字，「系统解剖学」被切成「系统/解剖/学」三行，
+ * 而单节卡一共就 4 行（56px 行高）。收到 4/2 后内容宽 34px，一行 3 字，
+ * 「系统解剖学」变两行。左侧竖条同步从 2.5px 减到 2px，少占 0.5px。 */
 .c{position:relative;background:var(--c,#e8f0fe);border-radius:8px;
-  padding:4px 4px 4px 6px;display:flex;flex-direction:column;gap:1px;
+  padding:3px 1px 3px 3px;display:flex;flex-direction:column;gap:1px;
   overflow:hidden;color:#16233a;font-size:11px;line-height:1.09;
   cursor:pointer;border:1px solid rgba(15,23,42,.045);
   box-shadow:0 1px 3px -1px rgba(15,23,42,.12)}
-.c::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2.5px;
+.c::before{content:'';position:absolute;left:0;top:0;bottom:0;width:2px;
   background:var(--cb,#2563eb);opacity:.72}
 .c:active{filter:brightness(.97);transform:scale(.99)}
-.c b{font-size:11px;font-weight:700;line-height:1.09;word-break:break-all;
-  letter-spacing:0;padding-left:1px}
-.c .room{color:#4a5666;font-size:11px;opacity:.86;word-break:break-all;padding-left:1px}
+.c b{font-size:11px;font-weight:700;line-height:1.09;word-break:normal;
+  overflow-wrap:break-word;letter-spacing:0;padding-left:0}
+.c .room{color:#4a5666;font-size:11px;opacity:.86;word-break:normal;
+  overflow-wrap:break-word;padding-left:0}
 .c .pr{margin-top:auto;color:#5b6884;font-size:11px;opacity:.92;
   white-space:nowrap;padding-left:1px}
 .c .pr2{margin-top:0;color:#5b6884;font-size:11px;opacity:.92;
@@ -399,7 +416,12 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
 .pick-grid.c4 .pick-cell{padding:11px 2px;font-size:13px}
 .hwsec{font-size:12px;color:var(--mute);margin:16px 4px 7px;font-weight:650;
   letter-spacing:.3px}
-.hwsec.fold{cursor:pointer;user-select:none;display:flex;align-items:center;
+/* v2.9.0：display 从 flex 改 inline-flex。折叠行原来是 flex（块级，撑满整行），
+ * 而 .hwsec::after 是 left:0;right:0 的绝对定位荧光笔 —— 在块级盒里它的包含块
+ * 是整行，于是那道上高亮横穿整张卡，「已完成 · 2 ▾」下方多出一条断掉的黄杠
+ * （展开状态才看得见）。inline-flex 让盒子缩到文字宽，荧光笔正好盖住文字，
+ * 与其它 .hwsec / .grp-head 小标题一致；align-items/gap 都还生效。 */
+.hwsec.fold{cursor:pointer;user-select:none;display:inline-flex;align-items:center;
   gap:4px;color:var(--mute)}
 .hwsec.fold.on{color:var(--fg2)}
 .foldbox:empty{display:none}
@@ -471,9 +493,28 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
   font-variant-numeric:tabular-nums;letter-spacing:1px;
   margin:6px 0 2px}
 .focus-stat{font-size:11.5px;color:var(--mute);margin-top:2px}
+/* v2.15.0：专注记录读不出来时的提示行（默认隐藏，只有 LAST_ERR 非空才显示）。
+ * 用 --danger 上色，和「本机存储坏了」的严重度相称。 */
+.focus-err{font-size:11px;color:var(--danger);margin-top:4px;line-height:1.4}
+.focus-stat.warn{color:var(--danger)}
 .focus-acts{display:flex;gap:8px;margin-top:6px}
 .focus-acts .btn{flex:1;margin-top:0}
 .focus-acts .btn.ghost{flex:0 0 40%}
+
+/* v2.4.0：专注记录柱状图（最近 14 天）。
+ * 同一份 log 画出来，不新增存储；五档高度对应 level 0~4，
+ * level 0 是「这天没学」——留一条 2px 底线，让人分得清「0 分钟」和「没数据」。 */
+.focus-histo{display:flex;align-items:flex-end;gap:3px;height:46px;
+  margin:12px 2px 0;padding:0 1px}
+.fh-bar{flex:1 1 0;min-width:0;display:block;border-radius:2px 2px 1px 1px;
+  background:var(--accent);opacity:.9;transition:height .18s ease}
+.fh-l1{opacity:.34}
+.fh-l2{opacity:.52}
+.fh-l3{opacity:.72}
+.fh-l4{opacity:.95}
+.fh-zero{height:2px!important;background:var(--line);opacity:1;border-radius:1px}
+.focus-hint{font-size:11px;color:var(--mute);margin-top:6px;
+  font-variant-numeric:tabular-nums}
 
 /* ---------------- 课程提醒（v1.1.27） ----------------
  * 一条极简的状态行 + 设置半框；沿用既有变量，不加新配色。 */
@@ -492,6 +533,45 @@ html[data-theme="dark"] .pick-cell.suite{background:rgba(96,165,250,.16);
   border-radius:10px;background:var(--surface);color:var(--fg)}
 /* v1.1.35：精确闹钟被系统关掉时的提示（提醒会晚几分钟） */
 .rm-warn{color:var(--warn);margin-top:4px}
+
+/* ---------------- 备份与导出（v2.5.0） ----------------
+   两个按钮并排，等宽。导出结果那行默认隐藏（.ex-out 的 display:none 由
+   JS 打开），失败才加 .ex-bad 换色 —— 成功不需要绿，别在牛皮纸上再加
+   一种「成功绿」。
+   .ex-stat 是一块独立小结，不用 .row：.row 的 .v 右对齐，那句
+   「3 条待办 · 10 天专注记录 · 3 门成绩 · 2 台饮水机」会被折成右对齐两截，
+   看起来像两行不相干的字（v2.5.0 实拍抓到的）。 */
+.ex-stat{margin:10px 0 2px;padding:8px 10px;border:1px dashed var(--line);
+  border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;background:var(--surface2)}
+.ex-cap{font-size:11px;color:var(--mute);letter-spacing:.3px}
+.ex-sum{margin-top:3px;font-size:13px;color:var(--fg);line-height:1.55;
+  font-variant-numeric:tabular-nums}
+.ex-acts{display:flex;gap:8px;margin-top:12px}
+.ex-acts .btn{flex:1;margin-top:0}
+.ex-out{margin-top:10px;word-break:break-all}
+.ex-bad{color:var(--red)}
+
+/* ---------------- 从教务读成绩（v2.6.0 档 C） ----------------
+ * 这一块要同时说清两件事：这次试了哪几条路、每条路为什么不成。
+ * 所以「路径」用等宽、结论跟在后面同一行，失败的不涂红 —— 三条全失败
+ * 是正常结局（学校换了地址），不该看起来像报错。 */
+.gp-acts{display:flex;gap:8px;margin-top:12px}
+.gp-acts .btn{flex:1;margin-top:0}
+.gp-out{margin-top:12px}
+.gp-cap{font-size:11px;color:var(--mute);letter-spacing:.3px;margin-bottom:2px}
+.gp-row{display:flex;flex-direction:column;gap:2px;padding:6px 9px;margin-top:6px;
+  border:1px dashed var(--line);border-radius:5px 2px 6px 3px / 3px 6px 2px 5px;
+  background:var(--surface2)}
+.gp-row.ok{border-style:solid;border-left-width:3px;border-left-color:var(--pencil)}
+.gp-path{font-family:var(--mono,monospace);font-size:11px;color:var(--fg);word-break:break-all}
+.gp-why{font-size:11.5px;color:var(--mute);line-height:1.5;font-variant-numeric:tabular-nums}
+.gp-res{margin-top:12px}
+.gp-sum{display:flex;flex-direction:column;gap:2px;padding:8px 10px;margin-top:4px;
+  border:1px dashed var(--line);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
+  background:var(--surface2)}
+.gp-sum b{font-size:14px;color:var(--fg)}
+.gp-sum span{font-size:11.5px;color:var(--mute);line-height:1.5;word-break:break-all}
+.gp-res .btn{margin-top:12px;width:100%}
 
 /* ---------------- 课程提醒方式（v1.1.41） ----------------
  * 三档和外观三档同一套视觉语言：整行可点、选中描边 + ✓。
@@ -744,6 +824,33 @@ html[data-theme="dark"]{
 .btn-sm.gray{background:var(--surface2);color:var(--mute);box-shadow:none;
   border:1px solid var(--line)}
 .btn-sm.done{background:var(--ok-bg);color:var(--ok);box-shadow:none;border:1px solid var(--ok-line)}
+
+/* ---------- 出水看护（v2.1.0） ----------
+   用户原话「软件上点停止有延迟，所以更喜欢按饮水机上的停止按钮。但是软件
+   不会检索是否停止」。这块就是「我替你盯着」的那一行读数，所以它长得像
+   读数条（左边一个状态点 + 一行字），不像提示条 —— 提示条是一次性的，
+   这块会自己变。空的时候 waterwatch.js 会把整块 display:none，不占地方。 */
+.water-live{margin:0 0 10px;padding:9px 11px;border-radius:11px;
+  background:var(--surface2);border:1px solid var(--line)}
+.water-live .live-row{display:flex;align-items:flex-start;gap:7px;
+  font-size:12px;line-height:1.55;color:var(--fg2)}
+.water-live .live-row + .live-row{margin-top:6px;
+  padding-top:6px;border-top:1px dashed var(--line)}
+.water-live .live-dot{flex:0 0 auto;width:11px;text-align:center;
+  font-weight:700;line-height:1.55}
+.water-live .live-txt{flex:1;min-width:0;word-break:break-word}
+/* 正在出水：主色 + 呼吸点。这是唯一需要「持续看」的状态，所以给它动效；
+   其他状态都是静态文字，不跟人抢注意力。 */
+.water-live .live-row.live{color:var(--accent);font-weight:600}
+.water-live .live-row.live .live-dot{animation:liveBreath 1.6s ease-in-out infinite}
+.water-live .live-row.ok{color:var(--ok)}
+.water-live .live-row.ok .live-dot{color:var(--ok)}
+.water-live .live-row.warn{color:var(--warn)}
+.water-live .live-row.warn .live-dot{color:var(--warn)}
+@keyframes liveBreath{0%,100%{opacity:1}50%{opacity:.35}}
+@media (prefers-reduced-motion: reduce){
+  .water-live .live-row.live .live-dot{animation:none}
+}
 
 /* ---------------- 激活门 ---------------- */
 #gate{position:fixed;inset:0;z-index:100;display:flex;align-items:center;
@@ -1180,9 +1287,18 @@ html[data-theme="dark"]{
    不能继承上面的 width:100%，否则它会吃掉整行宽度、把输入框挤扁。 */
 .fr-row .btn-sm{flex:0 0 auto;width:auto;margin-top:0}
 /* 设置页「开学日 / 总周数 / 保存」一行：日期框要更宽（原生 date 控件
-   在窄格里会把 2026/08/31 截掉尾巴），周数框固定窄一点。 */
-.fr-row #setStart{flex:1.45 1 0;min-width:0}
-.fr-row #setWeeks{flex:0 0 84px}
+   在窄格里会把 2026/08/31 截掉尾巴），周数框固定窄一点。
+   v2.9.1：只把 flex 比例调大是不够的 —— 实测 390 宽的手机上，卡片内容宽
+   336px，日期框 116 + 周数 84 + 按钮 120 + 两个 8px 间距正好吃满，
+   而 date 控件画「2026/08/31」加日历图标要约 136px，于是被截成
+   「2026/08.」。改成「保存」整行换下去：日期框这一行只剩它和周数框，
+   能拿到 244px；保存按钮占满一整行，也符合卡片里按钮通栏的既有做法。
+   只加 .fr-row-term（不动 .fr-row 本身）—— 饮水机那条「验证码 + 发送」
+   必须留在同一行，换行会把它拆成两截。 */
+.fr-row-term{flex-wrap:wrap}
+.fr-row-term #setStart{flex:1 1 132px;min-width:132px}
+.fr-row-term #setWeeks{flex:0 0 84px}
+.fr-row-term #setSave{flex:1 0 100%;margin-top:8px}
 
 /* 结算过程回显：一行一项，和 .apk-hosted 同款视觉语言 */
 .settle-box {
@@ -1442,7 +1558,24 @@ html[data-theme="dark"]{
   --edge:#6E6152;
   --ink:#F3E9D6;
   --ink2:#C8B79C;
-  --pencil:#8F8069;
+  /* v2.8.0：原来 #8F8069，对深色 paper/paper2/surface2 只有 4.28/3.83/3.42 ——
+   * 它是 --mute 的本体，管着截止时间、行尾「›」、「已过期」这些**要读的字**。
+   * #B0A085 三底 6.44/5.77/5.14 全过 4.5，色相不变（还是暖沙灰），观感仍比 --ink2 弱一档. */
+  --pencil:#B0A085;
+  /* v2.8.0：黄底（--yellow）上的字色。深色档 --ink 本身是浅色 #F3E9D6，
+   * 压黄底只有 1.46 —— 全站最差的一处。黄底要深字，单独立一个令牌。 */
+  --on-yellow:#2A2018;
+  /* v2.8.0：深色档作业卡状态色的专用令牌。
+   * 作业卡的状态字色是 app.js 写死的内联色（浅色档那套暖褐/深蓝/深红），
+   * 深色档纸面变成 #302620 之后压上去只剩 2.0~2.9，读不出来。
+   * 这五个值是提亮过的同色系，对 #302620 / #241E1A 两底都在 5.4 以上。
+   * 用令牌而不是在下面那组 !important 规则里写死，是为了让「深色组件里
+   * 不许出现裸色值」这条纪律能过 check_web。 */
+  --hw-threat:#FF8A80;
+  --hw-info:#7FB3F0;
+  --hw-soon:#E8A34E;
+  --hw-done:#8FD08A;
+  --hw-idle:#A89C8E;
   --line:#463829;
   --red:#E8704C;
   --blue:#6FA8C8;
@@ -1499,7 +1632,11 @@ html[data-theme="dark"]{
   --c-line:rgba(243,233,214,.22);
   --tape:var(--red);
   --oncolor:#17120E;
-  --oncolor-dim:rgba(23,18,14,.72);
+  /* v2.8.0：深色档的 --oncolor 本身是深墨 #17120E（压在提亮后的五支笔上要深字），
+   * 所以「稍淡一档」不能靠 alpha 往下掉 —— 掉到 .72 时压 --red 只剩 4.38。
+   * 往上收到 .82 之后五底色分别 5.40/4.72/5.85/7.22/4.96，全过 4.5。
+   * 浅色档那边是浅字压深笔，.86 本来就在 5 以上，不用动。 */
+  --oncolor-dim:rgba(23,18,14,.82);
   --tint-blue:#2E3138;
   --tint-yellow:#37322A;
   --tint-purple:#362D26;
@@ -1650,7 +1787,7 @@ main{background:transparent}
 .btn.ghost{background:var(--paper2);color:var(--ink);
   border:1.5px solid var(--edge);box-shadow:2px 2px 0 rgba(140,122,94,.40);font-weight:700}
 .btn.ghost:active{background:var(--yellow);box-shadow:none}
-.btn.soft{background:var(--yellow);color:var(--ink);
+.btn.soft{background:var(--yellow);color:var(--on-yellow);
   border:1.5px dashed var(--edge);box-shadow:none;font-weight:800}
 .btn.soft:active{background:var(--paper2)}
 .btn:disabled{opacity:.4;box-shadow:none}
@@ -1677,7 +1814,10 @@ main{background:transparent}
   bottom:-4px;left:8%;right:8%}
 .gp{color:var(--pencil)}
 .gp>div:first-child{color:var(--ink2);font-weight:800}
-.gp .gt{opacity:.65}
+/* v2.8.0：节次钟点原来 color 跟着 .gp 走铅笔灰、再乘 .65 透明度，实际渲染
+   压在 paper2 上只剩 2 左右 —— 这是课表里唯一告诉你「这一节几点开始」的字。
+   改成 --ink2 且不透明（6.15），靠字重 400 与节次号的 800 区分主次。 */
+.gp .gt{color:var(--ink2);opacity:1}
 .gp.gfirst::before{height:1px;background:var(--line)}
 .cell{background:transparent;border-radius:3px;
   border:1px dashed var(--grid)}
@@ -1715,8 +1855,28 @@ main{background:transparent}
 .sh-grip{width:36px;height:4px;border-radius:2px;background:var(--line)}
 .sh-head{border-bottom:2px dashed var(--edge);color:var(--ink)}
 .sh-head b{font-weight:800;letter-spacing:-.2px}
-.sheet-only{background:transparent;border:0;box-shadow:none;transform:none}
+/* v2.9.0：`.card:nth-of-type(4n+2..4)` 的彩纸底（蓝/黄/雾紫）特异性是 (0,2,0)，
+ * 比单独的 .sheet-only (0,1,0) 高，所以工具卡被 openToolCard() 搬进半框之后
+ * 仍然带着「第几张卡」的随机底色 —— 我的待办恰好是第 4 张，整个卡是雾紫的
+ * #F2EDFB 加一条紫胶带，而半框是纸白，看起来像另一个 App 的卡片插进来。
+ * 这里把 .sh-box 也写进选择器，凑到 (0,3,0) 并靠顺序靠后盖过 4n 那几条
+ * （openToolCard() 是把卡 append 进 .sh-box，不是 #sh-body）；
+ * --tape 一并收回默认红，否则半框里的 ✦ 会随卡片排位变蓝变紫。
+ * isolation:isolate 不能省：原来的 transform:rotate(-.25deg) 顺带给 .card 造了
+ * 层叠上下文，.hwsec::after 那个 z-index:-1 的荧光笔才留在卡内、画在卡底色之上；
+ * 一旦把 transform 抹掉，荧光笔就掉到 .sh-box 的纸色底下面整条看不见。 */
+.sh-box .sheet-only,.sh-box .card.sheet-only{background:transparent;border:0;
+  box-shadow:none;transform:none;--tape:var(--red);isolation:isolate}
 .sheet-only::before,.sheet-only::after{display:none}
+/* v2.9.0：半框里的「卡中卡」也不再贴胶带、不再点蹄铁星。
+ * 账号绑定那张面板里挂着四张 provider 卡（#cxCard + #srcCards 里三张），
+ * 它们是真 .card，所以各带一条 ::before 胶带 —— 而胶带是 top:-7px 探出卡外的
+ * 装饰，第一张正好顶在 .sh-box 的滚动容器上沿被裁掉半截，看起来像一块凭空
+ * 浮着的红色方块。半框本身已经有 #sh-name 标题，纸片已经贴在「面板」里而
+ * 不是摊在桌面上，胶带在这里既没有物理依据又会被裁，索性全部收掉；
+ * 彩纸底色（4n 那几条 tint）保留，那是这套皮肤的记号，不是装饰附件。 */
+.sh-box .sheet-only .card::before,
+.sh-box .sheet-only .card::after{display:none}
 .upd-box,.tut-box,.disc-box,.onb-box,.ntc-box{background:var(--paper2);
   border:1.5px solid var(--edge);
   border-radius:10px 4px 11px 5px / 5px 11px 4px 10px;
@@ -1732,12 +1892,12 @@ main{background:transparent}
 /* v3：徽标是必读信息（"!"= 有新公告），米黄底 + 奶白字只有 2.11:1，
    读不出来就等于没有。改成墨字（--ink）在 --yellow 上是 5.53:1。
    底色仍留 --yellow，它承担"警示"语义，不承担"文字"语义。 */
-.ntc-badge{background:var(--yellow);color:var(--ink)}
+.ntc-badge{background:var(--yellow);color:var(--on-yellow)}
 .tut-icon{background:var(--green)}
 .upd-ico{background:var(--purple)}
 .upd-notes,.ntc-body{background:var(--surface2);border:2px dashed var(--line);
   border-radius:4px}
-.upd-group{background:var(--yellow);color:var(--ink);border:1.5px solid var(--edge);
+.upd-group{background:var(--yellow);color:var(--on-yellow);border:1.5px solid var(--edge);
   border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   font-weight:800;letter-spacing:.4px;box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38)}
 .tut-tip{background:var(--paper2);color:var(--ink2);border:2px dashed var(--blue);
@@ -1777,11 +1937,11 @@ main{background:transparent}
   box-shadow:2px 2px 0 rgba(44,92,122,.45)}
 #gateCode{letter-spacing:2px}
 .gate-more span{color:var(--ink2);border-radius:4px}
-.gate-more span:active{background:var(--yellow);color:var(--ink)}
+.gate-more span:active{background:var(--yellow);color:var(--on-yellow)}
 .gate-err{color:var(--danger)}
 .about-logo{color:var(--ink);font-weight:800;letter-spacing:-.3px}
 .about-ver{background:var(--yellow);border:1.5px solid var(--edge);
-  color:var(--oncolor);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
+  color:var(--on-yellow);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   font-weight:800;letter-spacing:.4px;box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);
   transform:rotate(-1.5deg);display:inline-block}
 .about-desc,.about-p.dim,.about-p{color:var(--ink2)}
@@ -1830,7 +1990,7 @@ main{background:transparent}
   border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   color:var(--ink2);font-weight:700}
 .rm-mode.on{background:var(--yellow);border-color:var(--edge);
-  color:var(--ink);font-weight:800;box-shadow:2px 2px 0 rgba(140,122,94,.40)}
+  color:var(--on-yellow);font-weight:800;box-shadow:2px 2px 0 rgba(140,122,94,.40)}
 .rm-mode-hint{color:var(--ink2)}
 
 /* ---------------- 分段 / 胶囊 / 选择行 ---------------- */
@@ -1860,7 +2020,7 @@ main{background:transparent}
 .pick-cell:active{background:var(--yellow);border-color:var(--edge)}
 /* v1.1.62：套间 AB 房在牛仔布告牌下也用西部黄高亮，别跟普通格混一起 */
 .pick-cell.suite{background:var(--yellow);border-color:var(--edge);
-  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);color:var(--ink);font-weight:800}
+  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38);color:var(--on-yellow);font-weight:800}
 
 /* ---------------- 宿舍空调：牛仔布告牌 ---------------- */
 .card.elec-entry{background:var(--blue);color:var(--oncolor);
@@ -1875,13 +2035,13 @@ main{background:transparent}
 .card.elec-entry .elec-entry-room{color:var(--oncolor);opacity:.92;font-weight:700}
 .elec-entry-odd{font-size:32px;font-weight:800;letter-spacing:-1.2px}
 .elec-entry-unit{color:var(--oncolor-dim)}
-.elec-entry-refresh{background:var(--yellow);color:var(--ink);
+.elec-entry-refresh{background:var(--yellow);color:var(--on-yellow);
   border:1.5px solid var(--edge);border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   font-weight:800;letter-spacing:.4px;box-shadow:1.5px 1.5px 0 rgba(140,122,94,.38)}
 .elec-entry-refresh:active{transform:translate(1px,1px);box-shadow:none}
-.elec-change{color:var(--ink);background:var(--yellow);
+.elec-change{color:var(--on-yellow);background:var(--yellow);
   border:1.5px solid var(--edge);border-radius:999px;font-weight:800}
-html[data-theme="dark"] .elec-change{color:var(--ink)}
+html[data-theme="dark"] .elec-change{color:var(--on-yellow)}
 .elec-big{color:var(--ink);font-weight:800;letter-spacing:-2px}
 .elec-unit,.elec-meta,.elec-label{color:var(--ink2)}
 .elec-acts .btn{flex:1}
@@ -1894,7 +2054,7 @@ html[data-theme="dark"] .elec-change{color:var(--ink)}
   box-shadow:2px 2px 0 rgba(140,122,94,.40)}
 .wiki-card.mine{background:var(--tint-mist);box-shadow:2px 2px 0 rgba(142,123,196,.50)}
 .wiki-t{color:var(--ink);font-weight:700}
-.wiki-tag{background:var(--yellow);color:var(--ink);border:1.5px solid var(--edge);
+.wiki-tag{background:var(--yellow);color:var(--on-yellow);border:1.5px solid var(--edge);
   border-radius:999px;font-weight:800;letter-spacing:.3px}
 .wiki-cat2{color:var(--blue);font-weight:800;letter-spacing:.8px}
 .wiki-p{color:var(--ink2)}
@@ -1930,6 +2090,16 @@ html[data-skin="classic"] .rail-dots i.on{transform:rotate(-4deg)}
 .dev{border-top:2px dashed var(--line)}
 .dev-n{color:var(--ink);font-weight:800}
 .dev-s{color:var(--ink2)}
+/* 出水看护（经典皮肤）：一块牛皮纸便签，手写体那套边框 + 硬投影，
+   读数行用项目既有的绿/橙/红状态笔，别引入新颜色。 */
+.water-live{background:var(--paper2);border:1.5px solid var(--edge);
+  border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;padding:8px 10px;
+  box-shadow:2px 2px 0 rgba(140,122,94,.34)}
+.water-live .live-row{color:var(--ink2);font-size:11.5px}
+.water-live .live-row + .live-row{border-top:2px dashed var(--line)}
+.water-live .live-row.live{color:var(--red);font-weight:800}
+.water-live .live-row.ok{color:var(--ok);font-weight:700}
+.water-live .live-row.warn{color:var(--danger);font-weight:700}
 .room-card{background:var(--surface);border:1.5px solid var(--edge);
   border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   box-shadow:2px 2px 0 rgba(140,122,94,.40)}
@@ -1945,6 +2115,22 @@ html[data-skin="classic"] .rail-dots i.on{transform:rotate(-4deg)}
 .hwsec::after,.grp-head::after,.wiki-cat::after,.ph-title::after{
   content:'';position:absolute;left:0;right:0;bottom:1px;height:8px;
   background:var(--yellow);opacity:.6;z-index:-1;transform:rotate(-.6deg)}
+/* v2.9.0：深色档的荧光笔不能再用 .6。
+ * 浅色档是「深字压浅条」，条越亮越好读；深色档反过来，--ink 是浅色 #F3E9D6，
+ * 一条 .6 不透明的 --yellow #E8BE58 混在 --paper2 #302620 上得到 rgb(158,129,66)，
+ * 压在上面的字只剩 ink 3.07 / ink2 1.89 / pencil 1.45 —— 全都读不出来。
+ * 压到 .14 之后条是 rgb(74,59,40)，ink 8.95 / ink2 5.50 达标（pencil 只有 4.22，
+ * 所以下面把深色档的折叠行字色从 --pencil 提到 --ink2）—— 既留住了那笔淡痕，
+ * 又不靠牺牲可读性换装饰。 */
+html[data-theme="dark"] .hwsec::after,
+html[data-theme="dark"] .grp-head::after,
+html[data-theme="dark"] .wiki-cat::after,
+html[data-theme="dark"] .ph-title::after{opacity:.14}
+/* 深色档折叠行的字原来吃 --mute（= --pencil #B0A085），压在 .14 的荧光笔上只有 4.22；
+ * 提到 --ink2 #C8B79C 是 5.50。它本来就是个「可以点开看看」的次级标题，
+ * 不是正文，用 ink2 也不抢戏。 */
+html[data-theme="dark"] .hwsec.fold,
+html[data-theme="dark"] .hwsec.fold.on{color:var(--ink2)}
 
 /* ---------------- 管理台 / 审核 / 上传 ---------------- */
 .adm-in{border-radius:6px}
@@ -1955,14 +2141,14 @@ html[data-skin="classic"] .rail-dots i.on{transform:rotate(-4deg)}
 .adm-stat b.warn{color:var(--danger)}
 .adm-code{color:var(--blue);border-bottom:2px dotted var(--line);font-weight:800}
 .adm-cp{background:var(--yellow);border:1.5px solid var(--edge);
-  border-radius:6px;color:var(--ink);font-weight:800}
+  border-radius:6px;color:var(--on-yellow);font-weight:800}
 .adm-rev{background:transparent;border:2px solid var(--danger);
   color:var(--danger);border-radius:6px;font-weight:800}
 .adm-ok{background:transparent;border:2px solid var(--ok);
   color:var(--ok);border-radius:6px;font-weight:800}
 .adm-item{border-top:2px dashed var(--line)}
 .adm-id,.adm-at,.adm-id-wrap{color:var(--pencil)}
-.adm-odd{background:var(--yellow);color:var(--ink);
+.adm-odd{background:var(--yellow);color:var(--on-yellow);
   border:1.5px solid var(--edge);border-radius:6px;font-weight:800}
 .apk-pick{background:transparent;border:1.5px dashed var(--edge);border-radius:6px}
 .apk-pick.has{background:var(--surface2);border-style:solid;
@@ -1996,10 +2182,61 @@ html[data-skin="classic"] .rail-dots i.on{transform:rotate(-4deg)}
   border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
   color:var(--ink2);font-weight:700}
 .th-opt.on{background:var(--yellow);border-color:var(--edge);
-  color:var(--ink);font-weight:800;box-shadow:2px 2px 0 rgba(140,122,94,.40)}
+  color:var(--on-yellow);font-weight:800;box-shadow:2px 2px 0 rgba(140,122,94,.40)}
 .th-tick{font-weight:800;color:var(--mist)}
 .th-hint{color:var(--ink2)}
 .th-inline .th-opt{font-size:13.5px;padding:11px 13px}
+
+/* v2.8.0：深色档的作业卡状态色 ------------------------------------------------
+ * web/app.js 的 HW_COLORS 是给浅色纸底调的（#A8201A / #1259AE / #9E5009 …），
+ * 它以内联 style 写进 .hwbar 的 background 与 .hwbadge 的 color/borderColor。
+ * 深色档纸面变 #302620 之后，这几个字色压上去只剩 2.03 / 2.15 / 2.25 / 2.89 ——
+ * 卡还在，字读不出来。内联样式外部改不了，只能 !important 按 data-st 重上色。
+ * 这一组值对 #302620 / #241E1A 两底都在 5.4 以上，色相与浅色档一一对应。
+ * NOVA 皮肤在 nova-skin.css ⑥ 段有自己的一套（按三级可读性分档），
+ * 那些规则特异性更高，不会被这段覆盖。 */
+html[data-theme="dark"] .hw[data-st="未交"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="未提交"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="进行中"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="逾期"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="已逾期"] .hwbadge{
+  color:var(--hw-threat) !important;border-color:rgba(255,138,128,.34) !important}
+html[data-theme="dark"] .hw[data-st="未交"] .hwbar,
+html[data-theme="dark"] .hw[data-st="未提交"] .hwbar,
+html[data-theme="dark"] .hw[data-st="进行中"] .hwbar,
+html[data-theme="dark"] .hw[data-st="逾期"] .hwbar,
+html[data-theme="dark"] .hw[data-st="已逾期"] .hwbar{
+  background:var(--hw-threat) !important}
+html[data-theme="dark"] .hw[data-st="未开始"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="未开考"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="待批阅"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="未批阅"] .hwbadge{
+  color:var(--hw-info) !important;border-color:rgba(127,179,240,.34) !important}
+html[data-theme="dark"] .hw[data-st="未开始"] .hwbar,
+html[data-theme="dark"] .hw[data-st="未开考"] .hwbar,
+html[data-theme="dark"] .hw[data-st="待批阅"] .hwbar,
+html[data-theme="dark"] .hw[data-st="未批阅"] .hwbar{
+  background:var(--hw-info) !important}
+html[data-theme="dark"] .hw[data-st="待做"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="重新编辑"] .hwbadge{
+  color:var(--hw-soon) !important;border-color:rgba(232,163,78,.34) !important}
+html[data-theme="dark"] .hw[data-st="待做"] .hwbar,
+html[data-theme="dark"] .hw[data-st="重新编辑"] .hwbar{
+  background:var(--hw-soon) !important}
+html[data-theme="dark"] .hw[data-st="已完成"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="已批阅"] .hwbadge{
+  color:var(--hw-done) !important;border-color:rgba(143,208,138,.34) !important}
+html[data-theme="dark"] .hw[data-st="已完成"] .hwbar,
+html[data-theme="dark"] .hw[data-st="已批阅"] .hwbar{
+  background:var(--hw-done) !important}
+html[data-theme="dark"] .hw[data-st="已过期"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="已结束"] .hwbadge,
+html[data-theme="dark"] .hw[data-st="状态未知"] .hwbadge{
+  color:var(--hw-idle) !important;border-color:rgba(168,156,142,.34) !important}
+html[data-theme="dark"] .hw[data-st="已过期"] .hwbar,
+html[data-theme="dark"] .hw[data-st="已结束"] .hwbar,
+html[data-theme="dark"] .hw[data-st="状态未知"] .hwbar{
+  background:var(--hw-idle) !important}
 
 html[data-theme="dark"] .c{filter:saturate(1.5) contrast(.98)}
 html[data-theme="dark"] .btn{box-shadow:var(--shadow)}
@@ -2153,3 +2390,100 @@ html[data-theme="dark"] #bindEntry .row .v{color:var(--ink2)}
 html[data-theme="dark"] .src-card .ykt-region-label{color:var(--ink2)}
 html[data-theme="dark"] .src-card .ykt-r{color:var(--ink2);border-color:var(--edge)}
 html[data-theme="dark"] .src-card .ykt-r.on{background:var(--accent);color:var(--bg);font-weight:700}
+
+/* ---------------- v2.0.0：学习页「今日一行」 ----------------
+ * 一行装三件事：下一节课 / 最近截止 / 复制未完成。它是学习页的「一眼」，
+ * 所以要矮（不超过两行字）、要能扫（左边一个圆点当状态灯，右边一个按钮）。
+ * 颜色全用主题变量，浅深自动适配；nova 皮肤在 nova-skin.css 里另有一段，
+ * 那边换成玻璃舱面板，这里只负责经典西部档。 ---- */
+.today-line{margin:0 0 9px;padding:9px 12px 8px;
+  background:var(--surface);border:1.5px solid var(--edge);
+  border-radius:6px 2px 7px 3px / 3px 7px 2px 6px;
+  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.36)}
+.tl-top{display:flex;align-items:center;gap:7px;min-height:20px}
+.tl-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;
+  background:var(--pencil);box-shadow:0 0 0 2px var(--surface2)}
+/* 下一节课是这一行里唯一「有时间压力」的东西，给它唯一的强调色 */
+.today-line[data-tone="next"] .tl-dot{background:var(--mist);
+  box-shadow:0 0 0 2px var(--mist-soft)}
+#todayMain{flex:1 1 auto;min-width:0;font-size:13px;font-weight:800;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.tl-copy{flex:0 0 auto;padding:3px 9px;border:1px solid var(--line);
+  border-radius:999px;background:transparent;color:var(--fg2);
+  font:inherit;font-size:11.5px;font-weight:700;line-height:1.5;white-space:nowrap}
+.tl-copy:active{background:var(--surface2)}
+.tl-copy.dim{color:var(--mute);border-color:var(--line);opacity:.65}
+.tl-sub{margin-top:4px;font-size:11.5px;font-weight:600;color:var(--fg2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+html[data-theme="dark"] .today-line{box-shadow:1.5px 1.5px 0 rgba(0,0,0,.36)}
+html[data-theme="dark"] #todayMain{color:var(--ink)}
+html[data-theme="dark"] .tl-sub{color:var(--ink2)}
+html[data-theme="dark"] .tl-copy{color:var(--ink2);border-color:var(--edge)}
+
+/* ---------------- v2.3.0：课表页「现在」一屏 ----------------
+ * 三件事：现在上什么（大字）/ 还剩多久或几点上课（小字）/ 这一节哪间教室空
+ * （带一个「查空教室」按钮）。放在课表网格上方，比 14 行网格更早被看见。
+ * 与「今日一行」的差别：那条在学习页、讲作业和截止；这条在课表页、讲人要去
+ * 哪间教室。所以这里不用便签纸造型，用一条近乎无框的读数条 —— 它要能直接
+ * 压在网格上面而不像个卡片，否则用户会以为那是课表的一部分。 ---- */
+.now-line{margin:0 0 10px;padding:8px 11px 7px;
+  background:linear-gradient(180deg,var(--surface),var(--surface2));
+  border:1.5px solid var(--edge);border-left-width:3px;
+  border-radius:5px 2px 6px 3px / 3px 6px 2px 5px;
+  box-shadow:1.5px 1.5px 0 rgba(140,122,94,.30)}
+/* 左边那道竖痕就是状态：正在上课=铅笔色实心，下一节=雾色，都读完=灰 */
+.now-line[data-tone="now"]{border-left-color:var(--pencil)}
+.now-line[data-tone="next"]{border-left-color:var(--mist)}
+.now-line[data-tone="warn"]{border-left-color:var(--mute)}
+.nl-top{display:flex;align-items:center;gap:7px;min-height:20px}
+.nl-dot{flex:0 0 auto;width:7px;height:7px;border-radius:50%;
+  background:var(--pencil);box-shadow:0 0 0 2px var(--surface2)}
+.now-line[data-tone="next"] .nl-dot{background:var(--mist);
+  box-shadow:0 0 0 2px var(--mist-soft)}
+.now-line[data-tone="warn"] .nl-dot{background:var(--mute);
+  box-shadow:0 0 0 2px var(--line)}
+#nowMain{flex:1 1 auto;min-width:0;font-size:14px;font-weight:800;color:var(--ink);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.nl-sub{margin-top:3px;font-size:11.5px;font-weight:600;color:var(--fg2);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  font-variant-numeric:tabular-nums}
+.nl-rooms{display:flex;align-items:center;gap:8px;margin-top:6px;
+  padding-top:6px;border-top:1px dashed var(--line)}
+.nl-rooms-t{flex:1 1 auto;min-width:0;font-size:11px;font-weight:600;color:var(--mute);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nl-free{flex:0 0 auto;padding:2px 9px;border:1px solid var(--line);
+  border-radius:999px;background:transparent;color:var(--fg2);
+  font:inherit;font-size:11px;font-weight:700;line-height:1.6;white-space:nowrap}
+.nl-free:active{background:var(--surface2)}
+html[data-theme="dark"] .now-line{box-shadow:1.5px 1.5px 0 rgba(0,0,0,.36)}
+html[data-theme="dark"] #nowMain{color:var(--ink)}
+html[data-theme="dark"] .nl-sub{color:var(--ink2)}
+html[data-theme="dark"] .nl-free{color:var(--ink2);border-color:var(--edge)}
+
+/* 目标绩点：挂在成绩面板最下面，不抢成绩单的戏 */
+.gpa-target{margin-top:12px;padding:10px 12px;
+  background:var(--surface2);border:1.5px dashed var(--line);
+  border-radius:6px 2px 7px 3px / 3px 7px 2px 6px}
+.gt-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.gt-head b{font-size:12.5px;font-weight:800;color:var(--ink)}
+.gt-stat{font-size:11px;font-weight:700;color:var(--mute);
+  font-variant-numeric:tabular-nums}
+.gt-form{display:flex;gap:8px;margin-top:8px}
+/* 标签文字是 label 里的裸文本节点，作为 flex item 会被压到一字一行（"目/标"竖排）。
+   钉住 nowrap + 给个不缩的下限，输入框自己去吃掉剩余宽度。 */
+.gt-form label{flex:0 1 auto;display:flex;align-items:center;gap:6px;
+  white-space:nowrap;min-width:0;
+  font-size:11.5px;font-weight:700;color:var(--fg2)}
+.gt-form input{flex:1 1 40px;min-width:40px;box-sizing:border-box;
+  padding:6px 8px;border:1px solid var(--line);border-radius:5px;
+  background:var(--surface);color:var(--ink);font:inherit;font-size:12.5px;
+  font-variant-numeric:tabular-nums}
+.gt-form input::placeholder{color:var(--mute)}
+.gt-line{margin-top:7px;font-size:11.5px;line-height:1.55;color:var(--fg2);
+  font-variant-numeric:tabular-nums}
+.gt-line[data-ok="1"]{color:var(--ok);font-weight:700}
+html[data-theme="dark"] .gt-head b{color:var(--ink)}
+html[data-theme="dark"] .gt-line[data-ok="1"]{color:var(--kb-ok-fg)}

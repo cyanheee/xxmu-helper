@@ -214,9 +214,12 @@ function renderWeek() {
        * 万一 t1 是空串就退回节次文案，绝不让 undefined 上屏。 */
       const at1 = firstTime(t1), at2 = lastTime(t2);
       if (at1 && at2) {
-        // 官方作息：起止分两行，避免窄列被裁
-        box.appendChild(el('span', 'pr', at1));
-        box.appendChild(el('span', 'pr2', at2));
+        /* v2.7.0：课卡里不再印起始钟点。
+         * 左侧节次轴每一行本身就写着这一节的起始时间（.gp .gt），卡片再印一遍
+         * 等于用掉四行里的两行（单节卡只有 56px 高 = 4 行 11px 正文），
+         * 课名于是被挤成「系统 / 解剖 / 学」逐字竖排。
+         * 结束钟点只在跨节时保留 —— 单节卡的结束时间在下一行轴上也能看到。 */
+        if (b.span > 1) box.appendChild(el('span', 'pr2', at2));
       } else {
         box.appendChild(el('span', 'pr',
           (b.span > 1 ? `第 ${b.start}-${endP} 节` : `第 ${b.start} 节`) + ' · ' + DAY_PART(b.start)));
@@ -597,13 +600,25 @@ function readCached() {
 }
 
 /* ===== 学习页：学习通作业待办 ===== */
+/* v2.8.0：这六个色原来直接搬的是 Material 的 500 号色，压在经典皮肤的
+ * paper2(#FAF3E2) 上对比度分别是 蓝 4.07 / 红 4.31 / 橙 2.79 / 绿 2.76 /
+ * 灰 1.96 —— 只有前两个勉强够，橙绿灰是「看得见、读不清」。
+ * 这几个色同时喂三处：.hwbar 左边那道 4px 竖条、.hwbadge 圆角徽标的字、
+ * 以及下面 1950/2031 行截止倒计时的字色 —— 都是要读的字，不是装饰。
+ * 换成同色相深两档的版本，对 paper2/paper/surface2 三底全部 ≥4.5。
+ * NOVA 皮肤自己用 !important 按 data-st 重上色（nova-skin.css ⑥ 段），
+ * 所以这里只影响经典皮肤，两边不会打架。 */
 const HW_COLORS = {
-  '待做': '#e8710a', '重新编辑': '#e8710a', '未交': '#d93025', '未提交': '#d93025',
-  '待批阅': '#1a73e8', '未批阅': '#1a73e8', '已批阅': '#34a853',
-  '未开始': '#1a73e8', '未开考': '#1a73e8', '进行中': '#d93025',
-  '已完成': '#34a853', '已过期': '#b0b0b0', '已结束': '#b0b0b0',
-  '状态未知': '#9aa0a6',
+  '待做': '#9E5009', '重新编辑': '#9E5009', '未交': '#A8201A', '未提交': '#A8201A',
+  '待批阅': '#1259AE', '未批阅': '#1259AE', '已批阅': '#1E6B33',
+  '未开始': '#1259AE', '未开考': '#1259AE', '进行中': '#A8201A',
+  '已完成': '#1E6B33', '已过期': '#6E6E6E', '已结束': '#6E6E6E',
+  '状态未知': '#6E6E6E',
 };
+/* v2.8.0：面板块里「倒计时 / 剩余」的内联字色。跟 HW_COLORS 同一套（之前是
+ * 直接把 Material 500 号色写进 style，橙 #e8710a 压在纸底上只有 2.79）。
+ * 两处共用这两个常量，将来只改一处。 */
+const HW_INK = { bad: HW_COLORS['未交'], soon: HW_COLORS['待做'] };
 /* v1.1.24：EXAM_OPEN 已废弃（历史上用于考试 open 判断，现在全走
  * CX.classify 的 notstart 类）。留着仅供外部调试参考，不再参与任何判断。 */
 const EXAM_OPEN = ['未开始', '待做', '进行中', '待考'];
@@ -891,11 +906,22 @@ function renderHomework() {
     });
   }
 
+  /* v2.0.0：把这一轮算好的条目挂到全局。
+   * 学习页「今天」一行和一键复制都在 learnplus.js 里，它们要的是**已经算好
+   * left / expired / notStart 的条目**，不是原始 JSON —— 让它们各自再算一遍
+   * 就多了一份会和这里走偏的口径。挂一份出去，谁要用谁读，口径只有这一处。 */
+  window.__HWITEMS = items;
+
   /* ---- 2. 顶部统计（不受筛选影响，永远是全量） ----
    * v1.1.77：已过截止的不再算「待做」——交不了了，堆在待做里只会把数字撑大、
    * 把真正还有时间的东西挤下去。单独数一份，够诚实也不误导。 */
   const openWorks = items.filter(x => x.kind === 'work' && x.open && !x.expired);
-  const openExams = items.filter(x => x.kind === 'exam' && x.open && !x.expired);
+  /* v2.7.0：待考的判据改成「没交卷、也没过期」，不再要求 open。
+   * open 对考试的含义是「平台说还在进行」，于是还没开考的考试 open=false，
+   * 「待考」就印成 0 —— 可下面列表里明明躺着一场两天后要考的。
+   * 「待考」该数的是「你还有几场要考」，没开考不等于不用考。 */
+  const openExams = items.filter(x => x.kind === 'exam' && !x.expired
+    && !isDoneStatus(x.status));
   const expWorks = items.filter(x => x.kind === 'work' && x.expired
     && !isDoneStatus(x.status));
   const expExams = items.filter(x => x.kind === 'exam' && x.expired
@@ -906,6 +932,20 @@ function renderHomework() {
     (openWorks.length ? openWorks.length + ' 条待做' : '作业全清') +
     (openExams.length ? ' · ' + openExams.length + ' 场考试待考' : '') +
     (expN ? ' · ' + expN + ' 条已过截止' : '');
+
+  /* v2.0.1：给读数条（nova-organs 的截止矩阵）一份**纯数字**。
+   * 它原来直接抠 #hwcount / #hwStat 的 textContent 当读数，于是
+   * 「待做 4 条待做 · 4 场考试待考」「待考 4 待做 / 0 待考」——标签和值互相打架，
+   * 而且三条读数里夹着一整句人话，390px 下必定被截断。
+   * 这里只给数，怎么排版交给读数条自己。 */
+  window.__HWSTAT = {
+    works: openWorks.length,
+    exams: openExams.length,
+    expired: expN,
+    /* 同步时刻用秒级时间戳给，读数条按「今天/昨天/几月几号」自己决定印多长，
+       #hwSyncAt 那串 '2026/11/21 15:08:09' 塞不进读数条。 */
+    syncedAt: d.synced_at || null,
+  };
 
   const fmtTs = ts => ts ? new Date(ts * 1000).toLocaleString('zh-CN', { hour12: false }) : '未同步';
   const st = document.getElementById('hwStat');
@@ -1151,6 +1191,19 @@ function renderHomework() {
       box.appendChild(foldSec(
         (allExpired ? '已过截止，状态未读到 · ' : '状态未读到 · ') + unknown.length, wrap, false));
     }
+  }
+
+  /* v2.2.0：作业数据变了，截止哨兵要按新数据重挂。
+   *
+   * 为什么必须在这里、而不是只在 load() 里：__HWITEMS 是上面算完才挂到
+   * window 的，而 renderHomework 会被三条路各自调用（load() / 手动刷新 /
+   * 多来源自动刷新 autoSync 的 redrawIfChanged）。只在 load() 里调，
+   * 后台自动刷出来新作业时提醒仍按上一份数据挂着 —— 学生第二天看到的是
+   * 昨天那批截止时间。放在最末，读到的一定是这一次算好的那份。
+   *
+   * apply 内部先 cancel 再重挂，所以不会留重复闹钟。 */
+  if (typeof REMINDER !== 'undefined' && REMINDER.refresh) {
+    try { REMINDER.refresh(); } catch (e) {}
   }
 }
 
@@ -1906,8 +1959,8 @@ function openExamSheet(e) {
     r.appendChild(el('span', '', '倒计时'));
     const txt = e._leftStart > 0 ? '距开考 ' + fmtLeft(e._leftStart) : fmtLeft((e._due - nowS) / 3600);
     const v = el('span', 'v', txt);
-    if (e._due - nowS < 0) v.style.color = '#d93025';
-    else if (e._leftStart < 48) v.style.color = '#e8710a';
+    if (e._due - nowS < 0) v.style.color = HW_INK.bad;
+    else if (e._leftStart < 48) v.style.color = HW_INK.soon;
     r.appendChild(v);
     body.appendChild(r);
   }
@@ -1987,8 +2040,8 @@ function openHwSheet(w) {
     const r = el('div', 'row');
     r.appendChild(el('span', '', '剩余'));
     const v = el('span', 'v', fmtLeft(w._left));
-    if (w._left < 0) v.style.color = '#d93025';
-    else if (w._left < 24) v.style.color = '#e8710a';
+    if (w._left < 0) v.style.color = HW_INK.bad;
+    else if (w._left < 24) v.style.color = HW_INK.soon;
     r.appendChild(v);
     body.appendChild(r);
   }
@@ -2271,8 +2324,13 @@ function loginOkAt() {
 function refreshLoginUI() {
   if (!hasHost()) {
     setLoginState('浏览器预览', '');
+    /* v2.7.0：不再往 #whoami 里写「（需在 App 内使用）」。
+     * 那是**一句环境说明**，不是学号。可 NOVA 皮肤的设备铭牌会把 #whoami
+     * 的 textContent 直接搬进「教务学号」那一格，于是表格里印出
+     * 「教务学号 （需在 App 内使用）」——一个值的位置上放了一句话。
+     * 环境差异已经由 #loginState 的「浏览器预览」说清了，这里保持 --。 */
     const w0 = document.getElementById('whoami');
-    if (w0) w0.textContent = '（需在 App 内使用）';
+    if (w0) w0.textContent = '--';
     return;
   }
   const ck = Host.cookies ? Host.cookies() : '';
@@ -2693,6 +2751,14 @@ function switchTab(name) {
   const m = document.querySelector('main');
   if (m) m.scrollTop = 0;
 
+  /* v2.3.0：进课表页就重算「现在」一屏。
+   * 那一行的内容全跟时间有关（现在上什么、还有几分钟下课），缓存没有意义；
+   * 每分钟的定时刷新在 nowline.js 里，这里只管「刚切过来」这一下。
+   * 用 typeof 守是因为 nowline.js 排在 app.js 后面，首帧时它还不存在。 */
+  if (name === 'kb' && typeof NOWLINE !== 'undefined' && NOWLINE.paint) {
+    try { NOWLINE.paint(); } catch (e) {}
+  }
+
   /* 进「我的」时重算本机账号卡片。
    * 激活状态可能在别的页面变过（比如刚在关于页重新输了码），
    * 每次进来重算比到处埋刷新调用可靠。 */
@@ -2983,14 +3049,9 @@ const APKDL = (() => {
 const AdminUI = (() => {
   const K_KEY = 'xxmu_admin_key';
   const PANES = ['grant', 'list', 'dev', 'ver', 'rev', 'notice', 'log'];
-  let LIST = [];          // 服务端名单缓存（已确认真号，对应 confirmed 行）
-  let ODD = [];           // 校准·异常名单（pending 待补录 / conflict 冲突）
-  let LIST_TAB = 'normal';// 名单卡二级菜单：normal=正常名单 / cal=校准·异常
+  let LIST = [];          // 服务端名单缓存（v2.16.0：只含教务网登录成功的真号）
   let FILTER = 'all';
   let FIND = '';
-  /* v1.1.64 方案 C：只看已确认开关。默认关=主列表把待补录的行也灰度带出来，
-   * 开=主列表只显 confirmed；校准里始终能看见 pending / conflict。 */
-  let ONLY_CONFIRMED = false;
   /* 刚选中的安装包：{name, size, path}。path 是 Java 侧私有目录里的绝对路径，
    * 字节从不经过 JS —— 见 MainActivity.Host.pickApk 的注释。 */
   let PICKED = null;
@@ -3221,23 +3282,17 @@ const AdminUI = (() => {
         return;
       }
       statMsg('', false);
+      /* v2.16.0：名单只收教务网登录成功的真号，手填/异常不再进名单也没有
+       * 「校准 · 异常」二级菜单。计数就是名单人数；hidden 只做一句说明，
+       * 告诉管理员有多少存量手填号被挡在名单外（服务端已不回传这些号）。 */
       LIST = res.rows || [];
-      ODD = res.oddRows || [];
       const g = LIST.filter(r => !r.revoked).length;
       const rv = LIST.length - g;
       if ($('admStatGranted')) $('admStatGranted').textContent = String(g);
       if ($('admStatRevoked')) $('admStatRevoked').textContent = String(rv);
       if ($('admListCnt')) $('admListCnt').textContent = LIST.length + ' 人';
-      /* v1.1.63 校准：正常 / 异常分开计数（用户原话「计数也分开计数」）。
-       * 卡头只数正常号；两个二级菜单各自带自己的计数；「已隐去 N」保留原提示
-       * 口径并指去「校准 · 异常」，异常明细在 renderOdd() 单独成表。 */
-      if ($('admNormalCnt')) $('admNormalCnt').textContent = LIST.length + ' 人';
-      const oddN = (res.oddCount != null ? res.oddCount : ODD.length);
-      if ($('admOddCnt')) $('admOddCnt').textContent = oddN + ' 个';
-      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未绑定号码，见「校准 · 异常」') : '';
-      renderKbSummary(res);
+      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未通过教务网验证的存量学号') : '';
       renderList();
-      renderOdd();
     }, e => {
       if ($('admStatGranted')) $('admStatGranted').textContent = '--';
       if ($('admStatRevoked')) $('admStatRevoked').textContent = '--';
@@ -3253,14 +3308,6 @@ const AdminUI = (() => {
     if (x !== y) return y - x;
     return String(a && a.id || '').localeCompare(String(b && b.id || ''));
   }
-  /* 学号形状判据：本校在册学号是 11 位、以 2025/2026 这类年份开头。
-   * 只用来在名单里「标出来给人看」，**不拦、不改、不删数据** —— 激活接口
-   * 只要求 6~20 位纯数字，服务端历史上就收过 12 位 1 开头的手填号，
-   * 那是真实用户填进来的，管理员需要看见它、而不是被系统悄悄吞掉。 */
-  function looksOddId(id) {
-    const s = String(id || '');
-    return s.length !== 11 || !/^20\d{2}/.test(s);
-  }
   function fmtAt(at) {
     const n = Number(at) || 0;
     if (n <= 0) return '';
@@ -3275,15 +3322,10 @@ const AdminUI = (() => {
   function renderList() {
     const box = $('admList');
     if (!box) return;
+    /* v2.16.0：LIST 已是服务端筛过的教务真号，直接排序渲染。
+     * 旧版把 ODD 里的「待补录」手填行也拼进来、标灰度/格式异常——
+     * 那些正是用户说的「202211 这种无效号码」，现在服务端不回传、前端也不拼。 */
     let rows = LIST.slice().sort(listNewFirst);
-    /* v1.1.64 方案 C：默认把「待补录」的手填行也灰度带进主列表，
-     * 上面粗的是进门填的号，下面细的小字写教务网状态；勾了「只看已确认」
-     * 就只剩服务端 confirmed 的行。conflict（脏数据/真号撞车）只进校准。 */
-    if (!ONLY_CONFIRMED) {
-      const pending = ODD.filter(r => r.reason === 'pending')
-        .map(r => Object.assign({}, r, { _pending: true }));
-      rows = rows.concat(pending).sort(listNewFirst);
-    }
     if (FILTER === 'granted') rows = rows.filter(r => !r.revoked);
     if (FILTER === 'revoked') rows = rows.filter(r => r.revoked);
     if (FIND) rows = rows.filter(r => r.id.indexOf(FIND) >= 0);
@@ -3298,29 +3340,22 @@ const AdminUI = (() => {
     const keepTop = box.scrollTop;
     box.innerHTML = '';
     if (!rows.length) {
-      box.appendChild(el('p', 'hint', LIST.length ? '没有符合条件的学号。' : '还没有人通过教务网绑定，乱填的学号不会进名单。'));
+      box.appendChild(el('p', 'hint', LIST.length ? '没有符合条件的学号。' : '还没有人完成教务网登录；只有登录成功的学号才会进这个名单。'));
       return;
     }
     rows.forEach(r => {
-      const row = el('div', 'adm-item' + (r._pending ? ' is-pending' : ''));
+      const row = el('div', 'adm-item');
       const idWrap = el('div', 'adm-id-wrap');
       idWrap.appendChild(el('span', 'adm-id', r.id));
-      /* v1.1.64：下面细的小字 = 教务网登录读回的真号（用户原话「下面细的小字
-       * 是绑定教务网，确认是教务网登录所抓取到的学号」）；没抓到就写待补录。 */
-      idWrap.appendChild(el('span', 'adm-kbline',
-        r._pending ? '教务网：待补录' : ('教务网 ' + (r.kb || '') + ' · 已确认')));
+      /* v2.16.0：名单里每一行都是教务网登录读回的真号，细行只陈述这个事实。 */
+      idWrap.appendChild(el('span', 'adm-kbline', '教务网登录学号 · 已验证'));
       const when = fmtAt(r.at);
       if (when) idWrap.appendChild(el('span', 'adm-at', when));
       else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
       row.appendChild(idWrap);
       const tags = el('span', 'adm-tags');
       tags.appendChild(el('span', r.revoked ? 'adm-bad' : 'adm-ok', r.revoked ? '已停用' : '正常'));
-      /* v1.1.64：只有已确认行才挂「教务已绑定」；待补录靠灰度 + 细行说明 */
-      if (!r._pending) tags.appendChild(el('span', 'adm-kb', '教务已绑定'));
-      /* 形状异常的号只标出来，说明为什么它跟别人不一样，不做任何拦截 */
-      if (looksOddId(r.id)) {
-        tags.appendChild(el('span', 'adm-odd', '格式异常（手填）'));
-      }
+      tags.appendChild(el('span', 'adm-kb', '教务已绑定'));
       if (r.note) tags.appendChild(el('span', 'adm-note', r.note));
       row.appendChild(tags);
       /* 每行一个开关：正常→停用，已停用→解封。
@@ -3339,54 +3374,7 @@ const AdminUI = (() => {
     try { box.scrollTop = keepTop; } catch (e) {}
   }
 
-  /* v1.1.63 校准：异常名单单独成表（用户原话「把有异常的单独挑出来在一个
-   * 二级菜单里面，主菜单列表那就显示正常的」）。
-   * ODD 来自 /v1/admin/list 的 oddRows —— 服务端把 bound 的补集整批回传，
-   * 这里只负责渲染，判据在 worker.js 的 isKbId / kb 标记，不在前端重判。
-   * 顺序与主列表同一套 listNewFirst，两处时间口径一致。 */
-  function renderOdd() {
-    const box = $('admOddList');
-    if (!box) return;
-    const rows = ODD.slice().sort(listNewFirst);
-    const keepTop = box.scrollTop;
-    box.innerHTML = '';
-    if (!rows.length) {
-      box.appendChild(el('p', 'hint', '校准里暂时没有异常号；手填和没绑教务的号都会单独归到这里。'));
-      return;
-    }
-    rows.forEach(r => {
-      const row = el('div', 'adm-item');
-      const idWrap = el('div', 'adm-id-wrap');
-      idWrap.appendChild(el('span', 'adm-id', r.id || '（空号）'));
-      const when = fmtAt(r.at);
-      if (when) idWrap.appendChild(el('span', 'adm-at', when));
-      else idWrap.appendChild(el('span', 'adm-at', '早期记录 · 无时间'));
-      row.appendChild(idWrap);
-      const tags = el('span', 'adm-tags');
-      if (r.revoked) tags.appendChild(el('span', 'adm-bad', '已停用'));
-      /* reason 由服务端定：pending=还没补报真号，conflict=kb 脏数据/真号撞车 */
-      tags.appendChild(el('span', 'adm-odd', r.reason === 'conflict' ? '两号冲突' : '待补录教务学号'));
-      if (r.note) tags.appendChild(el('span', 'adm-note', r.note));
-      row.appendChild(tags);
-      const tg = el('button', 'adm-cp', r.revoked ? '解封' : '停用');
-      tg.onclick = () => toggleRow(r);
-      row.appendChild(tg);
-      const btn = el('button', 'adm-cp', '详情');
-      btn.onclick = () => showDetail(r.id);
-      row.appendChild(btn);
-      /* v1.1.64 方案 C：不等对方再开 App，管理员直接补教务网真号 */
-      const fix = el('button', 'adm-cp adm-fix', '录真号');
-      fix.onclick = () => openKbFix(r);
-      row.appendChild(fix);
-      box.appendChild(row);
-    });
-    try { box.scrollTop = keepTop; } catch (e) {}
-  }
-
-  /* v1.1.64 方案 C：校准里「手动录真号」。真号只在学生本机，等对方再开一次
-   * App 自动补报不总是可行；管理员拿教务网查到的号直接补。用现成的 #sheet
-   * 半框收输入，不依赖 window.prompt（WebView 里常被宿主拦掉）。 */
-  /* v1.1.65 方案 A：全员重绑 / 撤销。破坏性动作跟 openKbFix 一样走 #sheet 半框
+  /* v1.1.65 方案 A：全员重绑 / 撤销。破坏性动作走 #sheet 半框
    * 二次确认，避免误点一下把全校票据都废掉；成功后刷新名单看回流。 */
   function openRebind(all) {
     const body = $('sh-body'), name = $('sh-name'), sheet = document.getElementById('sheet');
@@ -3411,7 +3399,7 @@ const AdminUI = (() => {
         sheet.classList.remove('on');
         const st = $('admRebindState');
         if (st) st.textContent = all
-          ? ('已发起全员重绑：共 ' + (res.rows || 0) + ' 行名单回到待补录，老票据将陆续失效。')
+          ? ('已发起全员重绑：共 ' + (res.rows || 0) + ' 行名单已清空教务验证标记，需学生重开 App 重新登录教务网，老票据将陆续失效。')
           : ('已撤销：名单与公告还原完毕（' + (res.rows || 0) + ' 行）。');
         refreshList();
       }, e => {
@@ -3422,67 +3410,6 @@ const AdminUI = (() => {
     };
     body.appendChild(go);
     sheet.classList.add('on');
-  }
-
-  function openKbFix(r) {
-    const body = $('sh-body'), name = $('sh-name'), sheet = document.getElementById('sheet');
-    if (!body || !name || !sheet) return;
-    name.textContent = '补录教务学号 · ' + (r.id || '空号');
-    body.innerHTML = '';
-    body.appendChild(el('p', 'hint', '上面这行是进门时填的号；把教务网登录读回的 11 位真号填在下面，确认后它会变成「已确认」。'));
-    const inp = document.createElement('input');
-    inp.className = 'adm-in one';
-    inp.type = 'text';
-    inp.inputMode = 'numeric';
-    inp.placeholder = '教务网学号（20 开头，11 位）';
-    body.appendChild(inp);
-    const msg = el('p', 'adm-tip', '');
-    body.appendChild(msg);
-    const go = el('button', 'btn ghost', '确认补录');
-    go.style.marginTop = '10px';
-    go.onclick = () => {
-      const real = String(inp.value || '').trim();
-      if (!/^20\d{2}\d{7}$/.test(real)) {
-        msg.textContent = '学号形状不对：要 20 开头、11 位数字。';
-        msg.style.color = 'var(--danger)';
-        return;
-      }
-      msg.style.color = '';
-      msg.textContent = '正在补录…';
-      AUTH.Admin.kbFix(r.id, real).then(res => {
-        if (!res || !res.ok) { msg.textContent = (res && res.msg) || '补录失败'; return; }
-        sheet.classList.remove('on');
-        refreshList();
-      }, e => { msg.textContent = '连不上服务器：' + errText(e); });
-    };
-    body.appendChild(go);
-    sheet.classList.add('on');
-    try { inp.focus(); } catch (e) {}
-  }
-
-  /* v1.1.64 方案 C：卡头三态计数（用户原话「计数也分开计数」）。
-   * 服务端给 confirmedCount / pendingCount / conflictCount；老服务端没有时
-   * 用 LIST / ODD 本地兜底，升级过渡期也不会显示 undefined。 */
-  function renderKbSummary(res) {
-    const sum = $('admKbSummary');
-    if (!sum) return;
-    const cc = (res && res.confirmedCount != null) ? res.confirmedCount : LIST.length;
-    const pc = (res && res.pendingCount != null) ? res.pendingCount : ODD.filter(r => r.reason === 'pending').length;
-    const fc = (res && res.conflictCount != null) ? res.conflictCount : ODD.filter(r => r.reason === 'conflict').length;
-    sum.textContent = '';
-    sum.appendChild(el('span', 'adm-sum-ok', '已确认 ' + cc));
-    sum.appendChild(el('span', 'adm-sum-pending', '待补录 ' + pc));
-    sum.appendChild(el('span', 'adm-sum-conflict', '冲突 ' + fc));
-  }
-  /* 名单卡二级菜单：正常名单 / 校准·异常，各自成表、各自计数。 */
-  function switchListTab(t) {
-    LIST_TAB = (t === 'cal') ? 'cal' : 'normal';
-    const np = $('admNormalPane'), op = $('admOddPane');
-    if (np) np.style.display = LIST_TAB === 'normal' ? '' : 'none';
-    if (op) op.style.display = LIST_TAB === 'cal' ? '' : 'none';
-    document.querySelectorAll('#admListTab button').forEach(b => {
-      b.classList.toggle('on', b.dataset.t === LIST_TAB);
-    });
   }
 
   /* v1.1.23：详情从内嵌卡片改成 #sheet 半屏弹窗。
@@ -3589,19 +3516,14 @@ const AdminUI = (() => {
         hintInto($('admList'), (res && res.msg) || '拉取失败');
         return;
       }
+      /* v2.16.0：名单只收教务真号，校准/异常表与三态计数已移除。 */
       LIST = res.rows || [];
-      ODD = res.oddRows || [];
       const g = LIST.filter(r => !r.revoked).length;
       if ($('admStatGranted')) $('admStatGranted').textContent = String(g);
       if ($('admStatRevoked')) $('admStatRevoked').textContent = String(LIST.length - g);
       if ($('admListCnt')) $('admListCnt').textContent = LIST.length + ' 人';
-      if ($('admNormalCnt')) $('admNormalCnt').textContent = LIST.length + ' 人';
-      const oddN = (res.oddCount != null ? res.oddCount : ODD.length);
-      if ($('admOddCnt')) $('admOddCnt').textContent = oddN + ' 个';
-      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未绑定号码，见「校准 · 异常」') : '';
-      renderKbSummary(res);
+      if ($('admListHidden')) $('admListHidden').textContent = res.hidden ? ('已隐去 ' + res.hidden + ' 个未通过教务网验证的存量学号') : '';
       renderList();
-      renderOdd();
     }, e => {
       busy(btn, false);
       hintInto($('admList'), '连不上服务器：' + errText(e));
@@ -4428,11 +4350,6 @@ const AdminUI = (() => {
       b.onclick = () => seg(b.dataset.adm);
     });
 
-    /* v1.1.63 校准：名单卡二级菜单（正常名单 / 校准·异常） */
-    document.querySelectorAll('#admListTab button').forEach(b => {
-      b.onclick = () => switchListTab(b.dataset.t);
-    });
-
     document.querySelectorAll('#admFilter button').forEach(b => {
       b.onclick = () => {
         FILTER = b.dataset.f || 'all';
@@ -4448,15 +4365,6 @@ const AdminUI = (() => {
         renderList();
       };
     }
-    /* v1.1.64 方案 C：只看已确认开关 */
-    const only = $('admOnlyConfirmed');
-    if (only) {
-      only.onchange = () => {
-        ONLY_CONFIRMED = !!only.checked;
-        renderList();
-      };
-    }
-
     const row = $('rowAdmin');
     if (row) row.onclick = () => switchTab('admin');
     const back = $('adminBack');
@@ -4902,8 +4810,21 @@ const CampusUI = (() => {
   let busy = '';        // 正在放水的 skuId，防止连点
   /* 哪个出水口已经被解锁、正在等人体按物理键出水：
    * { ['goodsId:skuId']: { at, name } }。
-   * 只存内存 —— 重启 App 后回到「放水」，那时也可以直接再点（重复解锁无害）。 */
+   * 只存内存 —— 重启 App 后回到「放水」，那时也可以直接再点（重复解锁无害）。
+   * v2.1.0 起这个内存表不再单独作数：WATERWATCH（waterwatch.js）把同一份事实
+   * 落到了本机持久层，并在后台自己查「停没停」。判断「还在出水」用 runningOf()。 */
   let RUNNING = {};
+
+  /** 这个出水口是否还没确认结束。内存表 + 持久看护两层，任一命中就算。
+   *  为什么不能只看 RUNNING：App 被杀/被切后台后 RUNNING 归零，界面就会把
+   *  「停止」变回「放水」，人以为已经停了 —— 水可能还在流。 */
+  function runningOf(dev, fn) {
+    if (RUNNING[dev.id + ':' + fn.id]) return true;
+    try {
+      if (typeof WATERWATCH !== 'undefined' && WATERWATCH.has) return WATERWATCH.has(dev.id, fn.id);
+    } catch (e) {}
+    return false;
+  }
 
   function refresh() {
     const li = document.getElementById('waterLogged');
@@ -4992,11 +4913,11 @@ const CampusUI = (() => {
         /* 多出水口（冷/热/常温）：一个口一个「放水·冷」。
          * 已经解锁过的那个口，自己的键变成「停止」，别的口照旧。 */
         fn.forEach(f => {
-          const running = RUNNING[dev.id + ':' + f.id];
+          const running = runningOf(dev, f);
           const b = el('button', 'btn-sm' + (running ? ' gray' : ''),
             running ? ('停止·' + f.name) : ('放水·' + f.name));
           b.onclick = () => {
-            if (RUNNING[dev.id + ':' + f.id]) stopWater(dev, f);
+            if (runningOf(dev, f)) stopWater(dev, f);
             else startWater(dev, f);
           };
           act.appendChild(b);
@@ -5005,10 +4926,10 @@ const CampusUI = (() => {
         /* 单出水口：一个键两态。解锁后变「停止」，因为「停」是真能远程做的，
          * 而「开始出水」只能由人在机器上按 —— 这个不对称必须在按钮上体现，
          * 否则用户会以为再点一下就能出水。 */
-        const running = RUNNING[dev.id + ':' + fn[0].id];
+        const running = runningOf(dev, fn[0]);
         const b = el('button', 'btn-sm' + (running ? ' gray' : ''), running ? '停止' : '放水');
         b.onclick = () => {
-          if (RUNNING[dev.id + ':' + fn[0].id]) stopWater(dev, fn[0]);
+          if (runningOf(dev, fn[0])) stopWater(dev, fn[0]);
           else startWater(dev, fn[0]);
         };
         act.appendChild(b);
@@ -5022,6 +4943,8 @@ const CampusUI = (() => {
       del.onclick = async () => {
         if (!await askConfirm('从列表里移除「' + (dev.name || dev.id) + '」？\n（只是本机不再显示，不影响你的账号）')) return;
         WATER.unbind(dev.id);
+        try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarmDev(dev.id); } catch (e) {}
+        delete RUNNING[dev.id + ':' + (fn[0] ? fn[0].id : '')];
         renderDevs();
       };
       act.appendChild(del);
@@ -5050,6 +4973,9 @@ const CampusUI = (() => {
     if (busy) { XXMU.toast('上一次操作还没跑完，等一下'); return; }
     if (!dev || !fn) return;
     busy = fn.id;
+    /* 这一轮由本函数独占轮询（它自己 waitDone 到 status 3/5）。
+     * 看护器在这段时间让路，避免两边同时打同一个接口。 */
+    try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.setBusy(true); } catch (e) {}
 
     const tips = document.getElementById('sh-name');
     document.getElementById('sh-body').innerHTML = '';
@@ -5079,15 +5005,19 @@ const CampusUI = (() => {
       renderDevs();
 
       if (r && r.pending) {
+        /* 2 分钟没等到停阀。**别在这里把这条收掉**：机器可能真的还在出水，
+         * 交给 WATERWATCH 继续盯着（它就是为这种情况写的）。 */
         line.className = 'hint warn';
-        line.textContent = '机器还在出水（等了 2 分钟没变化）。可以再点一次「停止」，'
-          + '或者按机器面板上的停止键。';
+        line.textContent = '机器还在出水（等了 2 分钟没变化）。'
+          + '这边会继续在后台盯着，一停就告诉你；也可以再点一次「停止」，或者按机器面板上的停止键。';
         if (r.sync && r.sync.amount > 0) put('本次用量', String(r.sync.amount));
+        try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.arm(dev, fn); } catch (e) {}
         return;
       }
       if (r && r.failed) {
         line.className = 'hint warn';
         line.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
+        try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarm(dev.id, fn.id); } catch (e) {}
         return;
       }
       const s = (r && r.sync) || {};
@@ -5095,12 +5025,17 @@ const CampusUI = (() => {
       line.className = 'hint ok';
       line.textContent = '已停止。本次用量 ' + (s.amount || 0) +
         '，费用会记在胖乖生活的账单里，去官方 App 付款就行。';
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarm(dev.id, fn.id); } catch (e) {}
     }).catch(e => {
       line.className = 'hint warn';
       line.textContent = '停止失败：' + WATER.human(e)
-        + '\n\n可以按机器面板上的停止键；机器到量也会自己停。';
+        + '\n\n可以按机器面板上的停止键；机器到量也会自己停。'
+        + '\n这边会继续在后台盯着，一停就告诉你。';
+      /* 停止命令没发出去，更要盯着：水可能还在流，只有后台轮询能说清它停没停。 */
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.arm(dev, fn); } catch (err) {}
     }).then(() => {
       busy = '';
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.setBusy(false); } catch (e) {}
     });
   }
 
@@ -5121,6 +5056,7 @@ const CampusUI = (() => {
   function startWater(dev, fn) {
     if (busy) { XXMU.toast('上一个操作还没跑完，等一下'); return; }
     busy = fn.id;
+    try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.setBusy(true); } catch (e) {}
 
     const tips = document.getElementById('sh-name');
     document.getElementById('sh-body').innerHTML = '';
@@ -5143,6 +5079,9 @@ const CampusUI = (() => {
       if (res && res.usedFn) usedFn = res.usedFn;
 
       RUNNING[dev.id + ':' + usedFn.id] = { at: Date.now(), name: usedFn.name };
+      /* 落一份到本机持久层：从这一刻起，即使面板关掉、App 被杀，
+       * 后台看护器也会自己查「停没停」（见 waterwatch.js）。 */
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.arm(dev, usedFn); } catch (e) {}
       renderDevs();
 
       line.className = 'hint ok';
@@ -5267,21 +5206,31 @@ const CampusUI = (() => {
         } else if (r && r.failed) {
           done.className = 'hint warn';
           done.textContent = '机器报故障（状态 6），这次放水没能正常结束。请按机器上的停止键。';
+          try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarm(dev.id, usedFn.id); } catch (e) {}
         } else if ((r && r.pending)
             || (r && r.done === false && !r.netError && !r.stopError)) {
+          /* watchVolume 盯到 12 分钟上限就撒手了（它自己说的）。这时候水
+           * 可能还在流 —— 面板上这句必须交代清楚「后台还在看」，否则用户
+           * 关掉面板就以为没人管了。这一条也留在 WATERWATCH 里继续查。 */
           done.className = 'hint warn';
-          done.textContent = '还在出水（到上限时长仍未见停止）。请按机器面板上的停止键。';
+          done.textContent = '还在出水（到上限时长仍未见停止）。这边会继续在后台盯着，一停就告诉你；'
+            + '也可以按机器面板上的停止键。';
         } else if (r && r.netError) {
           done.className = 'hint warn';
           done.textContent = '网络断了，没法再盯着状态。机器会流到自己的上限才停，'
-            + '费用照样记在胖乖账单里。';
+            + '费用照样记在胖乖账单里。恢复网络后这边会继续查，一停就告诉你。';
         } else if (r && r.stopError) {
           done.className = 'hint warn';
-          done.textContent = '停止命令没能发出去，请到机器面板按停止键。';
+          done.textContent = '停止命令没能发出去，请到机器面板按停止键。这边会继续在后台盯着。';
         } else {
           done.textContent = '放水结束。费用记在胖乖生活账单里。';
         }
         box.appendChild(done);
+        /* watchVolume 自己已经确认「结束了」的那些分支（done 且没 failed）才收掉
+         * 看护记录；pending / netError / stopError 一律留着继续盯。 */
+        if (r && r.done && !r.failed) {
+          try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarm(dev.id, usedFn.id); } catch (e) {}
+        }
       });
 
       XXMU.toast('已解锁，去机器上按一下出水');
@@ -5296,6 +5245,7 @@ const CampusUI = (() => {
       document.getElementById('sh-body').appendChild(again);
     }).then(() => {
       busy = '';
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.setBusy(false); } catch (e) {}
     });
   }
 
@@ -5480,6 +5430,9 @@ const CampusUI = (() => {
        * 标记留着 → 重新登录后那台机器仍被画成「停止」按钮，用户点下去
        * 走的是 endWater，而那个会话早就不存在了。 */
       resetRunning();
+      /* 看护清单也要一起收：token 没了，后台再轮询只会一直报「登录过期」，
+       * 刷一堆没用的提示。 */
+      try { if (typeof WATERWATCH !== 'undefined') WATERWATCH.disarmDev(); } catch (e) {}
       refresh();
       XXMU.toast('已退出');
     };
@@ -5600,7 +5553,7 @@ const CampusUI = (() => {
     });
   }
 
-  return { refresh, renderDevs, rebindDev, init, startWater, stopWater, paintTarget, resetRunning };
+  return { refresh, renderDevs, rebindDev, init, startWater, stopWater, paintTarget, resetRunning, runningOf };
 })();
 
 /* 「打开胖乖生活 h5 抓取 token」的结果回调（目前留作兜底：
@@ -6154,6 +6107,18 @@ if (typeof WIKI !== 'undefined') WIKI.init();
 if (typeof GUIDE !== 'undefined') GUIDE.init();
 CampusUI.init();
 CampusUI.refresh();
+/* v2.1.0：出水看护（waterwatch.js）。用户原话「软件上点停止有延迟，所以更
+ * 喜欢按饮水机上的停止按钮。但是软件不会检索是否停止」—— 这里把看护器接上：
+ *  · init 时若本机还留着「已解锁未确认结束」的记录，立刻查一次并继续排期；
+ *  · 一读到 status 3/5/6 就把那行的「停止」按钮收回「放水」，并 toast 报信；
+ *  · onEnd 只重画设备列表，不碰 sheet：人可能正在别的面板里。
+ * 顺序放在 CampusUI 之后：它要读 WATER.loadDevs() 才能判断按钮态。 */
+if (typeof WATERWATCH !== 'undefined') {
+  WATERWATCH.onEnd(function () {
+    try { CampusUI.renderDevs(); } catch (e) {}
+  });
+  WATERWATCH.init();
+}
 AdminUI.init();
 CxUI.init();
 /* v1.1.66：多平台来源连接卡 + 来源筛选。SOURCES 与各适配器 script 都在
@@ -6209,6 +6174,28 @@ if (typeof ELEC !== 'undefined') ELEC.init();
       paintToolEntries();
     }
   }, 1000);
+})();
+
+/* v2.2.0：从「作业截止 / 考试开考」通知点进来时直接落到学习页。
+ *
+ * 通知那边（ReminderReceiver）只往 intent 里塞了 xxmu_tab=learn，
+ * 由 MainActivity.onCreate 把它写进 pref `xxmu_launch_tab` —— 因为点通知时
+ * 页面还没加载完，那一刻 evaluateJavascript 会丢。这里读一次再清掉：
+ * 读后即焚，否则下次普通冷启动也会被拽到学习页。
+ *
+ * 位置放在所有 init 之后：switchTab 会动底栏/顶栏/滚动，得等 DOM 都绑好。
+ * 认得的页名才切，别的值一律忽略（将来别处写脏了也不会把人送到不存在的页）。 */
+(function applyLaunchTab() {
+  let want = '';
+  try {
+    if (typeof Host !== 'undefined' && Host.getPref) want = String(Host.getPref('xxmu_launch_tab') || '');
+  } catch (e) {}
+  if (!want) return;
+  try {
+    if (typeof Host !== 'undefined' && Host.setPref) Host.setPref('xxmu_launch_tab', '');
+  } catch (e) {}
+  if (want !== 'learn') return;
+  try { switchTab('learn'); } catch (e) {}
 })();
 
 Onboard.init();

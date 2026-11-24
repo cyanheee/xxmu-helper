@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="utopia">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>河医大助手 · UTOPIA 融合主题（手机交互原型）</title>
+<link rel="stylesheet" href="utopia-preview.css">
+<style>
+  /* ?full=1：只给无头浏览器出长图核对用，正式 App 不用 */
+  html[data-full="1"],html[data-full="1"] body{height:auto;overflow:visible}
+  html[data-full="1"] #scroller{flex:none;overflow:visible;padding-bottom:20px}
+  html[data-full="1"] #tabs{position:static}
+  /* full 长图模式：只为无头核对关闭会裁右侧的装饰，保证 390px 内完整 */
+  html[data-full="1"] .card,html[data-full="1"] .screen,html[data-full="1"] .meter,
+  html[data-full="1"] .wcard,html[data-full="1"] .fb,html[data-full="1"] .kv,
+  html[data-full="1"] .card-h,html[data-full="1"] .metaline{max-width:100%;overflow:hidden}
+  html[data-full="1"] .gh,html[data-full="1"] .cells{grid-template-columns:repeat(7,minmax(0,1fr))}
+  html[data-full="1"] .rain{display:none}
+  html[data-full="1"] .flystone{right:16px;top:18px;width:16px;height:16px;opacity:1;z-index:8}
+  html[data-full="1"] .hero-bg::before{opacity:1}
+  html[data-full="1"] #tabs button{flex:1 1 0;max-width:20%}
+  html[data-full="1"] #toast,html[data-full="1"] #hint{display:none}
+</style>
+</head>
+<body>
+
+<div id="topBar">
+  <div class="brand">
+    <div class="logo"></div>
+    <div><div class="ttl">河医大助手</div><div class="sub" id="barSub">第 11 周 · 周一</div></div>
+  </div>
+  <button class="pill" id="themeBtn" aria-label="切换深浅">◐</button>
+</div>
+
+<div id="statusStrip">
+  <span><i class="led"></i><b id="stMode">KB · 课表</b></span>
+  <span id="stWeek">W11 · MON</span>
+  <span id="stTheme">LIGHT ▮▮▯</span>
+</div>
+
+<div id="scroller">
+
+  <!-- ① 视差 Hero -->
+  <div class="hero">
+    <div class="hero-bg" id="heroBg"></div>
+    <div class="flystone" aria-hidden="true"></div>
+    <div class="hero-fg">
+      <div class="kicker">XXMU · UTOPIA BUILD 1155</div>
+      <h1><em id="heroWeek">11</em><span style="font-size:14px;letter-spacing:1px"> / 20</span></h1>
+      <p>SEMESTER 01 · 本周 3 门 · 2 项待交</p>
+    </div>
+    <div class="weekbar"><u id="weekFill" style="width:55%"></u></div>
+  </div>
+
+  <!-- ② 课表：Switch 细框 + 内在像素母题 -->
+  <div class="card" data-motion>
+    <div class="card-h"><span><i class="dot"></i>课表 · TIMETABLE</span><i id="wkLabel">W11 / 7×3</i></div>
+    <div class="screen" id="kbScreen">
+      <div class="joyR"></div>
+      <div class="hearts"><i></i><i></i><i class="empty"></i></div>
+      <div class="rain">0110アカサ0110</div>
+      <div class="gh"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+      <div class="cells" id="cells">
+        <i class="occupied">系统解剖学<span class="m m-brick"></span></i>
+        <i class="occupied today">生理学<span class="m m-coin"></span></i>
+        <i class="occupied">生物化学<span class="m m-ball"></span></i>
+        <i></i>
+        <i class="occupied">医学英语<span class="m m-triforce"><span></span></span></i>
+        <i></i><i></i>
+
+        <i></i>
+        <i class="occupied today">组织胚胎学<span class="m m-grass"></span></i>
+        <i class="occupied">病理学<span class="m m-rupee"></span></i>
+        <i class="occupied">药理学<i class="pixelstep"></i></i>
+        <i></i><i></i><i></i>
+
+        <i class="occupied">体育<span class="m m-coin" style="filter:hue-rotate(150deg)"></span></i>
+        <i></i><i></i><i></i>
+        <i class="occupied">诊断学<span class="m m-ball" style="filter:hue-rotate(90deg)"></span></i>
+        <i></i><i></i>
+      </div>
+      <div class="catch"><span>CATCH</span><u></u><b></b><span>62%</span></div>
+    </div>
+    <p class="tip">左右滑切周 · 点格子放大 · 长按格子出快捷操作</p>
+    <div class="stitch"></div>
+  </div>
+
+  <!-- ③ 电费：机械电气 × 赛博未来，同一块小仪表窗 -->
+  <div class="card elec" data-motion>
+    <div class="card-h"><span><i class="dot"></i>宿舍空调 · 12 号楼 305</span><i>10:24 UPDATED</i></div>
+    <div class="readout" id="elecTap">
+      <div class="meter">
+        <i class="rivet tl"></i><i class="rivet tr"></i><i class="rivet bl"></i><i class="rivet br"></i>
+        <i class="moss a" aria-hidden="true"></i><i class="moss b" aria-hidden="true"></i>
+        <i class="vine" aria-hidden="true"></i>
+        <div class="gauge"><i></i></div>
+        <div class="digits"><span class="num" id="elecNum">12.40</span><span class="unit">kWh · REMAINING</span></div>
+        <div class="hudcol"><u></u><u></u><u></u><u></u><u></u></div>
+        <div class="pipe"></div>
+      </div>
+    </div>
+    <div class="metaline"><span>DIAL ▮▮▮▯ / LED ▮▮▮</span><b>CRC OK · READY</b></div>
+    <p class="tip">点读数展开详情 · 长按复制度数</p>
+    <div class="stitch"></div>
+  </div>
+
+  <!-- ④ 作业：步进像素砖 + 档位开关 -->
+  <div class="card" data-motion>
+    <div class="card-h"><span><i class="dot"></i>今日待办 · TASKS</span><i>3 PENDING</i></div>
+    <div class="kv"><span>系统解剖学作业</span><b>明天 ›</b></div>
+    <div class="kv"><span>生理学实验报告</span><b>周五 ›</b></div>
+    <div class="kv"><span>背英语单词 50 个</span><b>今天 ›</b></div>
+    <div class="chips"><b class="on">全部</b><b>未完成</b><b>已完成</b></div>
+    <div class="stitch"></div>
+  </div>
+
+  <!-- ⑤ 资料：复古档案 + 拼贴贴歪标签 -->
+  <div class="card" data-motion>
+    <div class="card-h stuck"><span><i class="dot"></i>资料 / 留言 · ARCHIVE</span><i>12 ENTRIES</i></div>
+    <div class="wiki-grid">
+      <div class="wcard"><span>解剖</span><b>期末重点整理</b><i>2026-10-30 · NO.01</i></div>
+      <div class="wcard"><span>生理</span><b>我的笔记</b><i>2026-11-02 · NO.02</i></div>
+    </div>
+    <div class="fb">这门课老师讲得好清楚 <em>回复 +1</em></div>
+    <div class="stitch"></div>
+  </div>
+
+  <!-- ⑥ 我的 -->
+  <div class="card" data-motion>
+    <div class="card-h"><span><i class="dot"></i>本机 · DEVICE</span><i>MODEL 1155</i></div>
+    <div class="kv"><span>主题</span><b>UTOPIA / LIGHT</b></div>
+    <div class="kv"><span>数据源</span><b>内置 · 离线可开</b></div>
+    <div class="kv"><span>构建</span><b>1.1.55 · CRC 94D07073</b></div>
+    <div class="stitch"></div>
+  </div>
+
+  <div class="endcap">— END OF MODULES · XXMU —</div>
+</div>
+
+<nav id="tabs">
+  <button data-tab="kb" class="on"><i>▦</i>课表</button>
+  <button data-tab="learn"><i>✎</i>学习</button>
+  <button data-tab="campus"><i>⌂</i>校园</button>
+  <button data-tab="wiki"><i>▤</i>资料</button>
+  <button data-tab="me"><i>◍</i>我的</button>
+</nav>
+
+<div id="radial">
+  <button data-r="today">今天</button>
+  <button data-r="copy">复制</button>
+  <button data-r="detail">详情</button>
+</div>
+
+<div id="detail">
+  <div class="detail-bg"></div>
+  <div class="detail-card" id="detailCard">
+    <button id="detailClose" aria-label="关闭">✕</button>
+    <div class="small">DORM 12 · 305 / READOUT</div>
+    <div class="big" id="detailBig">12.40</div>
+    <div class="detail-kv"><span>单位</span><b>kWh</b></div>
+    <div class="detail-kv"><span>更新时间</span><b>10:24</b></div>
+    <div class="detail-kv"><span>信号</span><b>CRC OK</b></div>
+    <button class="btn primary" id="detailAct">去缴费</button>
+  </div>
+</div>
+
+<div id="toast">—</div>
+<div id="hint">SCROLL · SWIPE · LONG-PRESS · TAP</div>
+
+<script>
+(function(){
+  if (new URLSearchParams(location.search).get('theme')==='dark') document.documentElement.setAttribute('data-theme','dark');
+  if (new URLSearchParams(location.search).get('full')==='1') document.documentElement.setAttribute('data-full','1');
+  var $=function(i){return document.getElementById(i)};
+  var state={week:11,tab:'kb',theme:document.documentElement.getAttribute('data-theme')||'light'};
+  var sc=$('scroller'),tabs=$('tabs'),top=$('topBar');
+
+  function toast(t){var e=$('toast');e.textContent='▶ '+t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(function(){e.classList.remove('on')},1000)}
+  function sync(){
+    $('heroWeek').textContent=state.week;
+    $('weekFill').style.width=(state.week/20*100)+'%';
+    $('wkLabel').textContent='W'+state.week+' / 7×3';
+    $('stWeek').textContent='W'+state.week+' · MON';
+    $('barSub').textContent='第 '+state.week+' 周 · 周一';
+    $('stTheme').textContent=(state.theme==='dark'?'DARK ▮▮▮':'LIGHT ▮▮▯');
+  }
+
+  /* ① 滚动视差 + 顶栏收缩 + 卡片错落入场 + Tab 按方向隐现（原生滚动，不劫持） */
+  var lastY=0,tick=false;
+  sc.addEventListener('scroll',function(){
+    if(tick)return; tick=true;
+    requestAnimationFrame(function(){
+      var y=sc.scrollTop;
+      $('heroBg').style.transform='translate3d(0,'+(y*0.28).toFixed(1)+'px,0)';
+      if(y>40)top.classList.add('compact'); else top.classList.remove('compact');
+      if(y>lastY+6 && y>120)tabs.classList.add('hidden');
+      else if(y<lastY-6)tabs.classList.remove('hidden');
+      lastY=y;tick=false;
+    });
+  },{passive:true});
+  if('IntersectionObserver' in window){
+    var io=new IntersectionObserver(function(es){
+      es.forEach(function(e){
+        if(e.isIntersecting){
+          var n=[].indexOf.call(document.querySelectorAll('.card[data-motion]'),e.target);
+          e.target.style.animationDelay=Math.min(n,5)*0.018+'s';
+          e.target.classList.add('in');io.unobserve(e.target);
+        }
+      });
+    },{root:sc,threshold:.12});
+    document.querySelectorAll('.card[data-motion]').forEach(function(c){io.observe(c)});
+  } else document.querySelectorAll('.card[data-motion]').forEach(function(c){c.classList.add('in')});
+
+  /* ② 左右滑切周：只在课表屏内判定，避开系统边缘返回手势 */
+  var sx=0,sy=0;
+  $('kbScreen').addEventListener('touchstart',function(e){var t=e.touches[0];sx=t.clientX;sy=t.clientY},{passive:true});
+  $('kbScreen').addEventListener('touchend',function(e){
+    var t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
+    if(Math.abs(dx)>56 && Math.abs(dx)>Math.abs(dy)*1.6){
+      state.week=Math.max(1,Math.min(20,state.week+(dx<0?1:-1)));
+      sync();toast('WEEK '+state.week);
+      var cells=$('cells');cells.animate(
+        [{transform:'translateX('+(dx<0?10:-10)+'px)',opacity:.6},{transform:'none',opacity:1}],
+        {duration:220,easing:'cubic-bezier(.4,0,.2,1)'});
+    }
+  },{passive:true});
+
+  /* ③ 长按 radial：500ms 触发，跟随指尖，松手前可移到目标上，移开即反悔 */
+  var rad=$('radial'),timer=null,origin=null;
+  function showRadial(x,y){rad.style.left=x+'px';rad.style.top=y+'px';rad.classList.add('on');origin={x:x,y:y}}
+  function hideRadial(){rad.classList.remove('on');[].forEach.call(rad.children,function(b){b.classList.remove('hot')})}
+  document.addEventListener('touchstart',function(e){
+    var t=e.target.closest('.cells i.occupied,.readout'); if(!t)return;
+    var p=e.touches[0];timer=setTimeout(function(){showRadial(p.clientX,p.clientY);toast('LONG-PRESS MENU')},500);
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(timer){clearTimeout(timer);timer=null}
+    if(!rad.classList.contains('on'))return;
+    var p=e.touches[0];
+    [].forEach.call(rad.children,function(b){
+      var r=b.getBoundingClientRect();
+      b.classList.toggle('hot',p.clientX>r.left-8&&p.clientX<r.right+8&&p.clientY>r.top-8&&p.clientY<r.bottom+8);
+    });
+  },{passive:true});
+  document.addEventListener('touchend',function(){
+    if(timer){clearTimeout(timer);timer=null}
+    if(!rad.classList.contains('on'))return;
+    var hot=rad.querySelector('.hot');
+    if(hot){
+      var k=hot.getAttribute('data-r');
+      if(k==='detail')openDetail();
+      else if(k==='copy')toast('COPIED 12.40');
+      else toast('JUMP TO TODAY');
+    }
+    hideRadial();
+  },{passive:true});
+  rad.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
+    var k=b.getAttribute('data-r');
+    if(k==='detail')openDetail(); else toast(k==='copy'?'COPIED 12.40':'JUMP TO TODAY');
+    hideRadial();
+  });
+
+  /* ④ 点按共享元素展开：记录触点做 transform-origin，300ms EaseInOut */
+  var det=$('detail');
+  function openDetail(x,y){
+    var c=$('detailCard');
+    c.style.setProperty('--ox',((x||195)/window.innerWidth*100)+'%');
+    c.style.setProperty('--oy',((y||300)/window.innerHeight*100)+'%');
+    $('detailBig').textContent=$('elecNum').textContent;
+    det.classList.add('on');
+  }
+  $('elecTap').addEventListener('click',function(e){openDetail(e.clientX||195,e.clientY||300)});
+  $('detailClose').addEventListener('click',function(){det.classList.remove('on')});
+  det.addEventListener('click',function(e){if(e.target===det||e.target.classList.contains('detail-bg'))det.classList.remove('on')});
+  $('detailAct').addEventListener('click',function(){toast('OPEN · 去缴费');det.classList.remove('on')});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')det.classList.remove('on')});
+
+  /* 底部 Tab：只切状态不换整页（原型），保持原生位置 */
+  tabs.addEventListener('click',function(e){
+    var b=e.target.closest('button');if(!b)return;
+    [].forEach.call(tabs.children,function(x){x.classList.toggle('on',x===b)});
+    state.tab=b.getAttribute('data-tab');
+    var names={kb:'课表',learn:'学习',campus:'校园',wiki:'资料',me:'我的'};
+    $('stMode').textContent=state.tab.toUpperCase()+' · '+names[state.tab];
+    sc.scrollTo({top:0,behavior:'smooth'});toast('TAB '+names[state.tab]);
+  });
+  $('themeBtn').addEventListener('click',function(){
+    state.theme=(state.theme==='light'?'dark':'light');
+    document.documentElement.setAttribute('data-theme',state.theme);
+    sync();toast('THEME '+state.theme.toUpperCase());
+  });
+  document.querySelectorAll('.chips b').forEach(function(b){
+    b.addEventListener('click',function(){
+      [].forEach.call(b.parentNode.children,function(x){x.classList.remove('on')});
+      b.classList.add('on');toast('FILTER '+b.textContent);
+    });
+  });
+  document.querySelectorAll('.cells i').forEach(function(c){
+    c.addEventListener('click',function(){
+      document.querySelectorAll('.cells i.zoomed').forEach(function(x){x.classList.remove('zoomed')});
+      if(c.classList.contains('occupied')){c.classList.add('zoomed');setTimeout(function(){c.classList.remove('zoomed')},420)}
+    });
+  });
+  sync();
+})();
+</script>
+</body>
+</html>

@@ -259,7 +259,9 @@ html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp{
    这里把不透明度钉回 1（字号不动：18px 刻度列里 6.5px 的等宽字会溢出）。 */
 html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp > div{color:var(--n-ink) !important}
 html[data-skin="nova"]:not([data-theme="dark"]) #grid .gp .gt{
-  color:var(--n-ink-2) !important;
+  /* v2.8.0：--n-ink-2 (#4A5A6A) 压在 #D8E3E9 上实测 4.16，差 0.34 到正文下限；
+     钟点是课表里唯一的真实读数，不该卡在及格线下。改用 --n-ink（#101828）。 */
+  color:var(--n-ink) !important;
   opacity:1 !important;
 }
 /* 左上角 corner 是空 .gh（renderWeek 里 el('div','gh','')），不需要任何边框；

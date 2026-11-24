@@ -1,0 +1,1723 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-skin="classic" data-theme="dark">
+<head>
+<base href="../../web/">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#EFE2C8">
+<title>河医大助手</title>
+<!-- v1.1.39：必须在 app.css 之前跑完，深色用户冷启动才不会先闪一帧白。
+     theme.js 会读已存的主题 + 系统夜间模式，把 data-theme 写到 <html> 上。 -->
+<script src="theme.js"></script>
+<!-- v1.1.56：皮肤轴与深浅轴正交，必须在 app.css 前同步写 data-skin -->
+<script src="nova-skin.js"></script>
+<link rel="stylesheet" href="app.css">
+<link rel="stylesheet" href="nova-skin.css">
+<link rel="stylesheet" href="nova-organs.css">
+<!-- v1.1.57：介质统一层。把「冷瓷白卡片 / 米黄纸 / 深蓝玻璃」三种介质收进同一套
+     光照与边缘语言（光只从上往下，圆角/描边/高光/投影一致，只允许底色明度不同）。
+     必须在 organs 之后（要压住器官自带的介质），且在 pixel 之前（像素舱的硬边不被它软化）。 -->
+<link rel="stylesheet" href="nova-medium.css">
+<!-- v1.1.57：风格层（v3 材质轴）。每种风格认领一件器官的「材质层」，
+     互相咬合但共用同一套物理规则（光只从上往下、高光只在上缘、圆角只 8/12、
+     材质色 S≤45%、高饱和只留给主色与信号色）。顺序 = 认领表顺序：
+     漫画/报纸/复古票券 → 蒸汽朋克/西部 → GBA/像素 → 赛博朋克/HUD →
+     宝可梦/动漫/涂鸦 → 宫崎骏 → 校园卡 → 动效。
+     全部必须在 organs 之后（要压住器官自带材质），且在 motion 之前（动效层最后统一盖）。 -->
+<link rel="stylesheet" href="nova-press.css">
+<link rel="stylesheet" href="nova-brass.css">
+<link rel="stylesheet" href="nova-pixel.css">
+<link rel="stylesheet" href="nova-cyber.css">
+<link rel="stylesheet" href="nova-anime.css">
+<link rel="stylesheet" href="nova-ghibli.css">
+<!-- v1.1.57：动效收敛层（统一时长/曲线、砍装饰动效、循环错峰、reduced-motion）。 -->
+<link rel="stylesheet" href="nova-motion.css">
+<!-- v1.1.61：课表「时间对齐 + 流畅度」抛光层 + 像素彩蛋层（马里奥/塞尔达 + 台词气泡）。
+     必须在 motion 之后（抛光层 B1 的传送带吸附过渡要压住 motion 的 reduced-motion 兜底），
+     且一律带 html[data-skin="nova"] 前缀，经典档一行不动。 -->
+<link rel="stylesheet" href="nova-polish.css">
+<link rel="stylesheet" href="nova-easter.css">
+<!-- v1.1.57：校园卡刷卡层（饮水机解锁等待时，票券换成本校校园卡）。
+      必须在 organs 之后覆盖既有的 .nv-swipe-* 规则。 -->
+<link rel="stylesheet" href="nova-campuscard.css">
+<!-- v1.1.61：浅色档「水墨云图 / 花青云水」派生配色层（三角洲行动 麦晓雯 水墨云图为灵感）。
+     只在 data-skin=nova 且 :not([data-theme="dark"]) 命中，经典档 / 深色档 / 官网 0 影响；
+     全是令牌级覆写（根令牌 nova-skin.css:8-20 一个字未动，NOVA_PAIRS 同源锁不破）。 -->
+<link rel="stylesheet" href="nova-ink.css">
+<!-- v1.1.56：弹出层分层（Alert / Popconfirm / Tooltip）。样式在最后加载，
+     保证 .pop-* 这一层不被经典档或 NOVA 档的通用规则盖住。 -->
+<link rel="stylesheet" href="pop.css">
+</head>
+<body>
+
+<!-- ============ 激活门（未激活时遮挡整个 App） ============ -->
+<div id="gate">
+  <div class="gate-box">
+    <div class="gate-badge">河</div>
+    <div class="gate-logo">河医大助手</div>
+    <div class="gate-sub">河南医药大学 · 课表与作业</div>
+
+    <div class="gate-tip" id="gateTip">
+      填学号即可进入。<br>
+      进入后请登录一次教务，用来确认这个学号确实是你。
+    </div>
+
+    <label class="gate-label">学号</label>
+    <input id="gateId" class="gate-input" type="text" inputmode="numeric"
+           placeholder="请输入学号" autocomplete="off" maxlength="20">
+    <div class="gate-live" id="gateLive"></div>
+
+    <!-- 激活码已经不用了，但这一栏留着当**管理员口令**入口：
+         有些学校账号（管理员自己）需要口令才能进去，藏起来反而更难找。
+         默认折叠，学生看不到这一栏就不会去纠结「我没码怎么办」。 -->
+    <div class="gate-more" id="gateMore">
+      <span id="gateMoreBtn">我是管理员</span>
+    </div>
+    <div id="gateAdm" style="display:none">
+      <label class="gate-label">管理口令 <span class="gate-hint">（学生不用填）</span></label>
+      <input id="gateCode" class="gate-input" type="text"
+             placeholder="管理员口令" autocomplete="off"
+             maxlength="64" spellcheck="false">
+    </div>
+
+    <button id="gateBtn" class="btn">进入并开始用课表</button>
+    <div class="gate-err" id="gateErr"></div>
+
+    <!-- 更新出口：被强制升级挡在门外时，这里是唯一的活路。
+         平时 display:none，只有 UpdateUI 确认「你被版本卡住了」才亮。 -->
+    <button id="gateUpd" class="btn ghost gate-upd" style="display:none">更新到最新版</button>
+
+    <div class="gate-foot">
+      <div>开发者：孤汩</div>
+      <div>QQ：692962849　邮箱：692962849@qq.com</div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 更新提示（可关闭的软提示 / 不可关闭的强升级） ============ -->
+<div id="upd">
+  <div class="upd-box">
+    <div class="upd-ico">↑</div>
+    <div class="upd-ttl" id="updTtl">发现新版本</div>
+    <div class="upd-ver" id="updVer">--</div>
+    <div class="upd-notes" id="updNotes"></div>
+    <div class="upd-group" id="updGroup" style="display:none"></div>
+    <label class="adm-check upd-check" id="updCheckWrap">
+      <input id="updMute" type="checkbox">
+      <span>这个版本先不提示了</span>
+    </label>
+    <button id="updGo" class="btn">去下载</button>
+    <button id="updLater" class="btn ghost">以后再说</button>
+  </div>
+</div>
+
+<!-- ============ 首次打开：使用声明（点「我已知晓」才进教程） ============
+     顺序是 声明 → 教程 → 登录引导。声明排在最前面，因为它是唯一一个
+     「用户必须看见才算数」的东西，放在教程后面容易被连点跳过。
+     内容与「我的 → 关于本软件」里的声明区一致，那边是完整版，这里是摘要。
+     ✕ 和「我已知晓」等价 —— 关掉也视为已阅，否则会把人卡在这一层。 -->
+<div id="disc">
+  <div class="disc-box">
+    <button id="discX" class="disc-x" aria-label="关闭">✕</button>
+    <div class="disc-ttl">欢迎使用 河医大助手</div>
+    <div class="disc-sub">河南医药大学 · 一份简短的使用说明</div>
+    <div class="disc-body">
+      <p>感谢使用！这是一款<b>非官方、免费、无广告</b>的校园学习工具，由个人开发维护，不代表河南医药大学或相关服务提供方。</p>
+      <p>课表、作业、接水记录默认只保存在本机；连接学校或打开第三方网页时，会访问相应服务。开发者不收集、不上传你的账号、密码和课表。</p>
+      <p>教务与学习通的信息可能因网络、学校系统调整或缓存而<b>延迟、缺失或出错</b>。考试时间、作业截止、成绩等重要事项，请以学校和老师的官方通知为准，并自行核对。</p>
+      <p>应用仍在完善，可能存在错误。涉及钱的操作（充值、绑卡、下单）一律不代办，请去官方渠道。</p>
+      <p class="disc-more">完整使用声明、数据隐私和开源致谢，见「我的 → 关于本软件」。</p>
+    </div>
+    <button id="discOk" class="btn">我已知晓，开始使用</button>
+    <p class="hint tight">点一次就记住了，以后不再弹。</p>
+  </div>
+</div>
+
+<!-- ============ 首次使用教程（第一次打开时出现，可在「我的」重看） ============ -->
+<div id="tut">
+  <div class="tut-box"></div>
+</div>
+
+<!-- ============ 首次使用引导（教程看完后出现一次） ============ -->
+<div id="onb">
+  <div class="onb-box">
+    <div class="gate-badge">河</div>
+    <div class="onb-ttl">还差两步就能用了</div>
+    <div class="onb-sub">这个 App 不自带任何人的课表。用你自己的账号登录一次，数据就归你了。</div>
+
+    <div class="onb-item" id="onbKb">
+      <div class="onb-n">1</div>
+      <div class="onb-txt">
+        <b>登录教务 · 拿课表</b>
+        <span id="onbKbState">未登录</span>
+      </div>
+      <button id="onbKbBtn" class="btn-sm">去登录</button>
+    </div>
+
+    <div class="onb-item" id="onbCx">
+      <div class="onb-n">2</div>
+      <div class="onb-txt">
+        <b>登录学习通 · 拿作业和考试</b>
+        <span id="onbCxState">未登录</span>
+      </div>
+      <button id="onbCxBtn" class="btn-sm">去登录</button>
+    </div>
+
+    <button id="onbDone" class="btn">开始使用</button>
+    <p class="hint tight">两个都可以以后再登，在「我的」和「学习」页随时能找到入口。</p>
+  </div>
+</div>
+
+<!-- ============ 公告（管理员发，每次内容变更各弹一次） ============ -->
+<div id="ntc">
+  <div class="ntc-box">
+    <div class="ntc-badge">!</div>
+    <div class="ntc-ttl" id="ntcTtl">公告</div>
+    <div class="ntc-at" id="ntcAt"></div>
+    <div class="ntc-body" id="ntcBody"></div>
+    <button id="ntcOk" class="btn">知道了</button>
+  </div>
+</div>
+
+<!-- ============ 主界面 ============ -->
+<div id="app" class="locked">
+
+<header id="top" data-page="kb" data-level="1">
+  <div class="top-row">
+    <!-- 二级页才出现：返回上一级（底栏不动，因为底栏永远停在一级） -->
+    <button id="hdBack" class="hd-back" aria-label="返回上一级">‹</button>
+    <div class="brand">
+      <div class="brand-mark">河</div>
+      <div class="brand-txt">
+        <div class="brand-name" id="hdTitle">课表</div>
+        <div class="brand-sub" id="hdSub">河南医药大学</div>
+      </div>
+    </div>
+    <div class="top-acts">
+      <button id="today" class="pill">今天</button>
+      <button id="btnFree" class="pill accent">空教室</button>
+    </div>
+  </div>
+
+  <div class="week-row">
+    <button id="prev" class="wkbtn" aria-label="上一周">‹</button>
+    <div id="wk">
+      <div class="wk-main">第 <span id="wkno">--</span> 周</div>
+      <div class="wk-sub" id="wkdate">--</div>
+    </div>
+    <button id="next" class="wkbtn" aria-label="下一周">›</button>
+  </div>
+</header>
+
+<main>
+  <!-- ================= 课表 ================= -->
+  <section id="tab-kb" class="tab active">
+    <!-- v1.1.13：课表状态条。
+         原来所有说明（「还没有你的课表」「本周没有课」「课表读不出来」）
+         都排在 14 行网格的下面 —— 网格高度约 690px，手机屏根本滚不到，
+         用户看到的永远是「一片空白 + 一个字都没有」。
+         现在把状态提到网格上方，永远可见。 -->
+    <div class="kb-bar" id="kbBar" style="display:none">
+      <div class="kb-bar-t" id="kbBarT"></div>
+      <div class="kb-bar-s" id="kbBarS"></div>
+      <div class="kb-bar-acts">
+        <button id="kbBarSync" class="btn soft" style="display:none">从教务同步课表</button>
+        <button id="kbBarDiag" class="btn ghost" style="display:none">复制课表诊断</button>
+      </div>
+    </div>
+    <div id="grid" class="grid"></div>
+    <p class="hint" id="kbtip"></p>
+    <!-- v1.1.55：糖梨借鉴入口。AI 改课表是纯前端文本指令，成绩页是本机只读展示，
+         都不联网、不托管密码。放网格下面（状态条在网格上方，别抢它的位置）。 -->
+    <div class="kb-bar-acts kb-tools">
+      <button id="kbCmdBtn" class="btn soft">✎ AI 改课表</button>
+      <button id="gradeEntry" class="btn ghost">成绩</button>
+    </div>
+  </section>
+
+  <!-- ================= 学习 ================= -->
+  <section id="tab-learn" class="tab">
+    <div class="learn-head">
+      <span id="hwcount">0 条要交</span>
+      <span class="learn-tools">
+        <!-- v1.1.28：待办/番茄钟从两张大卡缩成入口小按钮，点开是半框。
+             学习页的主角是作业列表；这两个工具用得快进快出，占一整屏
+             反而把作业往下挤。状态小字还在按钮里（未做条数/计时状态）。 -->
+        <button id="todoEntry" class="pill">待办 · <span id="todoEntryCnt">0</span></button>
+        <button id="focusEntry" class="pill">番茄钟 · <span id="focusEntryState">25:00</span></button>
+        <button id="refresh" class="pill">刷新</button>
+      </span>
+    </div>
+
+    <!-- v2.0.0：今日一行。三件事压在一行里——下一节课、最近截止、一键复制未完成。
+         为什么贴在作业列表最上面而不是单独开一张卡：学习页最常被「看一眼就走」，
+         这一行就是那一眼的全部内容；开卡会把作业列表又往下挤（v1.1.28 把待办/
+         番茄钟缩成小按钮，为的就是别把作业挤下去）。数据全部来自 renderHomework
+         算好的 window.__HWITEMS 和 blocksOf/TIMES，这里不自己算截止时间。 -->
+    <div class="today-line" id="todayLine" data-tone="">
+      <div class="tl-top">
+        <span class="tl-dot" aria-hidden="true"></span>
+        <b id="todayMain">今日无课</b>
+        <button id="copyUndone" class="tl-copy" type="button">复制未完成</button>
+      </div>
+      <div class="tl-sub" id="todaySub" hidden></div>
+    </div>
+
+    <!-- v1.1.66 / m00638：账号绑定收进二级半框，主窗口只留这一条细入口 +
+         任务列表。四张连接卡（学习通 + 喜鹊/雨课堂/知到）平时住 #toolPark，
+         点这里整组搬进 #sheet 半框。为什么分层：用户要「主窗口以显示待完成
+         任务为主」，四张连接卡摊在主页会把待办列表一路往下挤、390px 下还
+         把状态/按钮挤出右边；绑定本就是低频动作，收进半框最合适。 -->
+    <div class="card" id="bindEntry">
+      <div class="row click">
+        <span>账号绑定 · 学习通 / 喜鹊 / 雨课堂 / 知到</span>
+        <span class="v dim" id="bindEntryStat">管理 ›</span>
+      </div>
+    </div>
+
+    <!-- v1.1.28：待办/番茄钟两张卡的「停车场」。平时藏在这里，
+         点头部小按钮时整卡搬进 #sheet 半框，关闭时搬回来。
+         卡片 DOM 常驻（MYTODO/FOCUS 直接按 id 找它们），只是换了住处。
+         toolPark 本体也藏在学习页 section 外不可见处 —— 搬进半框前
+         绝不随页面渲染。 -->
+    <div id="toolPark" style="display:none">
+    <div class="card sheet-only" id="myTodoCard">
+      <div class="card-title">
+        <span class="dot"></span>我的待办
+        <span class="mtd-cnt" id="myTodoCount"></span>
+      </div>
+      <div id="myTodoList"></div>
+      <button id="myTodoAdd" class="btn soft">+ 加一条</button>
+    </div>
+
+    <!-- v1.1.28：专注计时也搬进 toolPark（见上）。 -->
+    <div class="card sheet-only" id="focusCard">
+      <div class="card-title">
+        <span class="dot"></span>专注计时
+        <button id="focusSet" class="pill">设置</button>
+      </div>
+
+      <div class="seg" data-fmode-seg>
+        <button data-fmode="pomo" class="on">番茄钟</button>
+        <button data-fmode="timer">正计时</button>
+      </div>
+
+      <div class="focus-face">
+        <div class="focus-phase" id="focusPhase">番茄钟 · 待开始</div>
+        <div class="focus-time" id="focusTime">25:00</div>
+        <div class="focus-stat" id="focusStat">今日 0 分钟 · 本周 0 分钟</div>
+      </div>
+
+      <div class="focus-acts">
+        <button id="focusToggle" class="btn">开始</button>
+        <button id="focusReset" class="btn ghost">重置</button>
+      </div>
+
+      <div class="chips" data-noise-seg>
+        <button data-noise="off" class="on">静音</button>
+        <button data-noise="white">白噪音</button>
+        <button data-noise="pink">粉噪音</button>
+        <button data-noise="brown">棕噪音</button>
+      </div>
+    </div>
+    <!-- v1.1.66 / m00638：账号绑定卡组。平时住停车场，点 #bindEntry 整组搬进
+         #sheet 半框。整组用 sheet-only 容器（自身不画卡片），里面 cxCard 与
+         SrcUI 动态生成的 src-card 各自成卡，竖排四张。DOM 常驻在此，
+         CxUI / SrcUI 照旧按 id 找节点，感知不到自己被搬过。 -->
+    <div class="sheet-only" id="bindCard">
+      <div class="card cx-card" id="cxCard">
+        <div class="row"><span>学习通</span><span id="cxState" class="v warn">未登录</span></div>
+        <div class="row" id="cxAtRow" style="display:none"><span>上次同步</span><span id="cxAt" class="v">--</span></div>
+        <button id="btnCxLogin" class="btn">登录学习通（学校统一认证）</button>
+        <button id="btnCxSync" class="btn soft" style="display:none">重新抓作业与考试</button>
+        <button id="btnCxOut" class="btn ghost" style="display:none">断开学习通</button>
+        <p class="hint tight">只读，不会替你交作业、不会点开考试。登录态只存在这台手机上。</p>
+      </div>
+      <div id="srcCards"></div>
+    </div>
+    </div><!-- /toolPark -->
+
+    <!-- v1.1.27：课程提醒。课前 N 分钟由系统闹钟弹本地通知（锁屏也收得到）。
+         开关/提前量在「设置」半框里调，入口放这里和专注计时一排。 -->
+    <div class="card" id="remindCard">
+      <div class="card-title">
+        <span class="dot"></span>课程提醒
+        <button id="remindSet" class="pill">设置</button>
+      </div>
+      <div class="row" id="remindRow">
+        <span>状态</span>
+        <span id="remindStat" class="v">未开启</span>
+      </div>
+    </div>
+
+    <!-- v1.1.66 / m00638：四张连接卡已收进 #toolPark 的 #bindCard，
+         点顶部 #bindEntry 在二级半框里打开；主窗口这里只放任务筛选与列表。 -->
+    <!-- v1.1.66：待完成 / 已完成 视图切换。默认看待完成；点「已完成」，下面整块
+         列表换成「平台明确说了做完」的条目，点回来又是要动的那些。
+         为什么单独一档 seg 而不是塞进「全部/作业/考试」：那排胶囊管的是
+         「作业还是考试」，这里管的是「做完没做完」，两个维度叠着用才对。
+         为什么放最上面：以前「已完成」是列表底部一个默认收起的折叠组，
+         回看自己做过什么要滚到底再点开；提到最上面一键切换，顺手。
+         语义红线照旧：状态没读到的条目永远留在「待完成」，绝不冒充已完成。 -->
+    <div class="seg" id="doneSeg">
+      <button data-dview="todo" class="on">待完成</button>
+      <button data-dview="done">已完成</button>
+    </div>
+
+    <div class="seg" id="sortSeg">
+      <button data-sort="urgent" class="on">按紧急度</button>
+      <button data-sort="course">按课程</button>
+    </div>
+
+    <div class="chips" id="sortChips">
+      <button data-filter="all" class="on">全部</button>
+      <button data-filter="work">作业</button>
+      <button data-filter="exam">考试</button>
+    </div>
+      <!-- v1.1.66：来源筛选，由 app.js 的 SrcUI 动态填充 -->
+      <div class="chips" id="srcChips"></div>
+
+    <!-- v1.1.22：我的待办 —— 学习通里没有的那些事。
+         独立成一张卡，不和下面的作业列表混排：混在一起之后
+         用户分不清「这条是学习通说的」还是「我自己记的」。
+         v1.1.25：卡片已挪到学习页最顶部（见上），这里只剩作业列表。 -->
+    <div id="hwlist"></div>
+  </section>
+
+  <!-- ================= WIKI ================= -->
+  <section id="tab-wiki" class="tab">
+    <div class="wiki-head">
+      <input id="wikiSearch" class="wiki-search" type="search"
+             placeholder="搜一下：校历 / 招生办 / 附属医院 / 校训" autocomplete="off">
+      <div class="wiki-acts">
+        <button id="wikiAdd" class="pill">+ 补一条</button>
+        <button id="wikiExport" class="pill">导出</button>
+      </div>
+    </div>
+    <div id="wikiBody"></div>
+  </section>
+
+  <!-- ================= 校园事务 ================= -->
+  <section id="tab-campus" class="tab">
+
+    <!-- 宿舍空调：高频查询，单独提一张卡放最上面，一眼能看到。
+         v1.1.37：度数直接印在这张卡上（不用点开），旁边一个手动刷新；
+         另外每 10 分钟自己刷一次（只在页面可见时）。
+         v1.1.62：把「当前绑定哪间房」也印到卡上，绑错校区一眼可见。 -->
+    <div class="card elec-entry" id="elecCard">
+      <div class="elec-entry-box">
+        <div class="elec-entry-main">
+          <div class="elec-entry-title">宿舍空调</div>
+          <div class="elec-entry-sub" id="elecEntrySub">点一下，看还剩多少度 ›</div>
+          <div class="elec-entry-room" id="elecEntryRoom"></div>
+        </div>
+        <div class="elec-entry-right">
+          <div class="elec-entry-num">
+            <span class="elec-entry-odd" id="elecEntryOdd">--</span>
+            <span class="elec-entry-unit">度</span>
+          </div>
+          <button class="elec-entry-refresh" id="elecRefresh" type="button">刷新</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 饮水机 -->
+    <div class="card" id="waterCard">
+      <div class="card-title"><span class="dot"></span>饮水机 · 胖乖生活</div>
+
+      <div id="waterNotLogin">
+        <p class="hint left tight">
+          学校的直饮水机走「胖乖生活」平台。在这里登录一次，之后点一下就能出水，不用再扫码。
+        </p>
+        <label class="fr-label">手机号</label>
+        <input id="waterPhone" class="fr-input" type="tel" inputmode="numeric"
+               placeholder="胖乖生活绑定的手机号" maxlength="11" autocomplete="off">
+        <div class="fr-hint" id="waterPhoneHint">填你绑在胖乖生活上的手机号，11 位、1 开头。</div>
+        <label class="fr-label">短信验证码</label>
+        <div class="fr-row">
+          <input id="waterCode" class="fr-input" type="text" inputmode="numeric"
+                 placeholder="4 位或 6 位验证码" maxlength="6" autocomplete="off">
+          <button id="waterSendCode" class="pill">发送验证码</button>
+        </div>
+        <div class="fr-hint" id="waterCodeHint">点右边发一条短信，收到后把 4 位或 6 位数字填进来。</div>
+        <button id="waterLogin" class="btn">登录并记住这台手机</button>
+        <p class="hint left">
+          登录只在本机完成，账号密码不经过开发者服务器。充值、绑定一卡通请去官方的「慧生活798」。
+        </p>
+      </div>
+
+      <div id="waterLogged" style="display:none">
+        <div class="row"><span>账号</span><span id="waterWho" class="v">--</span></div>
+        <div class="row"><span>已绑定饮水机</span><span id="waterCnt" class="v">0 台</span></div>
+      </div>
+    </div>
+
+    <!-- 我的饮水机 -->
+    <div class="card" id="waterDevCard" style="display:none">
+      <div class="card-title"><span class="dot"></span>我的饮水机</div>
+
+      <!-- v1.1.60 诚实版：云端实锤放水途中平台不给实时用量、也没有
+           「出 N ml 就停」的入参，按 ml 精确自停不成立；计时换算又因流速
+           不固定被否。这里只做两件真事：接够了自己点「停止」，以及可选的
+           「最长放水」防忘关超时（与水量无关）。结算值原样显示。 -->
+      <p class="hint left tight" style="margin:0 0 6px">
+        手机这边只能「解锁」，出水还要在机器出水口按一下按钮 —— 这是胖乖的设计，没有远程开阀的接口。
+        接够了自己点「停止」。<b>平台放水时不给实时用量，结算值出来后原样显示，单位以胖乖账单为准，App 不换算毫升</b>；
+        下面的「最长放水」只是防忘关的安全网，到点发一次停止，不是按水量停。
+      </p>
+      <div class="chips" id="waterTarget">
+        <button data-sec="0">不限</button>
+        <button data-sec="60">1分钟</button>
+        <button data-sec="120">2分钟</button>
+        <button data-sec="300">5分钟</button>
+      </div>
+
+      <div id="waterDevList"></div>
+
+      <button id="waterAdd" class="btn">扫码添加饮水机</button>
+
+      <div id="waterAddBox" style="display:none">
+        <p class="hint left tight">
+          扫机器上贴的二维码（写着「请扫码」的那块屏或标签）。二维码里的 SN 是固定机器码，
+          添加后会保存在本机，不用每次扫码；换宿舍后重新添加新机器即可。
+        </p>
+        <button id="waterScan" class="btn">用相机扫二维码</button>
+        <button id="waterPick" class="btn ghost">从相册选二维码图片</button>
+        <input id="waterFile" type="file" accept="image/*" style="display:none">
+        <label class="fr-label">或者直接输入固定 SN 机器码（推荐）</label>
+        <input id="waterPaste" class="fr-input" type="text"
+               placeholder="例如 865403065048324，也可粘贴完整二维码链接" autocomplete="off">
+        <div class="fr-hint" id="waterPasteHint">机器上那块屏或标签上的二维码里就写着这串数字。</div>
+        <button id="waterPasteOk" class="btn ghost">绑定这台机器</button>
+      </div>
+
+      <button id="waterLogout" class="btn ghost" style="margin-top:10px">退出胖乖生活账号</button>
+    </div>
+
+    <!-- 其他校园事务（只放入口，不做代办） -->
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>其他</div>
+      <div class="row click" id="rowFree"><span>空闲教室</span><span class="v dim">全校真实数据 ›</span></div>
+      <div class="row click" id="rowChaoxing"><span>学习通</span><span class="v dim">打开课程首页 ›</span></div>
+      <div class="row click" id="rowEams"><span>教务系统</span><span class="v dim">自己进去查 ›</span></div>
+    </div>
+
+    <p class="hint">
+      本页只做「帮你少点几下」。涉及钱的操作（充值、绑卡、下单）一律不代办，请去官方渠道。
+    </p>
+  </section>
+
+  <!-- ================= 我的 ================= -->
+  <section id="tab-me" class="tab">
+    <div class="card" id="acctCard">
+      <div class="card-title"><span class="dot"></span>本机账号</div>
+      <div class="row"><span>激活学号</span><span id="acctId" class="v">--</span></div>
+      <div class="row"><span>身份</span><span id="acctRole" class="v">--</span></div>
+      <button id="btnExitMe" class="btn ghost">退出本机账号</button>
+      <p class="hint tight">
+        这一项是软件的卡密账号，不是教务网账号。手机要借人、要卖掉、
+        或者换个人用，点这里。退出后课表、作业、学习通记录一起清掉。
+      </p>
+    </div>
+
+    <div class="card" id="loginCard">
+      <div class="card-title"><span class="dot"></span>教务账号</div>
+      <div class="row"><span>登录状态</span><span id="loginState" class="v">未登录</span></div>
+      <div class="row"><span>学号</span><span id="whoami" class="v">--</span></div>
+      <button id="btnLogin" class="btn">登录教务（学校官方页面）</button>
+      <button id="btnSync" class="btn soft">从教务同步课表</button>
+      <button id="btnLogout" class="btn ghost">退出教务登录</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据状态</div>
+      <div class="row"><span>学期</span><span id="termPick" class="v">--</span></div>
+      <div class="row"><span>课表同步</span><span id="syncAt" class="v">未同步</span></div>
+      <div class="row"><span>作业同步</span><span id="hwSyncAt" class="v">未同步</span></div>
+      <div class="row"><span>数据来源</span><span id="srcTag" class="v">内置</span></div>
+      <div class="row"><span>课程数</span><span id="cnt" class="v">--</span></div>
+      <div class="row"><span>学习通作业</span><span id="hwStat" class="v">--</span></div>
+    </div>
+
+    <!-- 管理员专属，普通学生看不到这一块 -->
+    <div class="card" id="adminCard" style="display:none">
+      <div class="card-title"><span class="dot"></span>管理员</div>
+      <div class="row click" id="rowAdmin">
+        <!-- v1.1.8：1.1 版起就没有激活码了（填学号即可用，身份由学校登录页自证），
+             这一行却一直写着「生成激活码 / 按学号算码」，点进去是管理控制台，
+             文案和实际做的事完全对不上。 -->
+        <span>管理控制台</span>
+        <span class="v dim">名单、版本、审核 ›</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row click" id="rowSettings"><span>设置</span><span class="v dim" id="settingsState" data-theme-state>外观 · 学期 · 更新 ›</span></div>
+      <div class="row click" id="rowSkin"><span>界面皮肤</span><span class="v dim" id="skinState">经典 ›</span></div>
+      <div class="row click" id="rowTut"><span>使用教程</span><span class="v dim">六页看完 ›</span></div>
+      <div class="row click" id="rowGuide"><span>使用帮助</span><span class="v dim">这个 App 怎么用 ›</span></div>
+      <div class="row click" id="rowDisc"><span>使用声明</span><span class="v dim">以官方为准 ›</span></div>
+      <div class="row click" id="rowAbout"><span>关于本软件</span><span class="v dim" id="aboutJumpVer">›</span></div>
+    </div>
+  </section>
+
+  <!-- ================= 设置（二级页，从「我的」进） =================
+       把「改这台手机怎么显示/怎么算」的东西全收进来：外观、学期、数据、更新。
+       搬动时所有 id 原样保留，app.js / theme.js / UpdateUI 的绑定一行都不用改。 -->
+  <section id="tab-settings" class="tab">
+    <div class="crumb">
+      <button id="settingsBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">设置</span>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>外观</div>
+      <div id="themeInline" class="th-inline"></div>
+      <p class="hint tight">跟随系统 / 浅色 / 深色，点一下立刻生效，只影响这台手机。</p>
+      <div id="skinInline" class="skin-inline"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>课表与学期</div>
+      <div class="row"><span>开学日（第 1 周周一）</span><span id="startday" class="v">--</span></div>
+      <div class="row"><span>总周数</span><span id="totalweeks" class="v">--</span></div>
+      <div class="fr-row">
+        <input id="setStart" class="fr-input" type="date">
+        <input id="setWeeks" class="fr-input" type="number" min="10" max="30" step="1" placeholder="总周数">
+        <button id="setSave" class="btn-sm">保存并立即生效</button>
+      </div>
+      <div class="fr-hint" id="setTermHint">开学日填校历上「第 1 周周一」那天，总周数一般 20 到 22 周。</div>
+      <div class="chips set-quick" id="setQuick">
+        <button type="button" data-q="aug">8 月最后一个周一</button>
+        <button type="button" data-q="sep">9 月第一个周一</button>
+        <button type="button" data-q="w20">共 20 周</button>
+        <button type="button" data-q="w21">共 21 周</button>
+        <button type="button" data-q="w22">共 22 周</button>
+      </div>
+      <p class="hint tight">
+        周次算错了就调这里。日历一周一周对不上的话，把开学日往前或往后挪 7 天。
+        改完立刻生效，只影响这台手机。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>账号绑定</div>
+      <div class="row click" id="bindEntrySettings"><span>学习通 · 雨课堂 · 知到 · 喜鹊</span><span class="v dim">管理 ›</span></div>
+      <p class="hint tight">只在本机保存登录态，用来抓取待办；不上传、不代交、不托管密码。</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据与更新</div>
+      <div class="row click" id="rowUpd"><span>检查更新</span><span class="v dim" id="updJumpVer">›</span></div>
+      <button id="resync" class="btn ghost">重新读取本地数据</button>
+      <p class="hint tight">课表或作业读不出来时，点一下重读本机缓存。</p>
+    </div>
+  </section>
+
+  <!-- ================= 使用帮助（二级页，从「我的」进） ================= -->
+  <section id="tab-guide" class="tab">
+    <div class="crumb">
+      <button id="guideBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">使用帮助</span>
+    </div>
+
+    <div class="wiki-head">
+      <input id="guideSearch" class="wiki-search" type="search"
+             placeholder="搜一下：激活 / 同步 / 饮水机 / 返回键" autocomplete="off">
+      <div class="wiki-acts">
+        <button id="guideAdd" class="pill">+ 补一条</button>
+        <button id="guideExport" class="pill">导出</button>
+      </div>
+    </div>
+    <div id="guideBody"></div>
+  </section>
+
+  <!-- ================= 管理员 · 控制台（二级页，仅管理员可见） ================= -->
+  <section id="tab-admin" class="tab">
+    <div class="crumb">
+      <button id="adminBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur">管理控制台</span>
+    </div>
+
+    <!-- 口令 -->
+    <div class="card" id="admKeyCard">
+      <div class="card-title"><span class="dot"></span>管理员口令</div>
+      <p class="about-p">
+        开卡、停用、改版本都要口令。口令只存在这台手机上，用来向服务器证明身份；
+        它和激活码不是一回事，别发出去，也别写进任何要分发的东西里。
+      </p>
+      <input id="admKey" class="adm-in one" type="password" autocomplete="off"
+             autocapitalize="off" autocorrect="off" spellcheck="false"
+             placeholder="管理员口令（服务端 ADMIN_KEY）">
+      <button id="admKeySave" class="btn soft">保存口令并连接</button>
+      <div id="admKeyMsg" class="gate-err"></div>
+    </div>
+
+    <div id="admPanel" style="display:none">
+
+      <!-- 概览 -->
+      <div class="adm-stats">
+        <div class="adm-stat"><b id="admStatGranted">--</b><span>正常使用</span></div>
+        <div class="adm-stat"><b id="admStatRevoked">--</b><span>已停用</span></div>
+        <div class="adm-stat"><b id="admStatDev">--</b><span>设备上限</span></div>
+        <div class="adm-stat"><b id="admStatVer">--</b><span>线上版本</span></div>
+      </div>
+      <div id="admStatMsg" class="gate-err"></div>
+
+      <!-- 控制台内部分段 -->
+      <div class="seg adm-seg" id="admSeg">
+        <button data-adm="grant" class="on">管理</button>
+        <button data-adm="list">名单</button>
+        <button data-adm="dev">设备</button>
+        <button data-adm="ver">版本</button>
+        <button data-adm="rev">审核</button>
+        <button data-adm="notice">公告</button>
+        <button data-adm="log">日志</button>
+      </div>
+
+      <!-- ========== 管理（v1.1.1：开卡与发码已移除，只留停用/解封） ========== -->
+      <div class="adm-pane" id="admP-grant">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>停用 / 解封</div>
+          <p class="about-p">
+            <b>1.1 版起不再开卡、不再发码</b>：填上学号就能进，身份由学校登录页自证。
+            这里只剩「不让人用」的开关。可以一次填多个，用换行、空格或逗号隔开。
+          </p>
+          <textarea id="admIds" class="adm-in" rows="4" spellcheck="false"
+                    placeholder="20260100001&#10;20261440106 20261440107, 20261440108"></textarea>
+          <button id="admRevoke" class="btn">停用（立刻踢下线）</button>
+          <button id="admUnrevoke" class="btn ghost">解封（重新启用）</button>
+          <button id="admUngrant" class="btn ghost">清空设备记录</button>
+          <p class="hint" style="margin:6px 0 0">
+            <b>停用</b>=拉黑，对方下次联网就被拦下，设备记录也一起清掉；
+            <b>解封</b>只撤掉停用标记，别的都不动；
+            <b>清空设备记录</b>不动停用状态，只是把已绑设备清零，让他换手机能重新绑。
+          </p>
+          <div id="admErr" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 名单 ========== -->
+      <div class="adm-pane" id="admP-list" style="display:none">
+        <!-- v1.1.23：详情不再用内嵌卡片（v1.1.14 的方案）。
+             用户原话「点详情能不能弹一个半框页面显示，而不是加载在上面」——
+             顶部那块卡把名单往下顶出一屏，点完还得自己收。
+             改用全局 #sheet 半框（index.html 底部，.sh-box 结构）：
+             showDetail 把标题/内容写进 sh-name / sh-body，收起只是去掉 .on，
+             名单一行都不动。 -->
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>使用名单 <span id="admListCnt" class="adm-cnt"></span></div>
+          <!-- v1.1.63 校准：用户原话「把有异常的单独挑出来在一个二级菜单里面，
+               主菜单列表那就显示正常的，计数也分开计数」。正常/异常各自成表、各自计数。 -->
+          <div class="chips adm-subtabs" id="admListTab">
+            <button data-t="normal" class="on">正常名单 <span id="admNormalCnt" class="adm-tab-cnt"></span></button>
+            <button data-t="cal">校准 · 异常 <span id="admOddCnt" class="adm-tab-cnt"></span></button>
+          </div>
+          <!-- v1.1.64 方案 C：三态计数汇总（用户原话「计数也分开计数」）+ 只看已确认开关 -->
+          <div class="adm-summary" id="admKbSummary"></div>
+          <div id="admNormalPane">
+            <p class="adm-tip" id="admListTip">上面粗的是进门填的学号，下面细的是教务网登录读回的真号；灰的是还没补录真号，可在「校准」里手动补。</p>
+            <p class="adm-hidden" id="admListHidden"></p>
+            <label class="adm-only"><input type="checkbox" id="admOnlyConfirmed"> 只看已确认（隐去待补录）</label>
+            <input id="admFind" class="adm-in one" type="text" inputmode="numeric"
+                   placeholder="搜学号（留空显示全部）">
+            <div class="chips" id="admFilter">
+              <button data-f="all" class="on">全部</button>
+              <button data-f="granted">正常</button>
+              <button data-f="revoked">已停用</button>
+            </div>
+            <div id="admList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          </div>
+          <div id="admOddPane" style="display:none">
+            <p class="adm-tip">这些是没绑教务网、或手填形状不对的号，单独放在「校准」里；主列表只显示正常名单。可逐个查看详情或停用。</p>
+            <div id="admOddList" class="adm-out"><p class="hint">点下面的按钮从服务器拉一次。</p></div>
+          </div>
+          <button id="admListBtn" class="btn ghost">刷新名单</button>
+          <!-- v1.1.65 方案 A：全员下线重绑教务网。破坏性动作走 #sheet 二次确认，
+               按钮留给管理员自己点；服务端动手前自动备份，「撤销」一键还原。 -->
+          <p class="adm-tip" style="margin-top:14px"><b>全员重绑教务网</b>：清空名单里的教务真号标记、
+            让所有老票据失效；学生重开 App 后要重新登录一次教务网确认学号。动手前自动备份整份名单，
+            「撤销」可一键还原名单与公告。</p>
+          <p class="adm-tip" id="admRebindState"></p>
+          <div class="chips" style="margin-top:6px">
+            <button id="admRebindGo" class="btn ghost">发起全员重绑</button>
+            <button id="admRebindUndo" class="btn ghost">撤销上次重绑</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 设备 ========== -->
+      <div class="adm-pane" id="admP-dev" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>设备绑定</div>
+          <p class="about-p">
+            每个学号默认最多绑 <b id="admMaxDev">3</b> 台设备。换手机、重装系统都会变成「新设备」，
+            名额满了就在下面把这人的旧设备清掉，他再激活一次就能绑上新的。
+          </p>
+          <label class="gate-label">学号</label>
+          <input id="admDevId" class="adm-in one" type="text" inputmode="numeric"
+                 placeholder="20260100001">
+          <button id="admDevQuery" class="btn soft">查这台学号绑了哪些设备</button>
+          <div id="admDevList" class="adm-out"></div>
+          <button id="admDevClear" class="btn ghost">清空这个学号的全部设备</button>
+          <div id="admDevMsg" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 版本 ========== -->
+      <div class="adm-pane" id="admP-ver" style="display:none">
+        <!-- 上传安装包：把「发版」这件事收到 App 里，不再需要网盘和手工填链接 -->
+        <div class="card" id="apkCard">
+          <div class="card-title"><span class="dot"></span>发布新版本</div>
+          <p class="about-p">
+            选一个手机上的 APK，点上传，服务器就替你托管它。
+            <b>上传并发布</b>会同时把「最新版本号 / 下载链接 / 文件大小 / 校验值」一起写进线上配置，
+            学生下次打开 App 点「去下载」就是直接下这个文件，中间没有任何第三方页面。
+          </p>
+
+          <div class="apk-pick" id="apkPick">
+            <div class="apk-pick-ico">＋</div>
+            <div class="apk-pick-txt">
+              <b id="apkPickName">点这里选择安装包</b>
+              <span id="apkPickMeta">从手机文件里选 .apk</span>
+            </div>
+          </div>
+
+          <label class="gate-label">版本号（留空则从文件名猜，如 河医大助手-v1.0.0.apk）</label>
+          <input id="apkVer" class="adm-in one" type="text" placeholder="1.0.0">
+          <label class="gate-label">版本代码 versionCode</label>
+          <input id="apkCode" class="adm-in one" type="text" inputmode="numeric" placeholder="100">
+          <p class="hint tight" id="apkCur">当前线上：--</p>
+
+          <button id="apkUpload" class="btn">上传并发布</button>
+          <button id="apkUploadOnly" class="btn ghost">只上传，不改线上配置</button>
+          <div id="apkMsg" class="gate-err"></div>
+
+          <div class="apk-hosted" id="apkHosted" style="display:none">
+            <div class="row"><span>服务器上的安装包</span><span id="apkHostedName" class="v">--</span></div>
+            <div class="row"><span>大小</span><span id="apkHostedSize" class="v">--</span></div>
+            <div class="row"><span>上传时间</span><span id="apkHostedAt" class="v">--</span></div>
+            <div class="row"><span>SHA-256</span><span id="apkHostedSha" class="v mono">--</span></div>
+            <button id="apkTest" class="btn ghost btn-sm">下载测一下（会拉起安装器）</button>
+            <button id="apkDel" class="btn ghost btn-sm">删掉服务器上的包</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>版本与更新提示</div>
+          <p class="about-p">
+            改完这里，所有联网的用户下次打开 App 就会看到更新提示。
+            最低版本填上去并且勾了强制淘汰以后，低于它的旧版才会被拦下。
+          </p>
+          <label class="gate-label">最新版本号</label>
+          <input id="cfgLatestVer" class="adm-in one" type="text" placeholder="1.0.0">
+          <label class="gate-label">最新版本代码（versionCode）</label>
+          <input id="cfgLatestCode" class="adm-in one" type="text" inputmode="numeric" placeholder="100">
+          <label class="gate-label">下载链接（留空则只显示 QQ 群）</label>
+          <input id="cfgUrl" class="adm-in one" type="text" placeholder="https://…/河医大助手-v1.0.0.apk">
+          <button id="cfgUrlSelf" class="btn ghost btn-sm">用服务器托管的包</button>
+          <label class="gate-label">更新说明（换行分段）</label>
+          <textarea id="cfgNotes" class="adm-in" rows="3" spellcheck="false"
+                    placeholder="修了底栏消失的问题&#10;新增联网授权"></textarea>
+          <label class="gate-label">更新 QQ 群号</label>
+          <input id="cfgQq" class="adm-in one" type="text" inputmode="numeric" placeholder="1097668324">
+          <label class="gate-label">每个学号最多绑几台设备</label>
+          <input id="cfgMaxDev" class="adm-in one" type="text" inputmode="numeric" placeholder="3">
+
+          <label class="gate-label">更新提示方式</label>
+          <div class="seg" id="cfgPolicy">
+            <button data-policy="nag" class="on">一直提示到更新</button>
+            <button data-policy="once">只提示一次</button>
+          </div>
+          <p class="hint tight" id="cfgPolicyHint">
+            一直提示：没更新之前，每次打开都弹一次。只提示一次：点了「以后再说」就不再打扰。
+            强制淘汰（勾了下面那个）两种情况都拦。
+          </p>
+
+          <label class="gate-label">最低可用版本（版本号或代码，0 = 不淘汰旧版）</label>
+          <input id="cfgMinCode" class="adm-in one" type="text" inputmode="text" placeholder="例如 1.0.0 或 100">
+          <button id="cfgPreview" class="btn ghost btn-sm">先看看会挡住谁</button>
+          <div id="cfgPreviewOut" class="adm-out" style="display:none"></div>
+          <label class="adm-check">
+            <input id="cfgEnforce" type="checkbox">
+            <span>真的打开强制淘汰（勾上之后，低于最低版本的旧版立刻不能用了）</span>
+          </label>
+          <p class="hint tight">
+            打开之前请先点「先看看会挡住谁」。被挡住的人如果自己下不到新版，
+            就再也进不来了——这个开关不可逆，除非你把手里的安装包直接发给他。
+          </p>
+          <button id="cfgSave" class="btn">保存版本配置</button>
+          <div id="cfgMsg" class="gate-err"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>管理员名单</div>
+          <p class="about-p">
+            名单存在服务器上，不写在 App 里。名单里的学号登录时必须填管理口令，
+            口令由服务器验证后才签发管理员身份。从名单里删掉某人，他下次联网复核就会掉回普通学生。
+          </p>
+          <div id="admAdmins" class="adm-out"><p class="hint">点下面的按钮拉一次。</p></div>
+          <label class="gate-label">增加管理员（填学号，多个用空格或逗号分隔）</label>
+          <input id="admAddId" class="adm-in one" type="text" inputmode="numeric" placeholder="20260100001">
+          <button id="admAddBtn" class="btn">加进管理员名单</button>
+          <div id="admAdminMsg" class="gate-err"></div>
+        </div>
+      </div>
+
+      <!-- ========== 审核：校园图片 + 留言（v1.1.6） ========== -->
+      <div class="adm-pane" id="admP-rev" style="display:none">
+        <div class="card">
+          <div class="card-title">
+            <span class="dot"></span>待审校园图片 <span id="revPhotoCnt" class="adm-cnt"></span>
+          </div>
+          <p class="about-p">
+            学生传上来的照片先在这里排着。<b>通过</b>之后才会出现在「WIKI → 校园实景」里。
+            这一页是给全校看的，不合适的一张都不要放。
+          </p>
+          <div id="revPhotoList" class="rev-list rev-photos">
+            <p class="hint">点下面的按钮拉一次。</p>
+          </div>
+          <div id="revPhotoNav" class="rev-nav" style="display:none">
+            <button id="revPrev" class="btn ghost btn-sm">‹ 上一张</button>
+            <span id="revPhotoPos" class="rev-pos">第 1 张</span>
+            <button id="revNext" class="btn ghost btn-sm">下一张 ›</button>
+          </div>
+          <button id="revPhotoRefresh" class="btn ghost">刷新待审图片</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title">
+            <span class="dot"></span>留言板 <span id="revFbCnt" class="adm-cnt"></span>
+          </div>
+          <p class="about-p">
+            学生发来的意见建议都在这。写了回复就会公开显示在 WIKI 的留言板上（学号只露后四位）；
+            没回复的只有你看得到。
+          </p>
+          <div id="revFbList" class="rev-list">
+            <p class="hint">点下面的按钮拉一次。</p>
+          </div>
+          <button id="revFbRefresh" class="btn ghost">刷新留言</button>
+        </div>
+      </div>
+
+      <!-- ========== 公告 ========== -->
+      <div class="adm-pane" id="admP-notice" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>发一条公告</div>
+          <p class="about-p">
+            这是<b>你自己想对大家说的话</b>，和「更新说明」完全无关。
+            更新说明跟着版本走，只有出新版才会变；公告随时可发，发完所有人下次打开 App 就能看到。
+          </p>
+          <label class="gate-label">标题（可留空，默认显示「公告」）</label>
+          <input id="cfgNoticeTitle" class="adm-in one" type="text" placeholder="例如：今晚饮水机维护">
+          <label class="gate-label">正文</label>
+          <textarea id="cfgNotice" class="adm-in" rows="5" spellcheck="false"
+                    placeholder="在这里写你自己的通知，例如：今晚 10 点宿舍饮水机维护，请大家提前接水。"></textarea>
+          <div class="row"><span>当前公告</span><span id="cfgNoticeState" class="v dim">无公告</span></div>
+          <button id="cfgNoticePublish" class="btn">发布给所有用户</button>
+          <button id="cfgNoticeClear" class="btn ghost btn-sm">撤掉当前公告</button>
+          <p class="hint tight">每台设备看过后不再重复弹出；再次点发布会重新通知所有人。</p>
+          <div id="noticeMsg" class="gate-err"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>公告会出现在哪</div>
+          <p class="about-p">
+            联网用户打开 App 时，先检查公告、再检查更新。两个都有的情况下公告先弹，
+            因为公告通常是「今天就要做的事」，更新可以等一等。<br>
+            公告弹窗只有一个「知道了」按钮，点掉就记在这台设备上，不会再来打扰。
+          </p>
+        </div>
+      </div>
+
+      <!-- ========== 日志 ========== -->
+      <div class="adm-pane" id="admP-log" style="display:none">
+        <div class="card">
+          <div class="card-title"><span class="dot"></span>操作日志</div>
+          <p class="about-p">
+            记录最近 200 次管理动作。像「强制淘汰」这种一点就全校生效的操作，
+            出问题时能靠这里回溯到底是谁在什么时候点的。
+          </p>
+          <div id="admAudit" class="adm-out"><p class="hint">点下面的按钮拉一次。</p></div>
+          <button id="admAuditBtn" class="btn ghost">刷新日志</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title"><span class="dot"></span>说清楚一件事</div>
+        <p class="about-p">
+          加了服务器以后，<b>码不再是通行证</b>：码只证明「这个学号该有资格」，
+          真正放行的是服务器上的开卡记录和票据。
+          所以现在可以做到真正的踢人——停用之后，对方下次联网就进不去了。<br>
+          服务器代码在 <code>server/worker.js</code>，部署见 <code>docs/SERVER.md</code>。
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= 关于（不在底部导航，从「我的」进入） ================= -->
+  <section id="tab-about" class="tab">
+    <!-- 二级页：底栏停在「我的」不跳，这里用面包屑说明自己在第几层 -->
+    <div class="crumb">
+      <button id="aboutBack" class="crumb-back">‹ 我的</button>
+      <span class="crumb-sep">/</span>
+      <span class="crumb-cur" id="crumbName">关于</span>
+    </div>
+
+    <div class="about-hero">
+      <div class="gate-badge sm">河</div>
+      <div class="about-logo">河医大助手</div>
+      <div class="about-ver" id="aboutVer">v2.0.0</div>
+      <div class="about-desc">河南医药大学 · 课表与作业助手</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>开发者</div>
+      <div class="row"><span>昵称</span><span class="v strong">孤汩</span></div>
+      <div class="row"><span>QQ</span><span class="v"><a class="lnk" id="lnkQQ">692962849</a></span></div>
+      <div class="row"><span>邮箱</span><span class="v"><a class="lnk" id="lnkMail">692962849@qq.com</a></span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>问题反馈</div>
+      <p class="about-p">
+        遇到课表不对、作业不同步、登录失败等问题，请把下面这些信息一并发给我，
+        可以大幅加快排查：
+      </p>
+      <div class="row"><span>学号</span><span class="v" id="fbId">--</span></div>
+      <div class="row"><span>版本</span><span class="v" id="fbVer">--</span></div>
+      <div class="row"><span>登录状态</span><span class="v" id="fbLogin">--</span></div>
+      <div class="row"><span>数据来源</span><span class="v" id="fbSrc">--</span></div>
+      <div class="row"><span>课程数</span><span class="v" id="fbCnt">--</span></div>
+      <div class="row"><span>作业状态</span><span class="v" id="fbHw">--</span></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>诊断</div>
+      <div class="row"><span>设备</span><span class="v" id="fbDevice">--</span></div>
+      <div class="row"><span>上次崩溃</span><span class="v" id="fbCrash">无</span></div>
+      <button id="btnShowCrash" class="btn ghost">查看崩溃详情</button>
+      <button id="btnShowHwRaw" class="btn ghost">查看作业状态原文</button>
+      <button id="btnShowKbRaw" class="btn ghost">查看课表抓取原文</button>
+      <button id="btnCopyDiag" class="btn ghost">复制诊断信息</button>
+      <button id="btnMail" class="btn">用邮件反馈</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>授权</div>
+      <div class="row"><span>当前状态</span><span class="v" id="aboutLic">--</span></div>
+      <div class="row"><span>登记学号</span><span class="v" id="aboutLicId">--</span></div>
+      <div class="row"><span>学号核对</span><span class="v" id="aboutVerified">--</span></div>
+      <div class="row"><span>联网校验</span><span class="v" id="aboutNet">--</span></div>
+      <button id="btnRecheck" class="btn ghost">立即联网复核</button>
+      <button id="btnClearCheck" class="btn ghost">清除学号核对记录</button>
+      <button id="btnReauth" class="btn ghost">重新填学号</button>
+      <button id="btnExit" class="btn ghost">退出本机账号（换人用这台手机）</button>
+      <p class="hint" style="margin:6px 0 0">
+        只有「学号核对」显示不一致、但课表其实是对的（比如教务登录名不是学号）时，
+        才需要点「清除学号核对记录」—— 它只清那一条判定，不动课表、不动登录状态。
+      </p>
+      <p class="hint" style="margin:6px 0 0">
+        退出后本机不再属于任何人：学号、课表缓存、作业缓存、
+        学习通记录全部清除，回到开始页。设备指纹保留，
+        所以换回原账号不会被算成新设备。
+      </p>
+    </div>
+
+    <!-- ============ 使用声明（v1.1.11）============
+         首次打开会弹一次摘要版（#disc），这里是完整版。
+         写这一块的动机：这个 App 会替用户读教务、读学习通、开关水阀，
+         一旦学校改版导致数据错、或者水阀没关，用户得先知道「以官方为准」。
+         措辞刻意不用「免责」二字——那读起来像甩锅，改成「使用声明」，
+         说的是「哪些事请你自己核对」，是提醒而不是推责。 -->
+    <div class="card" id="discCard">
+      <div class="card-title"><span class="dot"></span>使用声明</div>
+      <p class="about-p">
+        本软件为<b>个人开发的免费工具，非学校官方出品</b>，与河南医药大学及其
+        教务系统、学习通、胖乖生活均无隶属关系。<br>
+        课表、作业、考试、成绩、空闲教室等信息，均来自上述系统的公开页面，
+        可能因网络、学校改版或缓存而<b>延迟、缺失、出错</b>。
+        <b>考试时间、作业截止、成绩、缴费</b>这类重要事项，
+        请以学校和老师的官方通知为准，并自行核对。
+      </p>
+      <p class="about-p">
+        涉及钱的操作（充值、绑卡、下单、支付）一律不代办，请走官方渠道。<br>
+        软件仍在持续完善，可能存在缺陷；因使用本软件造成的
+        漏考、漏交、多扣费等后果，开发者无法承担，请务必自行确认。
+      </p>
+      <p class="about-p dim">
+        1.1 版起取消了激活码：填学号即可使用，身份由学校登录页自证。
+        软件目前仅限河南医药大学在校学生使用。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>数据隐私</div>
+      <p class="about-p">
+        <b>保存在手机上的：</b>学号、课表缓存、作业缓存、接水记录、
+        你自己改的学期设置，都存在这台手机的私有目录里。
+        开发者没有为这些数据提供云端备份，也不会把它们用于广告或出售。
+      </p>
+      <p class="about-p">
+        <b>联网时会发生什么：</b>登录教务、同步课表、查作业时，App 会像浏览器一样
+        访问学校对应的网站，那些网站能看到请求本身（IP、时间、你提交的表单）。
+        App 只是把这些页面显示出来，不额外转发给任何第三方。
+      </p>
+      <p class="about-p">
+        <b>密码：</b>教务和学习通的密码由你在学校的官方页面上输入，
+        App 不读取、不保存、不上传。App 保存的是登录成功后学校发给浏览器的
+        Cookie（相当于「已登录」的凭证），它只存在本机，退出登录即清除。
+      </p>
+      <p class="about-p">
+        <b>设备指纹：</b>为了防止一个学号被无限多台手机共用，首次进入时会生成一串
+        随机字符存在本机，用来区分设备。它不含任何硬件序列号，卸载即消失。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>权限与删除</div>
+      <p class="about-p">
+        <b>相机：</b>只在你主动点「扫二维码」时打开，用来读饮水机上的码。<br>
+        <b>相册：</b>只在你主动点「从相册选图」时读取你选中的那一张。<br>
+        <b>安装应用：</b>只用于 App 内更新自己，不会安装别的东西。<br>
+        拒绝任何一项，只影响对应功能，其余照常可用。
+      </p>
+      <p class="about-p">
+        <b>怎么删：</b>「我的 → 退出本机账号」会清掉学号、课表、作业、学习通记录；
+        「我的 → 退出教务登录」只清教务 Cookie。想连设备指纹一起清干净，
+        到 Android 设置里「清除应用数据」或直接卸载。
+        <b>这些操作不可撤销</b>，删之前先想清楚要保留什么。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>安全与反馈</div>
+      <p class="about-p">
+        全站走 HTTPS；服务器只保存「学号 + 是否可用 + 绑了几台设备」，
+        不保存密码、课表、作业内容。服务器代码开源在
+        <code>server/worker.js</code>。<br>
+        但本软件<b>没有经过任何独立的安全审计</b>，无法承诺绝对安全、
+        没有缺陷、或数据永不丢失。
+      </p>
+      <p class="about-p">
+        发现 bug、资料写错、或者想加功能，用下面的「用邮件反馈」或
+        「校园 → 留言板」告诉我。<b>反馈前请把姓名、学号、密码、
+        验证码、Cookie 抹掉</b>，只留报错文字和操作步骤就够定位了。
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="card-title"><span class="dot"></span>开源致谢</div>
+      <p class="about-p">
+        本项目使用 <b>ZXing</b>（Apache-2.0）做二维码解码，
+        <b>jsQR</b>（Apache-2.0）做图片兜底解码，
+        构建链使用 <b>Android SDK build-tools</b>。
+        第三方组件各自遵循其原始许可证。
+      </p>
+      <p class="about-p dim">
+        交互与文案参考了若干校园工具类项目的做法，参考不等于把它们的
+        代码或素材并入本应用。
+      </p>
+    </div>
+
+    <div class="about-foot">感谢使用 · 孤汩</div>
+  </section>
+</main>
+
+<div id="sheet">
+  <div class="sh-box">
+    <div class="sh-grip"></div>
+    <div class="sh-head">
+      <b id="sh-name"></b>
+      <button id="sh-close" class="pill">关闭</button>
+    </div>
+    <div id="sh-body"></div>
+  </div>
+</div>
+
+<nav id="tabs">
+  <button data-tab="kb" class="active">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="5" width="18" height="16" rx="3.2"/>
+      <path d="M8 3v3M16 3v3M3 10h18"/>
+    </svg>
+    <span>课表</span>
+  </button>
+  <button data-tab="learn">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z"/>
+      <path d="M4 20.5A2.5 2.5 0 0 1 6.5 18H19v3H6.5A2.5 2.5 0 0 1 4 20.5z"/>
+      <path d="M9 7.5h6"/>
+    </svg>
+    <span>学习</span>
+  </button>
+  <button data-tab="wiki">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H17a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6.5A1.5 1.5 0 0 1 5 19.5z"/>
+      <path d="M9 8h6M9 12h6M9 16h3"/>
+    </svg>
+    <span>WIKI</span>
+  </button>
+  <button data-tab="campus">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 21V8.5L12 3l8 5.5V21"/>
+      <path d="M9.5 21v-6h5v6"/>
+      <path d="M8.5 11h1.5M14 11h1.5"/>
+    </svg>
+    <span>校园事务</span>
+  </button>
+  <button data-tab="me">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"
+         stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="8.5" r="3.8"/>
+      <path d="M4.5 21c0-4 3.4-6.5 7.5-6.5s7.5 2.5 7.5 6.5"/>
+    </svg>
+    <span>我的</span>
+  </button>
+</nav>
+</div>
+
+<script src="jsQR.js"></script>
+<script src="homework.js"></script>
+<script src="data.js"></script>
+<script src="license.js"></script>
+<script src="auth.js"></script>
+<script src="sync.js"></script>
+<!-- v1.1.56：弹出层分层内核（Alert / Popconfirm / Tooltip）。
+     必须早于 about.js / app.js：那两处要用 window.askConfirm 替掉原生 confirm()。 -->
+<script src="pop.js"></script>
+<script src="chaoxing.js"></script>
+<script src="sources.js"></script>
+<script src="xiqueer.js"></script>
+<script src="yuketang.js"></script>
+<script src="zhihuishu.js"></script>
+<script src="about.js"></script>
+<script src="wiki.js"></script>
+<script src="guide.js"></script>
+<script src="onboard.js"></script>
+<script src="disc.js"></script>
+<script src="tut.js"></script>
+<script src="water.js"></script>
+<script src="mytodo.js"></script>
+<script src="focus.js"></script>
+<script src="reminder.js"></script>
+<script src="elec.js"></script>
+<script src="free.js"></script>
+<script src="lesson-cmd.js"></script>
+<script src="grades.js"></script>
+<script src="app.js"></script>
+<!-- v2.0.0：学习页今日一行 / 一键复制未完成 / 目标绩点。
+     必须在 app.js 之后：要用 TIMES、DATA、blocksOf、weekOf、showTip，
+     以及 renderHomework 挂出来的 window.__HWITEMS（那一份才算过 left）；
+     也要在 grades.js 之后（包一层 GRADES.open 往成绩面板底加目标绩点）。 -->
+<script src="learnplus.js"></script>
+<script src="nova-organs.js"></script>
+<!-- v1.1.57：反馈层。给真实按钮加上「预备-命中-余势-收招」四拍与一次加色光，
+     只加视觉不加行为（不绑业务、不改 app.js）。必须在 app.js 之后（真实 DOM 已建）
+     且早于 SKIN.init（要包住 SKIN.apply 才能跟着切皮肤启停）。 -->
+<script src="nova-fx.js"></script>
+<!-- v1.1.61：像素彩蛋（独立 IIFE，自己读 data-skin + #top[data-page] 启停，
+     不进 ORGANS 表、不碰 app.js）。必须在 app.js 之后（真实 DOM 已建）。 -->
+<script src="nova-easter.js"></script>
+<script>if (window.SKIN && SKIN.init) SKIN.init();</script>
+<script>if (window.THEME && THEME.init) THEME.init();</script>
+<style id="novaShotCss">
+  html,body{width:390px!important;max-width:390px!important;min-width:390px!important;
+    height:auto!important;overflow:visible!important;overflow-x:clip!important}
+  #app{width:390px!important;max-width:390px!important;height:auto!important;
+    overflow:visible!important;display:flex!important}
+  main{overflow:visible!important;flex:none!important;height:auto!important}
+  #tabs{position:relative!important}
+  /* v1.1.61 pixel easter eggs: #eg-stage is position:fixed in the real app.
+     Long-shot mode resolves fixed against the whole document, so pin the stage
+     to a 390x1500 box the same way we do for .nv-tape-world / #sheet. Otherwise
+     bottom:58px lands past the 1500px capture and Mario/Link vanish from QA. */
+  #eg-stage{position:absolute!important;top:0!important;left:0!important;
+    width:390px!important;height:1500px!important}
+  /* Long-shot: bottom is measured from the 1500px stage, not a viewport.
+     140px lands the actors in the empty band above the CH 01 plate (~1372). */
+  #eg-stage .eg-actor{bottom:140px!important}
+  /* long-shot mode: html/body are overflow:visible, so position:fixed resolves
+     against the whole document and lands off-screen. Pin it to the top. */
+  .nv-tape-world{position:absolute!important;top:0!important;left:0!important;
+    width:390px!important;height:1500px!important}
+  /* the clipping drawer world has the same fixed-element problem */
+  .nv-clip-world{position:absolute!important;top:0!important;left:0!important;
+    width:390px!important;height:1500px!important}
+  #toast{display:none!important}
+  /* long-shot mode: position:fixed resolves against the whole document,
+     so pin #sheet (the bottom half-sheet) to the top of the page too */
+  #sheet{position:absolute!important;top:0!important;left:0!important;
+    width:390px!important;height:1500px!important;align-items:flex-start!important}
+  #sheet .sh-box{position:absolute!important;top:0!important;left:0!important;
+    width:390px!important;max-height:none!important}
+  #gate,#disc,#tut,#onb,#upd,#sheet{display:none!important}
+  /* swipe state: the brush-ticket organ lives inside #sh-body, so the
+     half-sheet MUST be visible again for that one state */
+  html[data-shot-swipe="1"] #sheet{display:block!important;
+    background:rgba(6,10,16,.88)!important;z-index:60!important}
+  /* focus state: the pomodoro gauge is parked in the half-sheet too */
+  html[data-shot-sheet="1"] #sheet{display:block!important;
+    background:rgba(6,10,16,.88)!important;z-index:60!important}
+  /* virtual time does not advance CSS animations, so the card would
+     always be caught at keyframe 0 (off the left edge of the gate).
+     Park it half-way through the reader, which is the pose we want to
+     check: 186px wide card, reader sits at right:12px (=365..378). */
+  html[data-shot-swipe="1"] .nv-swipe-card{animation:none!important;
+    transform:translateX(172px)!important;opacity:1!important}
+  html[data-shot-swipe="1"] .nv-swipe-reader{animation:none!important;
+    box-shadow:inset 0 0 0 1px rgba(255,210,63,.9),0 0 16px rgba(255,210,63,.85)!important}
+  /* v1.1.63 WIKI rail QA (fixture only): the long shot flattens main to
+     height:auto, so pin the rails to a hard 390px horizontal window. This
+     keeps display:flex/nowrap from ever being flattened into a vertical
+     stack. Snap + smooth are off: virtual-time-budget never settles a
+     smooth scroll and mandatory snap would rewind the harness scrollLeft. */
+  .ph-rail,.fb-rail{display:flex!important;flex-direction:row!important;
+    flex-wrap:nowrap!important;width:390px!important;max-width:390px!important;
+    box-sizing:border-box!important;margin-inline:-12px!important;
+    overflow-x:auto!important;overflow-y:hidden!important;height:auto!important;
+    scroll-snap-type:none!important;scroll-behavior:auto!important;
+    scrollbar-width:none!important}
+  .ph-rail::-webkit-scrollbar,.fb-rail::-webkit-scrollbar{display:none!important}
+  .ph-rail{padding-inline:22px!important}
+  .fb-rail{padding-inline:18px!important}
+  .ph-page,.fb-page{flex:0 0 100%!important;box-sizing:border-box!important;
+    min-width:0!important;padding-right:8px!important;
+    scroll-snap-align:none!important}
+  .ph-rail .ph-grid,.fb-rail .fb-list{min-width:0!important}
+  /* v1.1.63 polaroid rails: keep horizontal clip so page 2 peeks,
+     disable snap/smooth so the harness scrollLeft lands on the middle page */
+  html[data-shot-polaroid="1"] .ph-rail,
+  html[data-shot-polaroid="1"] .fb-rail{overflow-x:auto!important;
+    overflow-y:hidden!important;scroll-snap-type:none!important;
+    scroll-behavior:auto!important}
+  /* v1.1.64 admin-list QA (fixture only): collapse the long shot to the
+     list card. Hide every other tab + the admin key/stats/seg chrome,
+     un-cap both scrollers, and show the calibration pane beside the normal
+     list so ONE 390x1500 frame covers confirmed / pending / conflict. */
+  html[data-shot-admin="1"] .tab:not(#tab-admin){display:none!important}
+  html[data-shot-admin="1"] #tab-admin{display:block!important;
+    padding-top:8px!important;padding-bottom:12px!important}
+  html[data-shot-admin="1"] #admKeyCard,
+  html[data-shot-admin="1"] .adm-stats,
+  html[data-shot-admin="1"] #admStatMsg,
+  html[data-shot-admin="1"] #admSeg{display:none!important}
+  html[data-shot-admin="1"] #admPanel{display:block!important}
+  html[data-shot-admin="1"] .adm-pane{display:none!important}
+  html[data-shot-admin="1"] #admP-list{display:block!important}
+  html[data-shot-admin="1"] #admOddPane{display:block!important}
+  html[data-shot-admin="1"] .adm-out{max-height:none!important;
+    overflow:visible!important}
+</style>
+<script id="novaShotJs">
+(function(){
+  var q=new URLSearchParams(location.search);
+  /* kill timers: focus/reminder/syncSchedule keep virtual-time spinning */
+  try { for (var i=1;i<=20000;i++){clearTimeout(i);clearInterval(i);}
+        var nil=function(){return 0;}; window.setTimeout=nil; window.setInterval=nil; } catch(e){}
+  try {
+    var organEarly=new URLSearchParams(location.search).get("organ");
+    if (organEarly==="swipe") document.documentElement.setAttribute("data-shot-swipe","1");
+    if (organEarly==="focus") document.documentElement.setAttribute("data-shot-sheet","1");
+    if (organEarly==="polaroid") document.documentElement.setAttribute("data-shot-polaroid","1");
+    if (organEarly==="admin") document.documentElement.setAttribute("data-shot-admin","1");
+    document.documentElement.setAttribute("data-skin","classic");
+    document.documentElement.setAttribute("data-theme","dark");
+    try { localStorage.setItem("xxmu_skin","classic"); } catch(e){}
+    try { localStorage.setItem("xxmu_theme","dark"); } catch(e){}
+    if (window.SKIN && SKIN.apply) SKIN.apply();
+    if (window.THEME && THEME.apply) THEME.apply();
+    var app=document.getElementById("app");
+    if(app) app.classList.remove("locked");
+    ["gate","disc","tut","onb","upd","sheet"].forEach(function(id){
+      var e=document.getElementById(id); if(e){e.style.display="none";e.classList.remove("on");}});
+    var times=["08:00~08:40","08:40~09:20","09:30~10:10","10:20~11:00","11:10~11:50",
+      "11:50~12:30","14:30~15:10","15:10~15:50","16:00~16:40","16:50~17:30",
+      "17:30~18:10","19:00~19:40","19:40~20:20","20:30~21:10","21:10~21:30","21:30~22:00"];
+    var courses=[
+      {name:"Xi Tong Jie Pou Xue",day:1,weeks:[11],periods:[1,2],room:"A201",teacher:"W"},
+      {name:"Sheng Li Xue",day:2,weeks:[11],periods:[3,4],room:"B103",teacher:"L"},
+      {name:"Sheng Wu Hua Xue",day:3,weeks:[11],periods:[7,8],room:"C305",teacher:"Z"},
+      {name:"Yi Xue Ying Yu",day:5,weeks:[11],periods:[1,2],room:"D202",teacher:"Z"},
+      {name:"Zu Zhi Pei Tai Xue",day:2,weeks:[11],periods:[7,8],room:"A201",teacher:"W"},
+      {name:"Bing Li Xue",day:3,weeks:[11],periods:[3,4],room:"B103",teacher:"L"},
+      {name:"Yao Li Xue",day:4,weeks:[11],periods:[9,10],room:"C305",teacher:"Z"},
+      {name:"Ti Yu",day:1,weeks:[11],periods:[9,10],room:"Playground",teacher:"C"},
+      {name:"Zhen Duan Xue",day:3,weeks:[11],periods:[11,12],room:"D202",teacher:"Z"},
+      {name:"Mian Yi Xue",day:5,weeks:[11],periods:[7,8],room:"A201",teacher:"W"}
+    ];
+    /* Chinese course names, kept out of the ASCII source encoding path */
+    var zh=["\u7CFB\u7EDF\u89E3\u5256\u5B66","\u751F\u7406\u5B66","\u751F\u7269\u5316\u5B66",
+      "\u533B\u5B66\u82F1\u8BED","\u7EC4\u7EC7\u80DA\u80CE\u5B66","\u75C5\u7406\u5B66",
+      "\u836F\u7406\u5B66","\u4F53\u80B2","\u8BCA\u65AD\u5B66","\u533B\u5B66\u514D\u75AB\u5B66"];
+    courses.forEach(function(c,i){c.name=zh[i];});
+    /* ---- seed real homework/exam so the cassette door shows actual cards ---- */
+    function seedHw(){
+      function dstr(ms){var d=new Date(ms);function p(n){return (n<10?"0":"")+n;}
+        return d.getFullYear()+"/"+p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes())+":00";}
+      var now=Date.now();
+      var works=[
+        {name:"\u7B2C\u4E09\u6B21\u4F5C\u4E1A\uFF1A\u6570\u636E\u7ED3\u6784",course:"\u7CFB\u7EDF\u89E3\u5256\u5B66",status:"\u5F85\u505A",end:dstr(now+2*864e5),status_known:true},
+        {name:"\u5B9E\u9A8C\u62A5\u544A\uFF1A\u7EC6\u80DE\u663E\u5FAE\u89C2\u5BDF",course:"\u75C5\u7406\u5B66",status:"\u5F85\u505A",end:dstr(now+26*3600e3),status_known:true},
+        {name:"\u5355\u5143\u6D4B\u9A8C\uFF08\u7B2C\u516B\u7AE0\uFF09",course:"\u751F\u7269\u5316\u5B66",status:"\u672A\u5F00\u59CB",end:dstr(now+5*864e5),status_known:true},
+        {name:"\u8BFE\u5802\u7B14\u8BB0\u6574\u7406",course:"\u533B\u5B66\u82F1\u8BED",status:"\u5DF2\u5B8C\u6210",end:dstr(now-2*864e5),status_known:true},
+        {name:"\u5F62\u6001\u5B66\u5C0F\u6D4B",course:"\u8BCA\u65AD\u5B66",status:"\u72B6\u6001\u672A\u77E5",end:dstr(now-3*864e5),status_known:true}
+      ];
+      var exams=[
+        {name:"\u7CFB\u7EDF\u89E3\u5256\u5B66\u671F\u4E2D\u8003\u8BD5",course:"\u7CFB\u7EDF\u89E3\u5256\u5B66",status:"\u672A\u5F00\u8003",start:dstr(now+6*864e5),end:dstr(now+6*864e5+7200e3),status_known:true},
+        {name:"\u75C5\u7406\u5B66\u671F\u4E2D\u8003\u8BD5",course:"\u75C5\u7406\u5B66",status:"\u5F85\u505A",start:dstr(now+1*864e5),end:dstr(now+1*864e5+7200e3),status_known:true},
+        {name:"\u75C5\u7406\u5207\u7247\u8FA8\u8BA4",course:"\u75C5\u7406\u5B66",status:"\u5DF2\u5B8C\u6210",start:dstr(now-3*864e5),end:dstr(now-3*864e5+7200e3),status_known:true}
+      ];
+      window.HOMEWORK={synced_at:Math.floor(now/1000),source:"qa",term_label:"",total:works.length,pending:works.length,courses:5,works:works,exams:exams,exam_total:exams.length,exam_upcoming:2,errors:[]};
+    }
+    try { seedHw(); } catch(e){}
+    if (typeof renderHomework==="function") { try { renderHomework(); } catch(e){} }
+    try { DATA.courses=courses; DATA.times=times; } catch(e){
+      try { window.SCHEDULE={courses:courses,times:times,cells:[],count:0}; } catch(e2){} }
+    try { TIMES=times; PERIODS=16; curWeek=11; TOTAL_WEEKS=21; } catch(e){}
+    if (typeof switchTab==="function") switchTab("kb");
+    /* pin week 11 via the real curWeek, let renderWeek write #wkno itself */
+    try { curWeek=11; } catch(e){}
+    if (typeof renderWeek==="function") renderWeek();
+    var wk=document.getElementById("wkno"); if(wk && wk.textContent!=="11") wk.textContent="11";
+    var wd=document.getElementById("wkdate"); if(wd) wd.textContent="11/9 - 11/15";
+    if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+    /* organ QA states: belt = normal page, tape = cassette portal opened */
+    var organ=q.get("organ");
+    /* organs mount on DOMContentLoaded, so wait for it (else sync is a no-op) */
+    function afterOrgans(){
+      if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      if (organ==="tape"||organ==="tapeb"){
+        if (typeof switchTab==="function") switchTab("learn");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+        if (window.NOVA_ORGANS && NOVA_ORGANS.__tapeOpen) NOVA_ORGANS.__tapeOpen(110,420);
+        if (organ==="tapeb"){
+          var sb=document.querySelectorAll(".nv-tape-sides button");
+          if (sb && sb.length>1) sb[1].click();
+        }
+      }
+      if (organ==="wiki"){
+        if (typeof switchTab==="function") switchTab("wiki");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="campus"){
+        if (typeof switchTab==="function") switchTab("campus");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="me"){
+        if (typeof switchTab==="function") switchTab("me");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="swipe"){
+        var sheet=document.getElementById("sheet");
+        var sbody=document.getElementById("sh-body");
+        var sname=document.getElementById("sh-name");
+        if(sname) sname.textContent="\u996E\u6C34\u673A \u00B7 \u63a5\u70ed\u6C34";
+        if(sheet) sheet.classList.add("on");
+        if(sbody){
+          /* 只清提示行，不要 innerHTML="" —— 器官层插在 #sh-body 里，
+             清空会把刷票器官一起抹掉。 */
+          var olds=sbody.querySelectorAll(".hint");
+          for(var q2=0;q2<olds.length;q2++) olds[q2].parentNode.removeChild(olds[q2]);
+          var lp=document.createElement("p");
+          lp.className="hint";
+          lp.textContent="等待机器响应\u2026 第 3 次";
+          sbody.appendChild(lp); }
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="focus"){
+        if (typeof switchTab==="function") switchTab("learn");
+        if (typeof openToolCard==="function") openToolCard("focusCard");
+        if (window.FOCUS && FOCUS.paint) FOCUS.paint();
+        var fp=document.getElementById("focusPhase");
+        var ft=document.getElementById("focusTime");
+        if(fp) fp.textContent="专注中 · 别分心";
+        if(ft) ft.textContent="18:42";
+      }
+      if (organ==="clipopen"){
+        if (typeof switchTab==="function") switchTab("wiki");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+        if (window.NOVA_ORGANS && NOVA_ORGANS.__clipOpen) NOVA_ORGANS.__clipOpen(0);
+      }
+      if (organ==="ticketbound"){
+        try { localStorage.setItem("xxmu_water_token","qa-token"); } catch(e){}
+        try { localStorage.setItem("xxmu_water_phone","13800138000"); } catch(e){}
+        try { localStorage.setItem("xxmu_water_guard","120"); } catch(e){}
+        try { localStorage.setItem("xxmu_water_devs",JSON.stringify([{id:"d1",name:"A栋 3F 直饮水机",sn:"865403065048324",org:"XXMU",brand:"胖乖",functions:[{id:"f1",name:"常温"}],tel:"400-800-1234"}])); } catch(e){}
+        if (typeof switchTab==="function") switchTab("campus");
+var wl=document.getElementById("waterLogged");
+var wn=document.getElementById("waterNotLogin");
+var wd=document.getElementById("waterDevCard");
+if(wl) wl.style.display="block";
+if(wn) wn.style.display="none";
+if(wd) wd.style.display="block";
+var ww=document.getElementById("waterWho");
+if(ww) ww.textContent="138****8000";
+var wc=document.getElementById("waterCnt");
+if(wc) wc.textContent="1 台";
+var wdl=document.getElementById("waterDevList");
+var mkDev=function(){
+var d=document.createElement("div"); d.className="dev";
+var i=document.createElement("div"); i.className="dev-info";
+var n=document.createElement("div"); n.className="dev-n"; n.textContent="A栋 3F 直饮水机";
+var sb=document.createElement("div"); sb.className="dev-s"; sb.textContent="SN 865403065048324 · XXMU · 胖乖 · 1 个出水口";
+i.appendChild(n); i.appendChild(sb); d.appendChild(i);
+var a=document.createElement("div"); a.className="dev-act";
+var b1=document.createElement("button"); b1.className="btn-sm"; b1.textContent="放水";
+var b2=document.createElement("button"); b2.className="btn-sm"; b2.textContent="停止";
+var b3=document.createElement("button"); b3.className="btn-sm"; b3.textContent="重新绑定";
+a.appendChild(b1); a.appendChild(b2); a.appendChild(b3); d.appendChild(a);
+return d;
+};
+if(wdl) wdl.appendChild(mkDev());
+        var tw=document.querySelectorAll("#waterTarget button");
+        for(var ti=0;ti<tw.length;ti++){ if(tw[ti].getAttribute("data-sec")==="120") tw[ti].click(); }
+      }
+      if (organ==="mebound"){
+        if (typeof switchTab==="function") switchTab("me");
+        /* switchTab("me") calls refreshAcctUI()/refreshLoginUI() which overwrite
+           these fields (no Host -> browser preview), so write them AFTER. */
+        var setTxt=function(id,txt){var e=document.getElementById(id); if(e) e.textContent=txt;};
+        setTxt("acctId","20261440105");
+        setTxt("acctRole","普通学生");
+        setTxt("whoami","20261440105");
+        setTxt("loginState","已登录");
+        setTxt("termPick","2026-08-31 起 / 21 周");
+        setTxt("syncAt","11/09 08:12");
+        setTxt("hwSyncAt","11/09 08:12");
+        setTxt("srcTag","教务同步（课表） / 教务同步（作业）");
+        setTxt("cnt","21 周 / 10 门");
+        setTxt("hwStat","3 待做 / 1 待考");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="pop"){
+        if (typeof switchTab==="function") switchTab("campus");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+        try {
+          if (window.Pop && Pop.alert) Pop.alert("\u7BA1\u7406\u5458\u8FD8\u6CA1\u914D\u7F6E\u4E0B\u8F7D\u5730\u5740\u3002\n\n\u8BF7\u8054\u7CFB\u5F00\u53D1\u8005 QQ 692962849 \u7D22\u53D6\u6700\u65B0\u5B89\u88C5\u5305\u3002", { title: "\u4E0B\u8F7D\u4E0D\u4E86", kind: "danger" });
+          if (window.Pop && Pop.alert) Pop.alert("\u4F60\u8FD8\u6CA1\u6709\u767B\u5F55\u6559\u52A1\uFF0C\u8BFE\u8868\u8FD8\u662F\u4E0A\u4E00\u5468\u7684\u3002", { title: "\u6559\u52A1\u8FD8\u6CA1\u8FDE\u4E0A", kind: "warn" });
+          if (window.Pop && Pop.confirm) {
+            Pop.confirm("\u6E05\u7A7A 3 \u4E2A\u5B66\u53F7\u7684\u8BBE\u5907\u7ED1\u5B9A\uFF1F\n\n\u4E0D\u5F71\u54CD\u505C\u7528\u72B6\u6001\uFF0C\u53EA\u662F\u628A\u5DF2\u7ECF\u7ED1\u8FC7\u7684\u624B\u673A\u8BB0\u5F55\u6E05\u96F6\u3002", { okText: "\u786E\u5B9A\u6E05\u7A7A", cancelText: "\u518D\u60F3\u60F3", danger: true, anchor: (document.getElementById("waterLogin") || document.getElementById("waterSendCode")) });
+          }
+        } catch(e){}
+      }
+      if (organ==="pixel"){
+        if (typeof switchTab==="function") switchTab("kb");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="rain"){
+        if (typeof switchTab==="function") switchTab("learn");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="doodle"){
+        if (typeof switchTab==="function") switchTab("me");
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+      }
+      if (organ==="polaroid"){
+        document.documentElement.setAttribute("data-shot-polaroid","1");
+        if (typeof switchTab==="function") switchTab("wiki");
+        var wb=document.getElementById("wikiBody");
+        var pcaps=["\u79cb\u53f6\u4e0e\u65e7\u6559\u5b66\u697c","\u4e34\u6e56\u7684\u6668\u4f53\u64cd","\u540e\u5c71\u7684\u4e91","\u94f6\u674f\u9053\u7684\u5348\u540e","\u56fe\u4e66\u9986\u66ae\u8272","\u64cd\u573a\u665a\u98ce","\u6821\u95e8\u6668\u5149","\u5b9e\u9a8c\u697c\u7a97\u53f0","\u949f\u697c\u4e0b\u7684\u81ea\u884c\u8f66","\u96e8\u540e\u7684\u8dd1\u9053","\u89e3\u5256\u697c\u7684\u8d70\u5eca","\u4e09\u697c\u7684\u843d\u5730\u7a97"];
+        var ff=["\u540c\u5b66","\u533f\u540d","\u5927\u4e09\u5b66\u957f","\u540c\u5b66","\u533f\u540d","\u5927\u4e8c\u540c\u5b66","\u540c\u5b66","\u533f\u540d","\u540c\u5b66"];
+        var fk=["\u4f18\u5316\u5efa\u8bae","\u8d44\u6599\u7ea0\u9519","\u529f\u80fd\u8bb8\u613f","\u5176\u5b83","\u4f18\u5316\u5efa\u8bae","\u8d44\u6599\u7ea0\u9519","\u529f\u80fd\u8bb8\u613f","\u5176\u5b83","\u4f18\u5316\u5efa\u8bae"];
+        var ft=["\u8bfe\u8868\u80fd\u4e0d\u80fd\u52a0\u4e2a\u5468\u89c6\u56fe\u5207\u6362\u5440\uff0c\u7ffb\u5468\u597d\u7d2f\u3002","\u5b66\u6821\u6982\u51b5\u91cc\u7684\u7535\u8bdd\u597d\u50cf\u6362\u4e86\uff0c\u5b98\u7f51\u662f\u65b0\u53f7\u3002","\u60f3\u8981\u4e00\u4e2a\u8003\u8bd5\u5012\u8ba1\u65f6\uff0c\u653e\u5728\u9996\u9875\u5c31\u597d\u3002","\u6821\u56ed\u5730\u56fe\u80fd\u4e0d\u80fd\u6807\u4e00\u4e0b\u5feb\u9012\u70b9\uff1f","\u0057\u0049\u004b\u0049\u0020\u7167\u7247\u5899\u8fd9\u4e2a\u6a2a\u6ed1\u633a\u597d\u770b\u7684\uff0c\u8d5e\u3002","\u5b9e\u9a8c\u697c\u90a3\u95f4\u6559\u5ba4\u53f7\u6807\u9519\u4e86\uff0c\u662f\u0020\u0042\u0033\u0030\u0035\u3002","\u80fd\u4e0d\u80fd\u52a0\u4e2a\u6821\u8f66\u5b9e\u65f6\u4f4d\u7f6e\u5440\uff0c\u7b49\u8f66\u597d\u51b7\u3002","\u5e0c\u671b\u52a0\u4e2a\u6df1\u8272\u6a21\u5f0f\u5b9a\u65f6\u5207\u6362\u3002","\u7559\u8a00\u677f\u80fd\u6309\u65f6\u95f4\u6392\u5e8f\u5c31\u66f4\u597d\u5566\u3002"];
+        var frp=["\u5df2\u6536\u5230\uff0c\u6392\u8fdb\u4e0b\u4e2a\u7248\u672c\u770b\u770b\u3002","\u5df2\u6838\u5bf9\u5e76\u66f4\u65b0\uff0c\u8c22\u8c22\u63d0\u9192\uff01","\u8bb0\u4e0b\u4e86\uff0c\u8bc4\u4f30\u4e00\u4e0b\u5de5\u4f5c\u91cf\u3002","","\u8c22\u8c22\uff5e","\u5df2\u4fee\u6b63\uff0c\u591a\u8c22\u6307\u6b63\u3002","\u6536\u5230\uff0c\u770b\u770b\u6709\u6ca1\u6709\u6570\u636e\u6e90\u3002","\u5df2\u7ecf\u5728\u6392\u671f\u91cc\u4e86\u3002","\u597d\u4e3b\u610f\uff0c\u8bb0\u4e0b\u4e86\u3002"];
+        var fa=["\u0031\u0031\u002d\u0030\u0039\u0020\u0030\u0038\u003a\u0031\u0032","\u0031\u0031\u002d\u0030\u0038\u0020\u0032\u0032\u003a\u0034\u0031","\u0031\u0031\u002d\u0030\u0038\u0020\u0031\u0036\u003a\u0030\u0035","\u0031\u0031\u002d\u0030\u0037\u0020\u0031\u0032\u003a\u0033\u0030","\u0031\u0031\u002d\u0030\u0036\u0020\u0031\u0039\u003a\u0034\u0038","\u0031\u0031\u002d\u0030\u0036\u0020\u0030\u0039\u003a\u0031\u0034","\u0031\u0031\u002d\u0030\u0035\u0020\u0032\u0031\u003a\u0030\u0032","\u0031\u0031\u002d\u0030\u0035\u0020\u0031\u0030\u003a\u0033\u0037","\u0031\u0031\u002d\u0030\u0034\u0020\u0031\u0035\u003a\u0032\u0036"];
+        var LBL=["\u6821\u56ed\u5b9e\u666f","\u7559\u8a00\u677f","\u7ba1\u7406\u5458\u56de\u590d","\u8fd9\u4e9b\u662f\u540c\u5b66\u81ea\u5df1\u62cd\u7684\u3002\u4e0a\u4f20\u540e\u8981\u7ba1\u7406\u5458\u5ba1\u6838\u901a\u8fc7\u624d\u4f1a\u516c\u5f00\uff0c\u53ea\u653e\u6821\u56ed\u5b9e\u666f\uff0c\u522b\u653e\u4eba\u8138\u548c\u5bbf\u820d\u5185\u90e8\u3002","\u60f3\u52a0\u529f\u80fd\u3001\u53d1\u73b0\u0020\u0062\u0075\u0067\u3001\u8d44\u6599\u6709\u9519\uff0c\u90fd\u53ef\u4ee5\u5728\u8fd9\u91cc\u8bf4\uff0c\u4e0d\u7528\u52a0\u7fa4\u3002\u7ba1\u7406\u5458\u56de\u590d\u540e\u4f1a\u663e\u793a\u5728\u4e0b\u9762\u3002","\u5237\u65b0","\u4f20\u4e00\u5f20","\u8bf4\u4e24\u53e5"];
+        var PILL=["\u21bb\u0020\u5237\u65b0","\u002b\u0020\u4f20\u4e00\u5f20","\u21bb\u0020\u5237\u65b0","\u002b\u0020\u8bf4\u4e24\u53e5"];
+        var qq=String.fromCharCode(39);
+        var hues=[205,28,255,165,330,18,190,95,48,272,140,15];
+        function E(tag,cls,txt){var e=document.createElement(tag);
+          if(cls)e.className=cls; if(txt!=null)e.textContent=txt; return e;}
+        function mkImg(hv,i){
+          var sv="<svg xmlns="+qq+"http://www.w3.org/2000/svg"+qq+" viewBox="+qq+"0 0 160 120"+qq+"><rect width="+qq+"160"+qq+" height="+qq+"120"+qq+" fill="+qq+"hsl("+hv+",13%,72%)"+qq+"/><circle cx="+qq+"120"+qq+" cy="+qq+"28"+qq+" r="+qq+"13"+qq+" fill="+qq+"hsl("+((hv+42)%360)+",18%,82%)"+qq+"/><path d="+qq+"M0 92 L44 56 L74 82 L108 58 L160 100 L160 120 L0 120 Z"+qq+" fill="+qq+"hsl("+((hv+205)%360)+",12%,46%)"+qq+"/></svg>";
+          var im=document.createElement("img"); im.className="ph-img"; im.alt=pcaps[i];
+          im.src="data:image/svg+xml;charset=utf-8,"+encodeURIComponent(sv); return im;
+        }
+        function mkDots(n,cls,onIdx){var d=E("div",cls);
+          for(var i=0;i<n;i++){var e=E("i"); if(i===onIdx)e.className="on";
+            d.appendChild(e);} return d;}
+        function mkHead(title,p1,p2){var h=E("div","ph-head");
+          h.appendChild(E("span","ph-title",title));
+          h.appendChild(E("button","pill",p1));
+          h.appendChild(E("button","pill",p2)); return h;}
+        function mkHint(t){return E("p","hint left tight",t);}
+        function photoCard(i){var c=E("div","ph-card");
+          c.appendChild(mkImg(hues[i%hues.length],i));
+          c.appendChild(E("div","ph-cap",pcaps[i])); return c;}
+        function fbCard(i){
+          var c=E("div","fb-card"); var top=E("div","fb-top");
+          top.appendChild(E("span","fb-from",ff[i]));
+          top.appendChild(E("span","fb-kind",fk[i]));
+          top.appendChild(E("span","fb-at",fa[i]));
+          c.appendChild(top); c.appendChild(E("div","fb-text",ft[i]));
+          if(frp[i]){var r=E("div","fb-reply");
+            r.appendChild(E("div","fb-reply-t",LBL[2]));
+            r.appendChild(E("div","fb-reply-b",frp[i]));
+            c.appendChild(r);} return c;
+        }
+        /* photo rail: 3 pages x 4 polaroids, middle page is the shot */
+        var psec=document.querySelector(".ph-sec");
+        if(!psec){psec=E("div","ph-sec"); if(wb)wb.appendChild(psec);}
+        var ph=psec.querySelector(".ph-head"); psec.innerHTML="";
+        psec.appendChild(ph||mkHead(LBL[0],PILL[0],PILL[1]));
+        var prail=E("div","ph-rail");
+        for(var pg=0;pg<3;pg++){
+          var ppage=E("div","ph-page"); var grid=E("div","ph-grid");
+          for(var k=0;k<4;k++){var hang=E("div","ph-hang");
+            hang.appendChild(photoCard(pg*4+k)); grid.appendChild(hang);}
+          ppage.appendChild(grid); prail.appendChild(ppage);
+        }
+        psec.appendChild(prail);
+        psec.appendChild(mkDots(3,"rail-dots ph-dots",1));
+        psec.appendChild(mkHint(LBL[3]));
+        /* feedback rail: 3 pages x 3 cards, middle page is the shot */
+        var fsec=document.querySelector(".fb-sec");
+        if(!fsec){fsec=E("div","fb-sec"); if(wb)wb.appendChild(fsec);}
+        var fh=fsec.querySelector(".ph-head"); fsec.innerHTML="";
+        fsec.appendChild(fh||mkHead(LBL[1],PILL[2],PILL[3]));
+        fsec.appendChild(mkHint(LBL[4]));
+        var frail=E("div","fb-rail");
+        for(var fg=0;fg<3;fg++){
+          var fpage=E("div","fb-page"); var list=E("div","fb-list");
+          for(var j=0;j<3;j++) list.appendChild(fbCard(fg*3+j));
+          fpage.appendChild(list); frail.appendChild(fpage);
+        }
+        fsec.appendChild(frail);
+        fsec.appendChild(mkDots(3,"rail-dots fb-dots",1));
+        if (window.NOVA_ORGANS) NOVA_ORGANS.sync();
+        /* deterministic both-side peek: move exactly one page width so the
+           middle page is centered and both neighbours peek ~22px. */
+        function peek(rail){
+          if(!rail) return;
+          var p=rail.firstElementChild;
+          var w=p?p.getBoundingClientRect().width:0;
+          if(!w||w<50) w=346;
+          try{rail.scrollLeft=w;}catch(e){}
+          rail.setAttribute("data-shot-peek",String(Math.round(w)));
+          rail.setAttribute("data-shot-scroll",String(Math.round(rail.scrollLeft)));
+        }
+        peek(document.querySelector(".ph-rail"));
+        peek(document.querySelector(".fb-rail"));
+      }
+      if (organ==="admin"){
+        if (typeof switchTab==="function") switchTab("admin");
+        var FAKE={ok:true,count:3,revokedCount:1,hidden:3,oddCount:3,
+          confirmedCount:3,pendingCount:2,conflictCount:1,
+          rows:[
+            {id:"20261440105",kb:"20261440105",at:1700000000,note:"",revoked:false},
+            {id:"20251100888",kb:"20251100777",at:1699000000,note:"",revoked:false},
+            {id:"20261440321",kb:"20261440321",at:1698000000,note:"",revoked:true}],
+          oddRows:[
+            {id:"123456789012",kb:"",at:1697000000,note:"",revoked:false,reason:"pending"},
+            {id:"20261440555",kb:"",at:1696000000,note:"",revoked:false,reason:"pending"},
+            {id:"20261440666",kb:"BAD",at:1695000000,note:"",revoked:false,reason:"conflict"}]};
+        /* synchronous thenable: no microtask / virtual-time dependency */
+        try { AUTH.Admin.list=function(){ return { then:function(ok){ try{ ok(FAKE); }catch(e){} return this; } }; }; } catch(e){}
+        var rb=document.getElementById("admListBtn"); if(rb) rb.click();
+        var ap=document.getElementById("admPanel"); if(ap) ap.style.display="block";
+        var lp=document.getElementById("admP-list"); if(lp) lp.style.display="block";
+        var op=document.getElementById("admOddPane"); if(op) op.style.display="block";
+      }
+      if (organ==="settings"){
+        if (typeof switchTab==="function") switchTab("settings");
+        if (window.THEME && THEME.paint) THEME.paint();
+        if (window.SKIN && SKIN.paint) SKIN.paint();
+      }
+    }
+    if (document.readyState==="complete") afterOrgans();
+    else document.addEventListener("DOMContentLoaded", afterOrgans);
+    if (q.get("probe")==="1") window.addEventListener("load", function(){
+      var pp=document.createElement("pre");
+      pp.id="organProbe";
+      var org=window.NOVA_ORGANS?window.NOVA_ORGANS:null;
+      var sw=document.querySelector(".nv-swipe");
+      var swc=document.querySelector(".nv-swipe-card");
+      var swr=sw?sw.getBoundingClientRect():null;
+      var swcr=swc?swc.getBoundingClientRect():null;
+      var swcs=swc?getComputedStyle(swc):null;
+      pp.textContent="ORGAN_PROBE "+JSON.stringify({
+        ready:document.readyState,
+        has:!!org,
+        shBody:!!document.getElementById("sh-body"),
+        swipeDom:!!document.querySelector("[data-organ=swipe]"),
+        beltDom:!!document.querySelector("[data-organ=belt]"),
+        clipDom:!!document.querySelector("[data-organ=clipping]"),
+        ticketDom:!!document.querySelector("[data-organ=ticket]"),
+        why:window.__swipeWhy||"ok",
+        swipeRect:swr?{t:Math.round(swr.top),l:Math.round(swr.left),w:Math.round(swr.width),h:Math.round(swr.height)}:null,
+        cardRect:swcr?{t:Math.round(swcr.top),l:Math.round(swcr.left),w:Math.round(swcr.width),h:Math.round(swcr.height)}:null,
+        cardCls:swc?swc.className:null,
+        cardOpacity:swcs?swcs.opacity:null,
+        cardTransform:swcs?swcs.transform:null,
+        wrapCls:sw?sw.className:null,
+        wrapDisplay:sw?(getComputedStyle(sw).display):null});
+      document.body.insertBefore(pp,document.body.firstChild);
+    });
+  } catch(err){
+    var p=document.createElement("pre");
+    p.textContent="NOVA_SHOT_ERR "+String(err&&err.message||err);
+    document.body.insertBefore(p,document.body.firstChild);
+  }
+})();
+</script>
+<style id="v200SheetCss">
+#sheet{position:fixed!important;left:0!important;top:0!important;
+  width:390px!important;height:1240px!important;max-height:1240px!important;
+  display:block!important;border-radius:0!important;margin:0!important;}
+#sheet .sh-body,#sh-body{max-height:1120px!important;overflow:auto!important;}
+</style>
+<script id="v200SheetJs">
+(function(){
+  function go(){
+  var tw = (typeof weekOf === "function") ? weekOf(new Date()) : 1;
+  var td = (new Date().getDay() + 6) % 7 + 1;
+  try {
+    var cs = (typeof DATA !== "undefined" && DATA && DATA.courses) ? DATA.courses.slice() : [];
+    if (cs.length) {
+      cs.forEach(function (c) { c.weeks = [tw]; });
+      var today = cs.filter(function (c) { return c.day === td; });
+      if (today.length < 2) {
+        cs[0].day = td; cs[0].periods = [1, 2];
+        if (cs[1]) { cs[1].day = td; cs[1].periods = [3, 4]; }
+      }
+      DATA.courses = cs;
+      if (DATA.times && DATA.times.length) { TIMES = DATA.times; PERIODS = 16; }
+      curWeek = tw;
+      if (typeof renderWeek === "function") renderWeek();
+    }
+  } catch (e) {}
+    try { document.documentElement.setAttribute("data-shot-sheet","1"); } catch(e){}
+    try { if (typeof switchTab === "function") switchTab("learn"); } catch(e){}
+    try { if (typeof renderHomework === "function") renderHomework(); } catch(e){}
+    try {
+      var L=[{name:"\u7CFB\u7EDF\u89E3\u5256\u5B66",credit:5,score:"87",term:"2026-2027-1"},
+             {name:"\u751F\u7406\u5B66",credit:4,score:"78",term:"2026-2027-1"},
+             {name:"\u75C5\u7406\u5B66",credit:4,score:"55",term:"2026-2027-1"},
+             {name:"\u836F\u7406\u5B66",credit:3,score:"",term:"2026-2027-1"}];
+      localStorage.setItem("xxmu_grades",JSON.stringify({list:L,saved_at:Date.now()}));
+      localStorage.setItem("xxmu_gpa_target","3.5");
+      localStorage.setItem("xxmu_gpa_remain","18");
+    } catch(e){}
+    try { if (typeof GRADES !== "undefined" && GRADES.open) GRADES.open(); } catch(e){}
+    try { if (typeof GRADES !== "undefined" && GRADES.revealAll) GRADES.revealAll(GRADES.load().list||[]); } catch(e){}
+    try { if (typeof LEARNPLUS !== "undefined") { LEARNPLUS.paintToday(); LEARNPLUS.paintTarget(); } } catch(e){}
+    try {
+      var b=document.getElementById("sh-body");
+      var t=document.getElementById("gpaTargetBox");
+      if (b && t) b.scrollTop = t.offsetTop - 40;
+    } catch(e){}
+  }
+  if (document.readyState === "complete") go(); else window.addEventListener("load", go);
+})();
+</script>
+</body>
+</html>

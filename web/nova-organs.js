@@ -46,6 +46,29 @@
     var n = el ? parseInt(el.textContent, 10) : NaN;
     return (n >= 1 && n <= 99) ? n : 1;
   }
+  /* 同步时刻印成最短的可识别形式：今天只印时分，昨天印「昨天」，更早印「11/19」。
+     整串 2026/11/21 15:08:09 在半栏（≈130px）里只能读到「2026/1…」，等于没印。
+     两个地方要用它：截止矩阵的读数条、设备铭牌的「课表同步 / 作业同步」。
+     v2.7.0 从 buildRain 的闭包里提出来，避免两处各写一份（那种副本一定会走样）。 */
+  function syncText(ts) {
+    if (!ts) return '未同步';
+    var d = new Date(ts * 1000), n = new Date();
+    var hm = ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
+    var sameDay = d.getFullYear() === n.getFullYear() && d.getMonth() === n.getMonth()
+      && d.getDate() === n.getDate();
+    if (sameDay) return hm;
+    var y = new Date(n.getTime() - 86400000);
+    if (d.getFullYear() === y.getFullYear() && d.getMonth() === y.getMonth()
+      && d.getDate() === y.getDate()) return '昨天 ' + hm;
+    return (d.getMonth() + 1) + '/' + d.getDate();
+  }
+  /* 「2026/11/21 15:17:31」这类整串 → 秒级时间戳。app.js 的 fmtTs 就是这个格式。
+     解析不出来返回 null，让调用方退回原样搬运。 */
+  function parseStamp(t) {
+    var m = /^(\d{4})\/(\d{1,2})\/(\d{1,2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?/.exec(String(t || ''));
+    if (!m) return null;
+    return Math.floor(new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +(m[6] || 0)).getTime() / 1000);
+  }
   function toast(msg) {
     try {
       if (typeof XXMU !== 'undefined' && XXMU.toast) XXMU.toast(msg);
@@ -1385,6 +1408,11 @@
     for (var r = 0; r < rows.length; r++) {
       (function (label, id) {
         var row = mk('div', 'nv-plate-row');
+        /* v2.8.0：数据来源的真实读数是「内置（课表） / 内置（作业）」这种
+         * 长句，两列格子里只有 ~150px，nowrap + ellipsis 会把后半截吃掉
+         * （实拍里显示成「内置（课表） / 内_」）。这一行单独占满两列并
+         * 允许折行，其它行仍然是紧凑的一行一读数。 */
+        if (id === 'srcTag') row.className = 'nv-plate-row wide';
         row.appendChild(mk('span', '', label));
         var v = mk('b', '', '--');
         v.setAttribute('data-src', id);
@@ -1420,7 +1448,19 @@
         var src = vals[i].getAttribute('data-src');
         var el = $(src);
         var t = el ? (el.textContent || '').trim() : '';
+        /* v2.7.0：两个同步时刻原样搬进来会被半栏的 ellipsis 切成
+           「2026/11/21 15:…」—— 前缀全是年份和月份，一列里只剩没用的部分。
+           压成 syncText 那套短形式（与截止矩阵读数条同一口径），全称放 title。 */
+        if (src === 'syncAt' || src === 'hwSyncAt') {
+          var ts = parseStamp(t);
+          if (ts != null) {
+            vals[i].textContent = syncText(ts);
+            vals[i].title = t;
+            continue;
+          }
+        }
         vals[i].textContent = t && t !== '--' ? t : '—';
+        vals[i].title = (t && t !== '--') ? t : '';
       }
     }
 
@@ -1516,13 +1556,17 @@
     var bar = mk('div', 'nv-rain-bar');
     bar.appendChild(mk('span', 'nv-rain-t', 'DEADLINE MATRIX'));
     var segs = mk('div', 'nv-rain-segs');
-    var defs = [['待做', 'hwcount'], ['待考', 'hwStat'], ['同步', 'syncAt']];
+    /* 读数条自己的键，由 sync() 从 window.__HWSTAT 取纯数字填。
+     * 以前是 data-src 直接抠 #hwcount / #hwStat / #syncAt 的 textContent，
+     * 结果标签和值互相打架：「待做」下面写「4 条待做 · 4 场考试待考」、
+     * 「待考」下面写「4 待做 / 0 待考」，第三个「同步」读的还是课表而非作业。 */
+    var defs = [['待做', 'works'], ['待考', 'exams'], ['同步', 'sync']];
     for (var i = 0; i < defs.length; i++) {
-      (function (label, id) {
+      (function (label, key) {
         var s = mk('span', 'nv-rain-seg');
         s.appendChild(mk('u', '', label));
         var v = mk('b', '', '--');
-        v.setAttribute('data-src', id);
+        v.setAttribute('data-hw', key);
         s.appendChild(v);
         segs.appendChild(s);
       })(defs[i][0], defs[i][1]);
@@ -1582,11 +1626,17 @@
         if (h2 && h2.parentNode) h2.parentNode.insertBefore(wrap, h2);
         else host.insertBefore(wrap, host.firstChild);
       }
-      var vals = wrap.querySelectorAll('[data-src]');
+      var st = window.__HWSTAT || null;
+      /* 同步时刻的格式化提到模块顶层（syncText），设备铭牌那边也要用同一份。 */
+      var vals = wrap.querySelectorAll('[data-hw]');
       for (var i = 0; i < vals.length; i++) {
-        var el = $(vals[i].getAttribute('data-src'));
-        var t = el ? (el.textContent || '').trim() : '';
-        vals[i].textContent = t && t !== '--' ? t : '--';
+        var k = vals[i].getAttribute('data-hw'), t = '';
+        if (k === 'works') t = st ? String(st.works) : '';
+        else if (k === 'exams') t = st ? String(st.exams) : '';
+        else t = syncText(st && st.syncedAt);
+        vals[i].textContent = t || '--';
+        /* 数字是读数，读数不该被省略号切掉；真放不下就整列隐藏，不留「1…」。 */
+        vals[i].title = (k === 'sync' ? t : (t ? t + (k === 'works' ? ' 条作业待做' : ' 场考试待考') : ''));
       }
     }
     return { el: wrap, sync: sync };

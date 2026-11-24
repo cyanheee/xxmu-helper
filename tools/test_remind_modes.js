@@ -98,7 +98,11 @@ console.log('\n2. build() 每一项都带 mode（重启重挂才不退回响铃�
   const t = new Date(a[0].at);
   ok(t.getFullYear() === 2030 && t.getHours() === 7 && t.getMinutes() === 45,
     '时间仍是提前 15 分钟 = 07:45');
-  ok(/out\.push\(\{ at, name: c\.name \|\| '', room: c\.room \|\| '', mins: m, mode: md \}\)/.test(src),
+  /* v2.2.0 起 out.push 变成多行（同一条还带 kind / due），原来那条单行正则
+   * 钉不住了 —— 改成「push 的对象字面量里有 mode: md」这种不依赖换行的判法。
+   * 要钉的意图没变：mode 是 build() 自己写进每一项的，不是测试里补的。 */
+  const classPush = src.slice(src.indexOf('out.push({', src.indexOf('function build(') > -1 ? src.indexOf('function build(') : 0));
+  ok(/out\.push\(\{[\s\S]{0,400}?mode:\s*md/.test(classPush),
     '源码里 out.push 真的带 mode（不是测试里拼的）');
 }
 
@@ -108,15 +112,22 @@ console.log('\n3. Java 侧：静默必须用独立 channel（importance 创建�
   const rcv = read('android/src/com/xxmu/helper/ReminderReceiver.java');
   ok(/CHANNEL_ALARM\s*=\s*"xxmu_class_reminder"/.test(rcv), '响铃沿用老 channel（老用户升级行为不变）');
   ok(/CHANNEL_SILENT\s*=\s*"xxmu_class_reminder_silent"/.test(rcv), '静默另开一个 channel');
-  ok(/MODE_ALARM\.equals\(mode\)\s*\?\s*CHANNEL_ALARM\s*:\s*CHANNEL_SILENT/.test(rcv),
+  /* v2.2.0 起是四通道（课程 / 作业考试 × 响铃 / 静默），并且用 loud 变量而不是
+   * 内联三元 —— 原来那条「MODE_ALARM.equals(mode) ? CHANNEL_ALARM : CHANNEL_SILENT」
+   * 的正则钉不住了。要钉的意图没变：channel 必须按方式分。 */
+  ok(/final boolean loud = MODE_ALARM\.equals\(mode\)/.test(rcv) &&
+     /loud \? CHANNEL_ALARM : CHANNEL_SILENT/.test(rcv),
     '建 channel 时按方式二选一');
   ok(/NotificationManager\.IMPORTANCE_LOW/.test(rcv), '静默用 IMPORTANCE_LOW');
   ok(/NotificationManager\.IMPORTANCE_HIGH/.test(rcv), '响铃用 IMPORTANCE_HIGH');
   /* 反向：绝不能只用一个 channel 动态改 importance —— 系统会忽略，静默照样响。 */
   const chCount = (rcv.match(/new NotificationChannel\(/g) || []).length;
   ok(chCount === 1, '只在一处构造 channel（靠变量选 id/重要性），不是两处各写一遍', chCount);
-  ok(/!MODE_ALARM\.equals\(mode\)|MODE_SILENT\.equals\(mode\)/.test(rcv) ||
-     /MODE_ALARM\.equals\(mode\) \?/.test(rcv), '通知 Builder 也按方式选 channel');
+  /* v2.2.0 起 Builder 不再自己算 channel，而是直接用上面算好的 chId ——
+   * 这样「建 channel」和「用 channel」永远同源，不会出现建了一个、用了另一个。
+   * 要钉的意图没变：Builder 必须绑到按方式选出来的那个 channel。 */
+  ok(/new Notification\.Builder\(context, chId\)/.test(rcv),
+    '通知 Builder 也按方式选 channel');
   ok(/setPriority\(Notification\.PRIORITY_LOW\)/.test(rcv), '静默通知 setPriority(LOW)');
   ok(/MODE_SMS\.equals\(mode\)/.test(rcv), '短信档有独立分支');
   ok(/getStringExtra\("mode"\)/.test(rcv), 'Receiver 从广播里读 mode');

@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=390">
+<link rel="stylesheet" href="../../web/app.css">
+<style>
+/* 无头 Edge 的 --window-size=390 实际渲染内宽是 492（Chromium 最小窗口宽），
+   --screenshot 只截 390 会把右边 102px 硬裁掉 —— 那不是布局溢出，是截图伪影。
+   把 body 锁到 390 宽：flex 子元素按 390 布局，截图 0..390 正好完整覆盖。 */
+html,body{margin:0;background:var(--paper);width:390px!important;max-width:390px!important;
+   min-width:390px!important;overflow-x:hidden!important}
+#tab-learn{display:block!important;padding:0!important}
+.wrap{padding:12px 12px 0}
+.hintblock{font-size:11px;color:var(--mute);padding:14px 12px 8px;font-weight:600;letter-spacing:.5px}
+.shboxdemo{background:var(--surface);border-radius:22px 22px 0 0;padding:8px 16px 26px;
+   box-shadow:var(--shadow-lift);border-top:1px solid var(--line)}
+.shheaddemo{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;
+   border-bottom:1px solid var(--line);font-size:16px;margin-bottom:2px}
+.shheaddemo b{font-weight:650}
+.done-demo .hw .hwtop b{color:var(--mute);text-decoration:line-through}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <!-- ================= 主窗口：任务为主，默认「待完成」 ================= -->
+  <section id="tab-learn" class="tab" style="display:block">
+    <div class="learn-head">
+      <span id="hwcount">3 条要交</span>
+      <span class="learn-tools">
+        <button class="pill">待办 · 2</button>
+        <button class="pill">番茄钟 · 25:00</button>
+        <button class="pill">刷新</button>
+      </span>
+    </div>
+
+    <div class="card" id="bindEntry">
+      <div class="row click">
+        <span>账号绑定 · 学习通 / 喜鹊 / 雨课堂 / 知到</span>
+        <span class="v dim">管理 ›</span>
+      </div>
+    </div>
+
+    <!-- v1.1.66：待完成 / 已完成 视图切换。默认看待完成，点「已完成」整块列表换掉。 -->
+    <div class="seg" id="doneSeg">
+      <button data-dview="todo" class="on">待完成</button>
+      <button data-dview="done">已完成</button>
+    </div>
+
+    <div class="seg" id="sortSeg">
+      <button class="on">按紧急度</button>
+      <button>按课程</button>
+    </div>
+    <div class="chips" id="sortChips">
+      <button class="on">全部</button>
+      <button>作业</button>
+      <button>考试</button>
+    </div>
+    <div class="chips" id="srcChips">
+      <button class="on">全部</button>
+      <button>超星</button>
+      <button>喜鹊</button>
+      <button>雨课堂</button>
+      <button>知到</button>
+    </div>
+
+    <div class="hwsec">待完成 · 4</div>
+    <div class="hw">
+      <i class="hwbar" style="background:#E8734A"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>激情犯罪与防范性侵害课后作业</b>
+          <span class="hwbadge" style="color:#C0532F">待做</span>
+          <span class="src-badge">超星</span>
+        </div>
+        <span class="hwcourse">大学生安全教育 · 王老师</span>
+        <div class="hwmeta"><span class="hwleft orange">还剩 1 天 6 小时</span><span class="hwdate">11-12 23:00 截止</span></div>
+      </div>
+    </div>
+    <div class="hw">
+      <i class="hwbar" style="background:#E8734A"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>流体运动章节作业</b>
+          <span class="hwbadge" style="color:#C0532F">待做</span>
+          <span class="src-badge">超星</span>
+        </div>
+        <span class="hwcourse">医用物理学(2026级) · 李老师</span>
+        <div class="hwmeta"><span class="hwleft orange">还剩 2 天</span><span class="hwdate">11-13 22:00 截止</span></div>
+      </div>
+    </div>
+    <!-- v1.1.74：雨课堂真接活清单后新出现的条目，截止时间取自课程章节进度。 -->
+    <div class="hw">
+      <i class="hwbar" style="background:#E8734A"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>第三章 章节测验</b>
+          <span class="hwbadge" style="color:#C0532F">待做</span>
+          <span class="src-badge">雨课堂</span>
+        </div>
+        <span class="hwcourse">高等数学B1 · 李老师</span>
+        <div class="hwmeta"><span class="hwleft orange">还剩 39 天</span><span class="hwdate">12-20 23:59 截止</span></div>
+      </div>
+    </div>
+    <div class="hw">
+      <i class="hwbar" style="background:#5B8C5A"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>📝 高等数学B1 5.0</b>
+          <span class="hwbadge" style="color:#2F5C2C">未开考</span>
+          <span class="src-badge">喜鹊</span>
+        </div>
+        <span class="hwcourse">考试 · 期中考试</span>
+        <div class="hwmeta"><span class="hwleft gray">11-14 11:00 开考</span><span class="hwdate">还剩 2 天</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- v1.1.77：已过截止单独一段、默认折起来（m04098「已过期的不显示在待完成里」）。
+       以前过期条目按剩余时间负得越多越靠前，9 月的一堆顶在待完成最上面。 -->
+  <div class="hwsec fold">已过截止 · 2  ▾</div>
+
+  <div class="hintblock">—— 点「已完成」切换后，同一块列表变成这样 ——</div>
+  <div class="done-demo">
+    <div class="seg" id="doneSeg2">
+      <button>待完成</button>
+      <button class="on">已完成</button>
+    </div>
+    <div class="hwsec">已完成 · 2</div>
+    <div class="hw">
+      <i class="hwbar" style="background:#B0B0B0"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>细胞的基本功能随堂测</b>
+          <span class="hwbadge" style="color:#2F7D32">已完成</span>
+          <span class="src-badge">超星</span>
+        </div>
+        <span class="hwcourse">生理学 · 张老师</span>
+        <div class="hwmeta"><span class="hwleft gray">已截止</span><span class="hwdate">11-08 22:00 截止</span></div>
+      </div>
+    </div>
+    <div class="hw">
+      <i class="hwbar" style="background:#B0B0B0"></i>
+      <div class="hwmain">
+        <div class="hwtop">
+          <b>绪论章节作业</b>
+          <span class="hwbadge" style="color:#2F7D32">已提交</span>
+          <span class="src-badge">雨课堂</span>
+        </div>
+        <span class="hwcourse">医学信息工程导论 · 刘老师</span>
+        <div class="hwmeta"><span class="hwleft gray">已截止</span><span class="hwdate">11-05 23:00 截止</span></div>
+      </div>
+    </div>
+    <p class="hint tight" style="padding:4px 2px">状态没读到的条目不算「已完成」，仍留在「待完成」里。</p>
+  </div>
+
+  <div class="hintblock">—— 点「账号绑定」后打开的二级半框 ——</div>
+  <div class="shboxdemo">
+    <div class="shheaddemo"><b>账号绑定</b><button class="pill">关闭</button></div>
+
+    <div class="card cx-card" id="cxCard">
+      <div class="row"><span>学习通</span><span class="v src-state ok" style="color:var(--ok);font-weight:600">已登录</span></div>
+      <div class="row"><span>上次同步</span><span class="v dim">2026/11/11 14:02</span></div>
+      <button class="btn soft">重新抓作业与考试</button>
+      <button class="btn ghost">断开学习通</button>
+      <p class="hint tight">只读，不会替你交作业、不会点开考试。登录态只存在这台手机上。</p>
+    </div>
+
+    <!-- v1.1.73：标题只放课程名，轮次剥掉学年抬头后进副行与详情。 -->
+    <div class="card src-card">
+      <div class="row"><span>喜鹊儿 / 青果</span><span class="v src-state ok">已读到 · 1 场</span></div>
+      <p class="hint tight" data-role="note">上次同步 2026/11/11 23:02。已经记住考试表地址，之后打开学习页会自己同步一次；表里新加的考试也会自己进来。</p>
+      <p class="hint tight">检索结果是在新窗口里开的，这版已经接住了；框架套框架也顺着往里读。没认出时读回的原文会摊进下面的框，能改，也能用剪贴板兜底。</p>
+      <button class="btn">自动同步一次</button>
+      <button class="btn soft">从剪贴板导入（兜底）</button>
+      <button class="btn ghost">打开教务网</button>
+      <textarea class="src-paste" rows="3" placeholder="把考试安排表的文字粘贴到这里；没认出时读回的原文会摊进这个框，可改后再导入"></textarea>
+      <button class="btn soft">导入这段</button>
+      <button class="btn ghost">登录 / 重新登录教务</button>
+      <button class="btn ghost">复制诊断</button>
+    </div>
+    <p class="hint tight" style="padding:2px 2px 6px">这一版修两处：接住检索弹出的新窗口（以前只读到空白页），以及没有课程名的假考试直接丢掉，不再挂在待完成里。</p>
+    <p class="hint tight" style="padding:2px 2px 6px">雨课堂这版接上了：作业、待考考试、已完成都能读，截止时间取自课程章节进度。</p>
+
+    <!-- v1.1.75：雨课堂分四套（长江 / 雨课堂 / 荷塘 / 黄河），会话互不通用，
+         必须让人点一下选对自家那套；默认长江。 -->
+    <div class="card src-card">
+      <div class="row"><span>雨课堂</span><span class="v src-state ok">已读到 · 4 条 · 1 场考试</span></div>
+      <p class="hint tight" data-role="note">上次同步 2026/11/11 23:36。作业和考试都读到了；截止时间是从课程章节进度里对的，读不到会写「时间未读到」。</p>
+      <p class="hint tight">认不出条目时，「复制诊断」会把返回内容的骨架一起带出来——这版不再只往固定字段里找作业，也不再只认两种作业类型。</p>
+      <div class="ykt-region"><span class="ykt-region-label">区域</span><button class="ykt-r on">长江</button><button class="ykt-r">雨课堂</button><button class="ykt-r">荷塘</button><button class="ykt-r">黄河</button></div>
+      <p class="hint tight">用哪套就选哪个（本校一般是「长江」）。换区等于换一套账号，要重新扫码；换完先点「登录 / 绑定雨课堂」。</p>
+      <p class="hint tight">首次同步会按课程逐门读，课多时首屏要等几秒；之后打开学习页会顺手刷一遍。</p>
+      <button class="btn soft">重新抓一次</button>
+      <button class="btn ghost">登录 / 重新登录雨课堂</button>
+      <button class="btn ghost">断开雨课堂</button>
+    </div>
+
+    <div class="card src-card">
+      <div class="row"><span>知到</span><span class="v src-state warn">暂不可用</span></div>
+      <p class="hint tight" data-role="note">知到需 CAS/SSO 二跳签名，活接口待真机复验，本机未接入，请到官方 App/网页查看。</p>
+      <button class="btn soft">重新抓一次</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

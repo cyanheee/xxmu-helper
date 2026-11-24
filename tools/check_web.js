@@ -1430,23 +1430,32 @@ for (let i = 1; i <= 6; i++) {
   const pre = String(i).padStart(2, '0') + '_';
   if (!fs.readdirSync(iconDir).some(n => n.startsWith(pre))) fail('缺第 ' + i + ' 套图标方案目录');
 }
-/* v1.1.43：用户选了 F（6 号 夜空河字）。CURRENT.txt 必须存在且指向它，
- * android/res 里 5 档密度都要在，且与 design/icons 里那份逐字节一致。
+/* v2.0.0：图标换成 07_ink（墨迹），方案目录搬到 design/icons_v2。
+ * 老规则（F 号 06_夜空河字）整套作废 —— 那套是蓝紫渐变，跟 NOVA 的
+ * 深青/暖纸白/青绿没有一个共同色值。现在的口径是：
+ *   1) design/icons/CURRENT.txt 里写的 slug 必须存在（apply_icon.py 写的）
+ *   2) design/icons_v2/<slug>/ 下五档 launcher-N.png 都在
+ *   3) android/res 里五档与源图逐字节一致
  * 只验「文件存在」不够 —— 换了方案忘了跑 build 就会包里还是旧图标。 */
-console.log('\nv1.1.43 checkpoints（当前图标方案 F）:');
+console.log('\nv2.0.0 checkpoints（当前图标方案 G = 07_ink）:');
 const curIcon = fs.existsSync(path.join(iconDir, 'CURRENT.txt'))
   ? read('design/icons/CURRENT.txt') : '';
-has(curIcon, '06_夜空河字', 'CURRENT.txt 声明当前用的是 F 号（夜空河字）');
+const curSlug = (/当前图标方案[：:]\s*([0-9A-Za-z_]+)/.exec(curIcon) || [])[1] || '';
+has(curSlug, '07_ink', 'CURRENT.txt 声明当前用的是 G 号（07_ink 墨迹）');
+const v2Dir = path.join(root, 'design', 'icons_v2', curSlug || '07_ink');
+if (!fs.existsSync(v2Dir)) fail('design/icons_v2/' + (curSlug || '07_ink') + ' 不存在（先跑 gen_final.py）');
 [['mipmap-mdpi', 48], ['mipmap-hdpi', 72], ['mipmap-xhdpi', 96],
  ['mipmap-xxhdpi', 144], ['mipmap-xxxhdpi', 192]].forEach(pair => {
   const rp = 'android/res/' + pair[0] + '/ic_launcher.png';
-  const sp = 'design/icons/06_夜空河字/launcher-' + pair[1] + '.png';
+  const sp = 'design/icons_v2/' + (curSlug || '07_ink') + '/launcher-' + pair[1] + '.png';
   if (!fs.existsSync(path.join(root, rp))) { fail('缺 ' + rp); return; }
+  if (!fs.existsSync(path.join(root, sp))) { fail('缺源图 ' + sp); return; }
   const a = fs.readFileSync(path.join(root, rp));
   const b = fs.readFileSync(path.join(root, sp));
-  if (Buffer.compare(a, b) !== 0) fail(rp + ' 与 F 号源图不一致（换完方案没同步？）');
+  if (Buffer.compare(a, b) !== 0) fail(rp + ' 与 G 号源图不一致（换完方案没同步？）');
 });
-console.log('  5 档密度与 F 号源图逐字节一致 = true');
+console.log('  5 档密度与 G 号源图逐字节一致 = true');
+has(read('tools/apply_icon.py'), 'V2_DIRS', 'apply_icon.py 支持 --v2 <slug>');
 has(read('tools/verify_apk.py'), 'def check_launcher(apk)', 'verify_apk 有图标逐像素校验');
 // ---- v1.1.41：课程提醒方式三档（响铃 / 静默 / 短信草稿）----
 /* 用户原话「不一定非要是闹钟，可以只设置一条短信，因为有的人不喜欢闹钟提醒」。
@@ -1537,14 +1546,14 @@ if (!fs.existsSync(path.join(root, 'server', 'pages', 'dist', '_headers')))
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-3).join(' | '));
 }
 
-// ---- v1.1.45：管理名单按收录时间从新到老 + 异常学号标记 ----
+// ---- v1.1.45：管理名单按收录时间从新到老（v2.16.0 起不再标异常号）----
 console.log('\nv1.1.45 checkpoints（名单排序）:');
 has(worker, 'if (a.at !== b.at) return b.at - a.at', '后端按 at 降序（不是 id 字典序）');
 has(worker, 'return a.id.localeCompare(b.id)', '同 at 按 id 稳定排序');
 has(app, 'function listNewFirst(a, b)', '前端有同款排序函数');
 has(app, 'LIST.slice().sort(listNewFirst)', 'renderList 真的用它排了');
-has(app, 'function looksOddId(id)', '有异常形状判据（只标不拦）');
-has(app, "'adm-odd', '格式异常（手填）'", '异常号在行里标出来');
+if (app.includes('function looksOddId')) fail('前端不该再有 looksOddId（v2.16.0 手填号不进名单）');
+if (app.includes('格式异常（手填）')) fail('前端不该再有「格式异常（手填）」标签');
 has(app, "'adm-at'", '行里显示收录时间');
 has(worker, "return bad('学号格式不对')", '激活判据没被改成拦异常号');
 if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
@@ -1569,52 +1578,47 @@ if (/rows\.sort\(\(a, b\) => a\.id\.localeCompare\(b\.id\)\)/.test(worker)) {
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-4).join(' | '));
 }
 
-// ---- v1.1.64 方案 C：双号（id 手填 + kb 真号）+ 三态 + 校准二级菜单 ----
+// ---- v2.16.0：名单只记教务网登录成功的真号（手填无效号不记录）----
 {
-  console.log('\nv1.1.64 checkpoints（名单双号三态 / 校准二级菜单 / 手动录真号）:');
-  const cssTxt2 = read('web/app.css');
+  console.log('\nv2.16.0 checkpoints（只认真号 / 无三态 / 无校准菜单）:');
   const idx2 = read('web/index.html');
-  // 服务端：双号归一与三态分类、确认集/补集、reason 两类、三态分开计数
-  has(worker, 'function kbRealOf(e)', '后端双号归一 kbRealOf');
-  has(worker, 'function kbClassOf(e, seen)', '后端三态分类 kbClassOf');
-  has(worker, "const bound = tagged.filter(t => t.c.state === 'confirmed').map(t => t.e)",
-    '主列表 = confirmed 集');
-  has(worker, "const odd = tagged.filter(t => t.c.state !== 'confirmed').map(t => t.e)",
-    '后端取 confirmed 补集整批回传（校准）');
-  has(worker, 'kb: kbRealOf(e)', '主列表 / 校准每行带真号 kb');
-  has(worker, 'oddCount: oddRows.length', '返回体带 oddCount');
-  has(worker, 'oddRows: oddRows', '返回体带 oddRows 明细');
-  has(worker, "reason: kbClassOf(e, seen).state === 'conflict' ? 'conflict' : 'pending'",
-    'reason 两类：pending / conflict');
-  has(worker, 'confirmedCount: confirmedCount, pendingCount: pendingCount, conflictCount: conflictCount',
-    '三态计数分开回（已确认 / 待补录 / 冲突）');
-  has(worker, 'async function handleKbFix(req, env)', '后端有手动录真号 handleKbFix');
+  // 服务端：真号主键 + byReal 去重 + oddRows 恒空 + 三态计数归零
+  has(worker, 'function isKbId(id)', '后端教务真号判据 isKbId');
+  has(worker, 'function kbRealOf(e)', '后端双号归一 kbRealOf（兼容升级用）');
+  has(worker, 'async function bindKbRow(', '后端 bindKbRow 以真号为主键');
+  has(worker, 'const byReal = new Map()', 'handleList 按真号 Map 去重');
+  has(worker, 'kb: real', '名单行主键/真号一律 real');
+  has(worker, 'const oddRows = []', 'handleList 不再回传异常行');
+  has(worker, 'pendingCount: 0, conflictCount: 0', '待补录/冲突计数归零');
+  if (worker.includes("const bound = tagged.filter(")) fail('后端不该再有三态 confirmed 补集');
+  if (worker.includes("const odd = tagged.filter(")) fail('后端不该再有三态 odd 集合');
+  if (worker.includes("reason: kbClassOf(e, seen)")) fail('后端不该再有 pending/conflict reason');
+  has(worker, 'async function handleKbFix(req, env)', '后端保留手动录真号 handleKbFix');
   has(worker, "if (p === '/v1/admin/kbfix' && req.method === 'POST')", '/v1/admin/kbfix 路由在鉴权块内');
-  // 前端：双行 / 灰度 / 汇总 / 开关 / 手动录真号 / 二级菜单
-  has(app, 'function renderOdd()', '前端有校准表 renderOdd');
-  has(app, 'ODD = res.oddRows || []', '两处拉取都收 oddRows');
-  has(app, 'function switchListTab(t)', '前端有二级菜单切换');
-  has(app, "admOddCnt').textContent = oddN", '异常计数写独立徽章');
-  has(app, "admNormalCnt').textContent", '正常计数写独立徽章');
-  has(app, 'let ONLY_CONFIRMED = false;', '方案 C 只看已确认开关状态');
-  has(app, "r.reason === 'pending'", 'renderList 合并 pending 灰度行');
-  has(app, 'adm-kbline', '双行下一行 .adm-kbline');
-  has(app, 'function renderKbSummary(res)', '卡头三态汇总');
-  has(app, 'function openKbFix(r)', '校准每行手动录真号半框');
-  has(app, 'AUTH.Admin.kbFix(', '手动录真号走 Admin.kbFix');
-  has(auth, "kbFix(id, kb) { return postJson('/v1/admin/kbfix'", 'Admin.kbFix 客户端出口');
-  has(idx2, 'id="admListTab"', '名单卡有二级菜单容器');
-  has(idx2, 'data-t="cal"', '有「校准·异常」按钮');
-  has(idx2, 'id="admOddPane"', '有异常独立 pane');
-  has(idx2, 'id="admOddList"', '有异常独立表格容器');
-  has(idx2, 'id="admKbSummary"', '有卡头三态汇总容器');
-  has(idx2, 'id="admOnlyConfirmed"', '有只看已确认开关');
-  has(cssTxt2, '.adm-subtabs{', '二级菜单样式在');
-  has(cssTxt2, '.adm-kbline{', '双行细字样式在');
-  has(cssTxt2, '.adm-item.is-pending{', '待补录灰度样式在');
-  has(cssTxt2, '.adm-summary{', '卡头汇总样式在');
+  // 前端：只渲染真号行，三态/校准/开关/灰度/录真号 UI 全删
+  if (app.includes('function renderOdd()')) fail('前端不该再有校准表 renderOdd');
+  if (app.includes('ODD = res.oddRows')) fail('前端不该再收 oddRows');
+  if (app.includes('function switchListTab')) fail('前端不该再有二级菜单切换');
+  if (app.includes('admOddCnt')) fail('前端不该再有异常计数徽章');
+  if (app.includes('admNormalCnt')) fail('前端不该再有正常计数徽章');
+  if (app.includes('let ONLY_CONFIRMED')) fail('前端不该再有只看已确认开关状态');
+  if (app.includes("r.reason === 'pending'")) fail('前端不该再合并 pending 灰度行');
+  if (app.includes('function renderKbSummary')) fail('前端不该再有卡头三态汇总');
+  if (app.includes('function openKbFix')) fail('前端不该再有手动录真号半框');
+  has(app, 'adm-kbline', '名单行仍用 .adm-kbline 显示验证态');
+  has(app, '教务网登录学号 · 已验证', '名单行统一显示「教务网登录学号 · 已验证」');
+  if (app.includes('AUTH.Admin.kbFix(')) fail('app.js 不该再有手动录真号调用（校准 UI 已删）');
+  has(auth, "kbFix(id, kb) { return postJson('/v1/admin/kbfix'", 'Admin.kbFix 路由出口保留');
+  if (idx2.includes('id="admListTab"')) fail('名单卡不该再有二级菜单容器');
+  if (idx2.includes('data-t="cal"')) fail('名单卡不该再有「校准·异常」按钮');
+  if (idx2.includes('id="admOddPane"')) fail('名单卡不该再有异常 pane');
+  if (idx2.includes('id="admOddList"')) fail('名单卡不该再有异常表格容器');
+  if (idx2.includes('id="admKbSummary"')) fail('名单卡不该再有卡头三态汇总容器');
+  if (idx2.includes('id="admOnlyConfirmed"')) fail('名单卡不该再有只看已确认开关');
+  has(idx2, 'id="admListTip"', '名单卡有静态说明');
+  has(idx2, 'id="admListHidden"', '名单卡有隐去计数位');
   if (!/admListCnt'\)\.textContent = LIST\.length \+ ' 人'/.test(app)) {
-    fail('主列表计数不再只数正常 LIST（校准不能污染 test_admin_list 依赖）');
+    fail('主列表计数不再只数 LIST（test_admin_list 依赖）');
   }
 }
 
@@ -2242,6 +2246,936 @@ has(ykt82, '只读：不代签到、不代作答、不代发帖', '保留只读�
   console.log('  雨课堂作业去重离线测试      =', r.status === 0 ? 'PASS' : 'FAIL');
   if (r.status !== 0) fail('雨课堂作业去重离线测试未过：' +
     ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---- v2.2.0：作业截止 / 考试开考提醒（截止哨兵）----
+ * YG m03142「把能更新的地方都更新」。上一版只有课程提醒：reminder.js 的
+ * build() 只遍历 DATA.courses，一条作业截止都没挂 —— 而作业数据（works.end、
+ * exams.start/end）早就躺在 __HWITEMS 里，三档通道也早就有，这是最便宜的真空。
+ *
+ * 为什么单独钉这几条：
+ *   - 两个开关必须是两件事。课程天天有、作业这周就三门，一个总开关会逼人
+ *     二选一：不想被上课铃吵的人只好连作业提醒一起关掉。
+ *   - 默认必须关。老用户升级后凭空多出一条从没开过的提醒，比没有更糟。
+ *   - apply() 不能再「课程开关关着就整段 return 0」—— 只开作业提醒的人会一条
+ *     都挂不上，而且没有任何报错。
+ *   - Java 侧三类文案必须分开：把作业说成「15 分钟后上课」比不提醒还误导。 */
+console.log('\nv2.2.0 checkpoints（作业截止 / 考试开考提醒）:');
+{
+  const rem = read('web/reminder.js');
+  const idx22 = read('web/index.html');
+  has(idx22, 'id="remindHwRow"', 'index.html 有作业截止那一行');
+  has(idx22, 'id="remindHwStat"', 'index.html 有作业截止状态读数');
+  has(rem, 'const KEY_HW = ', 'reminder.js 有独立作业开关键');
+  has(rem, 'const KEY_HW_LEAD = ', 'reminder.js 有作业提前量键');
+  has(rem, 'const KEY_EXAM_LEAD = ', 'reminder.js 有考试提前量键');
+  has(rem, 'function buildHw()', 'reminder.js 有 buildHw()');
+  has(rem, 'function buildAll()', 'reminder.js 有 buildAll()');
+  /* reminder.js 与 learnplus/waterwatch 不同：它不该自启动，一律由 app.js
+   * 显式调 REMINDER.init()（闹钟要在课表加载完之后才算得出来）。所以这里钉的是
+   * 「IIFE 外面不许有裸调用」，而不是那些模块的 typeof 守卫。 */
+  {
+    const tail22 = rem.slice(rem.lastIndexOf('})();'));
+    if (/^\s*REMINDER\.init\s*\(/m.test(tail22)) fail('v2.2.0 reminder.js 在 IIFE 外自启动了（应由 app.js 调 init）');
+    has(rem.slice(-80), '})();', 'reminder.js 以 IIFE 收尾（不自启动）');
+  }
+  has(rem, 'kind: ', 'buildHw 产出 kind 字段（Java 侧靠它换文案）');
+  has(rem, 'due: ', 'buildHw 产出 due 字段（Java 侧算「还有 N 小时」）');
+  has(read('web/app.js'), 'window.__HWITEMS', 'app.js 仍导出 __HWITEMS（buildHw 的唯一数据源）');
+  /* 反向：buildHw 不能自己走网络/自己解析作业 —— 数据只有 __HWITEMS 一个来源。 */
+  const hwBody = rem.slice(rem.indexOf('function buildHw('), rem.indexOf('function buildAll('));
+  if (/fetch\s*\(|XMLHttpRequest|Host\.http/.test(hwBody)) fail('v2.2.0 buildHw 里出现网络调用（作业数据只该来自 __HWITEMS）');
+  /* 反向：作业提醒不能复用课程那个 mode/mins 键（会互相踩）。 */
+  if (/pref\(KEY_MODE/.test(hwBody) || /pref\(KEY_MINS/.test(hwBody)) fail('v2.2.0 buildHw 误用课程提醒的键');
+  has(hwBody, 'isDoneStatus(', 'buildHw 用 isDoneStatus 挡掉已交的');
+  has(hwBody, 'x.expired === true', 'buildHw 显式挡掉 expired');
+}
+{
+  const recv = read('android/src/com/xxmu/helper/ReminderReceiver.java');
+  const sch22 = read('android/src/com/xxmu/helper/ReminderScheduler.java');
+  const act22 = read('android/src/com/xxmu/helper/MainActivity.java');
+  has(recv, 'CHANNEL_TASK', 'Receiver 有作业/考试独立 channel');
+  has(recv, 'KIND_HW', 'Receiver 认 hw 类');
+  has(recv, 'KIND_EXAM', 'Receiver 认 exam 类');
+  has(recv, 'normKind(', 'Receiver 有 kind 归一化（缺字段回落 class）');
+  has(sch22, 'putExtra("kind"', 'Scheduler 把 kind 带进 intent');
+  has(sch22, 'putExtra("due"', 'Scheduler 把 due 带进 intent');
+  has(act22, 'previewTaskReminder', 'MainActivity 有作业提醒预览桥');
+  has(read('web/index.html'), 'src="reminder.js"', '仍引入 reminder.js');
+  /* 反向：课程那条老文案不能被顺手改坏，否则老用户会以为上课提醒没了。 */
+  has(recv, '分钟后上课', '课程文案仍是「N 分钟后上课」');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_hwremind.js')], { encoding: 'utf8' });
+  console.log('  作业/考试提醒离线测试        =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('作业/考试提醒离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+/* ---------------------------------- v2.3.0 ---------------------------------
+ * 现在一屏（NOWLINE）：课表页顶部一条「现在上什么 / 下一节几点 / 这一节哪间空」。
+ *
+ * 钉三件事：
+ *   1. 三块 DOM 都在（#nowMain / #nowSub / #nowRooms）+ script 顺序在 app.js 之后
+ *      —— 它要用 DATA / TIMES / PERIODS / blocksOf / CUR_TAB，早一行全是 undefined。
+ *   2. 三条不许编的红线：读不到钟点必须 unknown 而不是判「课上完了」；
+ *      教室缺行必须算 unknown 而不是算空；不许用 setInterval 轮询（用递归
+ *      setTimeout，切走页面就停），否则后台会一直跑。
+ *   3. 空教室按钮只能调 KFREE.open()，不许自己发教务请求（矩阵有 5 分钟缓存，
+ *      自己发等于绕过缓存、把登录态打失效）。 */
+console.log('\nv2.3.0 checkpoints（现在一屏）:');
+{
+  const idx23 = read('web/index.html');
+  const now = read('web/nowline.js');
+  has(idx23, 'id="nowLine"', 'index.html 有 #nowLine');
+  has(idx23, 'id="nowMain"', 'index.html 有 #nowMain');
+  has(idx23, 'id="nowSub"', 'index.html 有 #nowSub');
+  has(idx23, 'id="nowRooms"', 'index.html 有 #nowRooms');
+  has(idx23, 'id="nowFree"', 'index.html 有空教室按钮');
+  has(idx23, 'src="nowline.js"', 'index.html 引入 nowline.js');
+  /* script 顺序：nowline 必须在 app.js 之后（它读 app.js 的顶层 let）。 */
+  {
+    const ia = idx23.indexOf('src="app.js"');
+    const inow = idx23.indexOf('src="nowline.js"');
+    const ifree = idx23.indexOf('src="free.js"');
+    if (!(ia > 0 && inow > ia)) fail('v2.3.0 nowline.js 必须在 app.js 之后（要用 DATA/TIMES/blocksOf）');
+    if (!(ifree > 0 && inow > ifree)) fail('v2.3.0 nowline.js 必须在 free.js 之后（要用 KFREE.open）');
+  }
+  /* 三条不许编。 */
+  has(now, 'unknown = true', '读不到钟点会置 unknown');
+  has(now, '教务没给', '教室缺数据时如实说教务没给');
+  if (/setInterval\s*\(/.test(now)) fail('v2.3.0 nowline.js 不该用 setInterval（切走页面停不下来）');
+  has(now, 'setTimeout(', '用递归 setTimeout 走时钟');
+  has(now, "CUR_TAB !== 'kb'", '不在课表页就不排下一次');
+  /* 空教室只走 KFREE.open()。 */
+  has(now, 'KFREE.open()', '空教室按钮调 KFREE.open()');
+  if (/(fetch|XMLHttpRequest|Host\.http)\s*\(/.test(now)) fail('v2.3.0 nowline.js 自己发网络请求了（空教室要走 KFREE.open 的缓存）');
+  /* 双皮肤样式都得有。 */
+  has(read('web/app.css'), '.now-line', 'app.css 有经典皮肤 .now-line');
+  has(read('web/nova-skin.css'), '.now-line', 'nova-skin.css 有 NOVA 皮肤 .now-line');
+  /* switchTab 里要重画：不然从别的页切回来那行还停在上次的时间。 */
+  has(read('web/app.js'), 'NOWLINE.paint', 'switchTab 会重画现在一屏');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_nowline.js')], { encoding: 'utf8' });
+  console.log('  现在一屏离线测试              =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('现在一屏离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+console.log('\nv2.4.0 checkpoints（专注记录可视化）:');
+{
+  const foc = read('web/focus.js');
+  const idx = read('web/index.html');
+  /* 三个纯函数与常量都在。 */
+  has(foc, 'function histo(', 'focus.js 有 histo()');
+  has(foc, 'function streak(', 'focus.js 有 streak()');
+  has(foc, 'function peakOf(', 'focus.js 有 peakOf()');
+  has(foc, 'const HIST_DAYS = 14', 'HIST_DAYS 是 14');
+  /* 不新增存储字段：画的还是那份 log。 */
+  if (!/function paintHisto\(state\)/.test(foc)) fail('v2.4.0 paintHisto 要接收 state（吃现有 log，不新增存储）');
+  if (/localStorage/.test(foc.slice(foc.indexOf('function histo'), foc.indexOf('function streak')))) {
+    fail('v2.4.0 histo() 不该自己读存储（纯函数，方便离线测）');
+  }
+  /* 三个函数都得导出，夹具才调得到。 */
+  const tail = foc.slice(foc.lastIndexOf('return {'));
+  ['histo', 'streak', 'peakOf', 'paintHisto'].forEach(n => {
+    if (!new RegExp('\\b' + n + '\\b').test(tail)) fail('v2.4.0 ' + n + ' 没导出');
+  });
+  /* DOM 两处。 */
+  has(idx, 'id="focusHisto"', 'index.html 有 #focusHisto');
+  has(idx, 'id="focusHint"', 'index.html 有 #focusHint');
+  /* 双皮肤样式。 */
+  has(read('web/app.css'), '.focus-histo', 'app.css 有经典皮肤 .focus-histo');
+  has(read('web/nova-skin.css'), '.focus-histo', 'nova-skin.css 有 NOVA 皮肤 .focus-histo');
+  /* 0 分钟那天要留基线，不能画成消失。 */
+  has(read('web/app.css'), '.fh-zero', 'app.css 有 .fh-zero（0 分钟留底线）');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_focuslog.js')], { encoding: 'utf8' });
+  console.log('  专注记录离线测试              =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('专注记录离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+console.log('\nv2.5.0 checkpoints（备份与导出）:');
+{
+  const ex = read('web/export.js');
+  const idx2 = read('web/index.html');
+  const app = read('web/app.js');
+  const appcss = read('web/app.css');
+  const nova = read('web/nova-skin.css');
+  /* 白名单与敏感名单：两边都得在，且不能有交集。 */
+  has(ex, "const SECRET = [", '  export.js 有敏感名单');
+  has(ex, "const PICK = [", '  export.js 有导出白名单');
+  ['xxmu_water_token', 'xxmu_ykt_auth', 'xxmu_zhs_auth', 'xxmu_admin_key',
+    'xxmu_license', 'xxmu_acct_cx'].forEach(k => {
+      if (ex.indexOf("'" + k + "'") < 0) fail('v2.5.0 敏感键 ' + k + ' 没进 SECRET（会跟着备份走）');
+    });
+  /* 不能扫前缀。 */
+  if (/PICK\s*=\s*[^;]*Object\.keys/.test(ex)) fail('v2.5.0 白名单不能靠扫 xxmu_ 前缀生成');
+  /* 三个纯函数带标记。 */
+  ['buildBackup', 'countOf', 'summary'].forEach(n => {
+    if (ex.indexOf('@testable:' + n) < 0) fail('v2.5.0 ' + n + ' 缺 @testable 标记');
+  });
+  has(ex, 'typeof module === \'undefined\'', '  export.js 自启动守卫用 typeof module');
+  if (ex.replace(/\/\*[\s\S]*?\*\//g, '').indexOf('!module.exports') >= 0) {
+    fail('v2.5.0 export.js 不能写 !module.exports（浏览器里是 ReferenceError）');
+  }
+  /* 落盘要读前缀，不能把所有返回值当成功。 */
+  has(ex, "indexOf('OK:')", '  saveFile 读 OK: 前缀');
+  has(ex, "indexOf('ERR:')", '  saveFile 读 ERR: 前缀');
+  /* 不许发网络。 */
+  if (/\bfetch\s*\(/.test(ex) || /XMLHttpRequest/.test(ex)) {
+    fail('v2.5.0 export.js 一次网络请求都不发');
+  }
+  /* 时间戳必须是本地时间。先剥注释再查 —— 文件头正在解释「不要用
+   * toISOString」，直接 indexOf 会把说明文字判成违规（v2.1.0 踩过）。 */
+  const exCode = ex.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  if (/toISOString/.test(exCode)) fail('v2.5.0 不能用 toISOString（UTC 会早 8 小时）');
+  /* DOM 与接线。 */
+  has(idx2, 'id="rowExport"', '  index.html 有 #rowExport');
+  has(idx2, 'src="export.js"', '  index.html 加载 export.js');
+  {
+    const iex = idx2.indexOf('src="export.js"');
+    const ia = idx2.indexOf('src="app.js"');
+    if (iex < 0 || ia < 0 || iex < ia) fail('v2.5.0 export.js 必须在 app.js 之后（openPanel 要调 parkTools）');
+  }
+  has(ex, "getElementById('rowExport')", '  export.js 自己绑 #rowExport');
+  has(ex, 'parkTools', '  openPanel 会先 parkTools');
+  /* Java 侧桥与新方法。 */
+  const ma = read('android/src/com/xxmu/helper/MainActivity.java');
+  has(ma, 'public String exportText(String name, String content)', '  Host 有 exportText 桥');
+  has(ma, 'private String exportTextFile(', '  MainActivity 有 exportTextFile 落盘实现');
+  has(ma, 'MediaStore.Downloads.EXTERNAL_CONTENT_URI', '  API 29+ 走 MediaStore.Downloads');
+  has(ma, 'IS_PENDING', '  写完 IS_PENDING 置 0（否则别的应用读到半截文件）');
+  has(ma, 'RELATIVE_PATH', '  写下载目录用 RELATIVE_PATH（免存储权限）');
+  has(ma, 'getExternalFilesDir', '  低版本退回 App 私有外部目录');
+  has(ma, 'return "ERR:', '  失败要返回 ERR: 人话，不静默');
+  /* 双皮肤样式。 */
+  has(appcss, '.ex-acts', '  app.css 有经典皮肤 .ex-acts');
+  has(nova, '.ex-acts', '  nova-skin.css 有 NOVA 皮肤 .ex-acts');
+  has(appcss, '.ex-bad', '  app.css 有 .ex-bad');
+  has(nova, '.ex-bad', '  nova-skin.css 有 .ex-bad');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_export.js')], { encoding: 'utf8' });
+  console.log('  备份与导出离线测试            =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('备份与导出离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+console.log('\nv2.6.0 checkpoints（从教务读成绩）:');
+{
+  const gp = read('web/gradepull.js');
+  const gd = read('web/grades.js');
+  const idx3 = read('web/index.html');
+  const appcss2 = read('web/app.css');
+  const nova2 = read('web/nova-skin.css');
+  const CODE = gp.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+
+  /* 三个纯函数与它们的标记。 */
+  ['parseGradeTable', 'mergeInto', 'looksStale', 'isGradeWord', 'rowsOf', 'colsOf', 'cellText']
+    .forEach((n) => has(gp, '/* @testable:' + n + ' */', '  gradepull.js 有 @testable:' + n));
+
+  /* 只读纪律：三条都不能出现。 */
+  if (/\bfetch\s*\(/.test(CODE)) fail('v2.6.0 gradepull.js 自己发 fetch 了');
+  if (/XMLHttpRequest/.test(CODE)) fail('v2.6.0 gradepull.js 用了 XMLHttpRequest');
+  if (/['"]POST['"]/.test(CODE)) fail('v2.6.0 gradepull.js 出现 POST（这一层只能 GET）');
+  has(gp, 'XXMU.netCk(', '  gradepull.js 走 XXMU.netCk（带教务 Cookie）');
+
+  /* 不许按位置硬取列号 —— 各校列序不一样。 */
+  if (/cells\[\s*[2-9]\s*\]/.test(CODE)) fail('v2.6.0 gradepull.js 按位置硬取列号了');
+
+  /* 三条候选路径与域名。 */
+  has(gp, 'xscj.stuckcj.jsp', '  gradepull.js 候选 1（stuckcj）');
+  has(gp, 'xscj.wdcj.jsp', '  gradepull.js 候选 2（wdcj）');
+  has(gp, 'cjcx.xscj.jsp', '  gradepull.js 候选 3（cjcx）');
+  has(gp, "https://qgjw.xxmu.edu.cn", '  gradepull.js 域名与 sync.js 一致');
+
+  /* 文字等级绝不换算：源码里不许出现把「优秀」映射成数字的表。 */
+  if (/优秀['"]?\s*[:=]\s*\d/.test(CODE)) fail('v2.6.0 gradepull.js 把文字等级换算成分数了');
+
+  /* 首页与入口。 */
+  has(idx3, 'src="gradepull.js"', '  index.html 引了 gradepull.js');
+  has(idx3, 'id="rowExport"', '  index.html 仍有 #rowExport（v2.5.0 不能被顶掉）');
+  const igp = idx3.indexOf('src="gradepull.js"');
+  const igd = idx3.indexOf('src="grades.js"');
+  const iap = idx3.indexOf('src="app.js"');
+  if (!(igp > igd)) fail('v2.6.0 gradepull.js 必须在 grades.js 之后（面板要探测 GRADEPULL）');
+  if (!(iap > igp)) fail('v2.6.0 gradepull.js 必须在 app.js 之前（app.js 会建 #sheet）');
+  has(gd, 'GRADEPULL.openPanel', '  grades.js 里挂了「从教务读成绩」入口');
+
+  /* 双皮肤样式。 */
+  has(appcss2, '.gp-row', '  app.css 有经典皮肤 .gp-row');
+  has(appcss2, '.gp-sum', '  app.css 有经典皮肤 .gp-sum');
+  has(nova2, '.gp-row', '  nova-skin.css 有 NOVA 皮肤 .gp-row');
+  has(nova2, '.gp-sum', '  nova-skin.css 有 NOVA 皮肤 .gp-sum');
+}
+{
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_gradepull.js')], { encoding: 'utf8' });
+  console.log('  从教务读成绩离线测试          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('从教务读成绩离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-6).join(' | '));
+}
+
+console.log('\nv2.7.0 checkpoints（界面这一轮）:');
+{
+  const appcss2 = read('web/app.css');
+  const nova2 = read('web/nova-skin.css');
+  const rw = read('web/app.js');
+  const no2 = read('web/nova-organs.js');
+  const nocss = read('web/nova-organs.css');
+
+  /* 课卡断行：三处都要对，缺一处就回到竖排。
+   * app.css 管经典皮肤与共用，nova-skin.css:204 管 NOVA 浅色档
+   * （nova-medium.css 那组没写 padding，所以这里仍是唯一生效来源）。 */
+  if (/\.c b\{[^}]*word-break:\s*break-all/.test(appcss2.replace(/\n/g, '')))
+    fail('v2.7.0 .c b 还是 word-break:break-all（课名会被逐字竖排）');
+  has(appcss2, 'overflow-wrap:break-word', '  app.css .c b 用 overflow-wrap 兜底');
+  has(nova2, '3px 1px 3px 3px !important', '  nova-skin.css .c 内边距让出横向空间');
+
+  /* 课卡不再重复印起始钟点：只在连堂时印结束钟点。 */
+  has(rw, 'if (b.span > 1) box.appendChild', '  app.js 只在连堂课卡印结束钟点');
+
+  /* 读数条：三列必须来自结构化数值，不许再抠别人 textContent。 */
+  has(rw, 'window.__HWSTAT', '  app.js 暴露 __HWSTAT');
+  has(no2, "data-hw", '  nova-organs.js 读数条用 data-hw 自己的键');
+  has(no2, 'function syncText(', '  nova-organs.js 有 syncText（短格式）');
+  has(no2, 'function parseStamp(', '  nova-organs.js 有 parseStamp');
+  if (/data-src="(hwcount|hwStat|syncAt)"/.test(no2))
+    fail('v2.7.0 读数条又回去抠 #hwcount/#hwStat/#syncAt 的 textContent 了');
+
+  /* 待考口径：没交卷且没过期，不要求 open。 */
+  if (!/openExams\s*=\s*items\.filter\(x\s*=>\s*x\.kind\s*===\s*'exam'\s*&&\s*!x\.expired/.test(rw))
+    fail('v2.7.0 待考口径不是「没交卷且没过期」——未开考的考试会数不到');
+
+  /* 两处 UI：按钮主色、波浪线收掉、whoami 不再放假值。 */
+  has(nova2, '.kb-bar-acts .btn.soft', '  nova-skin.css 给课表底部按钮补了主色');
+  const dd = nocss.split('.nv-doodle{');
+  if (!(dd.length > 1 && /display:none/.test(dd[1].slice(0, 120))))
+    fail('v2.7.0 .nv-doodle 没关掉（我的页顶部会留一根孤立波浪线）');
+  const host = rw.split('if (!hasHost())')[1] || '';
+  if (/'（需在 App 内使用）'/.test(host.slice(0, 800)))
+    fail('v2.7.0 #whoami 又写「（需在 App 内使用）」了（铭牌会把它当成学号印出来）');
+
+  /* 同步时刻的短格式：铭牌与读数条共用一份，不许各自复制。 */
+  const syncDefs = (no2.match(/function syncText\(/g) || []).length;
+  if (syncDefs !== 1) fail('v2.7.0 syncText 出现了 ' + syncDefs + ' 份（应当只有模块顶层那一份）');
+}
+
+console.log('\nv2.8.0 checkpoints（可读性这一轮）:');
+{
+  const acss = read('web/app.css');
+  const mcss = read('web/nova-medium.css');
+  const pcss = read('web/nova-polish.css');
+  const ocss = read('web/nova-organs.css');
+  const aw = read('web/app.js');
+
+  /* ① 五个底/字令牌必须还是调过的深值。退回旧值就等于回到 2.58~3.42 那一档。 */
+  has(acss, '--pencil:#706046;', '  浅色 --pencil 是 #706046（三底 ≥4.75）');
+  has(acss, '--pencil:#B0A085;', '  深色 --pencil 是 #B0A085（三底 ≥5.14）');
+  has(acss, '--warn:#83560A;', '  浅色 --warn 是 #83560A（纸面 ≥4.96）');
+  has(acss, '--on-yellow:#2A2018;', '  深色黄底专用深字 --on-yellow');
+  has(acss, '--oncolor-dim:rgba(23,18,14,.82);',
+      '  深色 --oncolor-dim 收到 .82（.72 压红只剩 4.38）');
+
+  /* ② 作业卡状态色：浅色档改 app.js 常量，深色档走令牌。 */
+  has(aw, "'未交': '#A8201A'", '  HW_COLORS 未交是 #A8201A（纸面 8+）');
+  has(aw, "'待做': '#9E5009'", '  HW_COLORS 待做是 #9E5009（纸面 6+）');
+  has(aw, 'const HW_INK = {', '  app.js 有 HW_INK（倒计时字色收口）');
+  has(acss, '--hw-threat:#FF8A80;', '  深色作业威胁色走令牌 --hw-threat');
+  /* 注释里正解释「为什么不再用 #d93025」 —— 先剥注释再判，否则自己判自己红。 */
+  const awCode = aw.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  if (/#d93025|#e8710a/.test(awCode))
+    fail('v2.8.0 app.js 又出现 #d93025/#e8710a（纸面上只有 3~4）');
+
+  /* ③ 两处字号：节次钟点与课卡下课时间。 */
+  const gtSplit = mcss.split('#grid .gp .gt{');
+  if (!(gtSplit.length > 1 && /var\(--n-ink\)/.test(gtSplit[1].slice(0, 160))))
+    fail('v2.8.0 nova 浅色档 .gp .gt 不是 --n-ink（--n-ink-2 只有 4.16）');
+  has(pcss, 'font-size:10px !important', '  nova-polish.css .pr/.pr2 提到 10px');
+  if (/font-size:9px !important/.test(pcss))
+    fail('v2.8.0 nova-polish.css 还有 9px 的课卡钟点（低于 10px 地板）');
+
+  /* ④ 一批 8-9px 小标提到 10px。 */
+  [[ocss, '.nv-clip-tag', 'CAMPUS WIKI'],
+   [ocss, '.nv-ticket-note', '饮水机说明'],
+   [ocss, '.nv-ticket-state', '未绑定']].forEach(function (t) {
+    const seg = t[0].split(t[1] + '{');
+    if (!(seg.length > 1 && /(?:font|font-size):[^;}]*\b(?:8|9)px/.test(seg[1].slice(0, 200))))
+      return;
+    fail('v2.8.0 ' + t[1] + '（' + t[2] + '）还是 8~9px');
+  });
+
+  /* ⑤ 反过来：这段改动全靠审计脚本量化，脚本本身要在。 */
+  if (!fs.existsSync(path.join(root, 'design/sketch/_audit_type.js')))
+    fail('v2.8.0 缺少 design/sketch/_audit_type.js（对比度审计得能复跑）');
+}
+
+/* ------------------------------------------------------------------------- *
+ * v2.9.0：把工具卡真的摆出来看之后改的五处
+ *
+ * 这一轮的每一条都是「图上看出来的」，不是想出来的：半框里的卡被
+ * nth-of-type 当成第四张彩纸、折叠行的荧光笔横穿整卡、深色荧光笔把字吃掉、
+ * 面板里的 provider 卡胶带被上沿裁掉、铭牌里长的数据来源读数被裁成「内…」。
+ * 断言写的是「别再退回去」，字面量都取实际落盘的规则片段。
+ * ------------------------------------------------------------------------- */
+console.log('\nv2.9.0 checkpoints（工具卡走查这一轮）:');
+{
+  const acss9 = read('web/app.css');
+
+  /* ① 半框里的 sheet-only 卡必须是透明白底 + 默认红胶带。
+   * `.card:nth-of-type(4n+4)` 的特异性 (0,2,0) 高过 `.sheet-only` (0,1,0)，
+   * 只写 .sheet-only 会被彩纸底盖回来。 */
+  has(acss9, '.sh-box .sheet-only,.sh-box .card.sheet-only{',
+      '  半框内 sheet-only 走透明底（压过 nth-of-type 彩纸）');
+  const so9 = acss9.split('.sh-box .sheet-only,.sh-box .card.sheet-only{');
+  if (!(so9.length > 1 && /background:transparent/.test(so9[1].slice(0, 300))))
+    fail('v2.9.0 sheet-only 没设成 background:transparent（彩纸底会盖回来）');
+  if (!(so9.length > 1 && /isolation:isolate/.test(so9[1].slice(0, 300))))
+    fail('v2.9.0 sheet-only 缺 isolation:isolate（荧光笔 z-index:-1 会沉到纸底下面）');
+
+  /* ② 半框里「卡中卡」（provider 卡）不许再贴胶带：第一条会被 .sh-box 上沿裁半截。 */
+  has(acss9, '.sh-box .sheet-only .card::before,',
+      '  半框内卡中卡不贴胶带（会被上沿裁半截）');
+
+  /* ③ 折叠行必须是 inline-flex，否则 .hwsec::after 的 left:0/right:0 会横穿整卡。 */
+  const fold9 = acss9.split('.hwsec.fold{');
+  if (!(fold9.length > 1 && /display:inline-flex/.test(fold9[1].slice(0, 220))))
+    fail('v2.9.0 .hwsec.fold 不是 inline-flex（荧光笔会横穿整张卡）');
+
+  /* ④ 深色档荧光笔收到 .14，且折叠行字色提到 --ink2。
+   * 原样 .6 时条色 rgb(158,129,66)，--pencil 只有 1.45、--ink2 1.89。 */
+  const darkAf = acss9.split('html[data-theme="dark"] .hwsec::after,');
+  if (!(darkAf.length > 1 && /opacity\s*:\s*\.14/.test(darkAf[1].slice(0, 400))))
+    fail('v2.9.0 深色荧光笔没有收到 .14（浅字压亮条读不出来）');
+  const darkFold = acss9.split('html[data-theme="dark"] .hwsec.fold,');
+  if (!(darkFold.length > 1 && /color:var\(--ink2\)/.test(darkFold[1].slice(0, 200))))
+    fail('v2.9.0 深色折叠行字色不是 --ink2');
+
+  /* ⑤ 铭牌里的「数据来源」要走整行（真实读数是长句，两列格里会被裁成「内…」）。 */
+  const aw9 = read('web/nova-organs.js');
+  has(aw9, "row.className = 'nv-plate-row wide'",
+      '  铭牌 srcTag 走整行（长读数不被裁）');
+  has(read('web/nova-organs.css'), '.nv-plate-row.wide',
+      '  铭牌 .wide 有对应样式');
+
+  /* ⑥ 走查用的两把尺子要在，否则下一轮又只能靠眼睛。 */
+  [['design/sketch/_shot_toolcards.js', '工具卡实拍夹具'],
+   ['design/sketch/_shot_freetool.js', '空教室实拍夹具'],
+   ['design/sketch/_audit_type.js', '对比度审计']].forEach(function (t) {
+    if (!fs.existsSync(path.join(root, t[0])))
+      fail('v2.9.0 缺少 ' + t[0] + '（' + t[1] + '）');
+  });
+}
+
+/* ------------------------------------------------------------------------- *
+ * v2.9.1：把「设置 / 教程 / 管理台 / 关于」四页也摆到窄屏上看之后改的两处
+ *
+ * 这两条都是截图里看出来的，不是想出来的：
+ *  - 设置页「开学日」日期框被挤成「2026/08.」—— 卡片内容宽 336px，日期框
+ *    116 + 周数 84 + 按钮 120 + 两个 8px 间距正好吃满，而原生 date 控件
+ *    画「2026/08/31」加日历图标要约 136px。
+ *  - 管理台三处空 .gate-err 在 NOVA 下画成粉色空盒子（有底有边有内边距）。
+ * 断言写的是「别再退回去」，字面量取实际落盘的规则片段。
+ * ------------------------------------------------------------------------- */
+console.log('\nv2.9.1 checkpoints（其余四个页面摆到窄屏上看这一轮）:');
+{
+  const acss91 = read('web/app.css');
+  const ahtm91 = read('web/index.html');
+  const ncss91 = read('web/nova-skin.css');
+
+  /* ① 学期设置那一行：日期框给 min-width，保存按钮整行换下去。
+   * 只认 .fr-row-term —— 饮水机「验证码 + 发送」必须留在同一行。 */
+  has(ahtm91, 'class="fr-row fr-row-term"',
+      '  学期设置那一行有 fr-row-term 钩子');
+  const term91 = acss91.split('.fr-row-term #setStart{');
+  if (!(term91.length > 1 && /min-width:132px/.test(term91[1].slice(0, 120))))
+    fail('v2.9.1 #setStart 没有 min-width:132px（日期会被截成 2026/08.）');
+  const save91 = acss91.split('.fr-row-term #setSave{');
+  if (!(save91.length > 1 && /flex:1 0 100%/.test(save91[1].slice(0, 120))))
+    fail('v2.9.1 #setSave 没有换行通栏（保存按钮会和日期抢宽度）');
+  /* 反过来：不许把 .fr-row 本身改成可换行，那会把验证码行拆两截。 */
+  const frrow91 = acss91.split('.fr-row{');
+  if (frrow91.length > 1 && /flex-wrap/.test(frrow91[1].slice(0, 120)))
+    fail('v2.9.1 .fr-row 本体被加了 flex-wrap（饮水机验证码行会被拆开）');
+
+  /* ② 空提示位在 NOVA 下不许占位画盒子。 */
+  has(ncss91, 'html[data-skin="nova"] .gate-err:empty{display:none !important}',
+      '  空 .gate-err 在 NOVA 下不占位');
+
+  /* ③ 这两把尺子是这一轮的证据来源，要在。 */
+  [['design/sketch/_check_overflow.js', '九页矮视口溢出体检'],
+   ['design/sketch/_shot_tabs.js', '九页实拍夹具']].forEach(function (t) {
+    if (!fs.existsSync(path.join(root, t[0])))
+      fail('v2.9.1 缺少 ' + t[0] + '（' + t[1] + '）');
+  });
+}
+
+/* ------------------------------------------------------------------------- *
+ * v2.10.0：桌面小组件从「今天几节课」改成人话
+ *
+ * 这一版动的是 Java 侧（android/src/com/xxmu/helper/），不是 web/。但门禁
+ * 在这里加，是因为这里是「一次跑完所有静态体检」的唯一入口，用户也只记
+ * 一个命令。
+ *
+ * 三件事：
+ *  - 新增 WidgetClock.java，把会算错的那段（钟点比较、四档文案）抽成纯函数，
+ *    不 import android 也不 import org.json，所以能裸 javac + java 跑真单测。
+ *  - ClassWidget.paint() 改成调它，老的私有 parseSeg/span/hm/minuteOf 全删；
+ *    两套实现并存一定会各自漂移，所以这里反向断言「不许有第二份」。
+ *  - 硬编码的 START_DEFAULT="2026-08-31" 删掉：读不到开学日就直说，不许拿
+ *    一个过期日期顶着算出周次、再筛不出课、最后写「今天没课，去玩吧」。
+ * ------------------------------------------------------------------------- */
+console.log('\nv2.10.0 checkpoints（桌面小组件改成人话这一轮）:');
+{
+  const { readFileSync: rf10, existsSync: ex10 } = require('fs');
+  const CLOCK10 = path.join(root, 'android/src/com/xxmu/helper/WidgetClock.java');
+  const WIDGET10 = path.join(root, 'android/src/com/xxmu/helper/ClassWidget.java');
+  if (!ex10(CLOCK10)) fail('v2.10.0 缺 android/src/com/xxmu/helper/WidgetClock.java');
+  if (!ex10(WIDGET10)) fail('v2.10.0 缺 ClassWidget.java');
+  const clock10 = ex10(CLOCK10) ? rf10(CLOCK10, 'utf8') : '';
+  const widget10 = ex10(WIDGET10) ? rf10(WIDGET10, 'utf8') : '';
+  /* 剥注释再判 —— WidgetClock 的文件头正解释「不需要 RemoteViews」，
+   * 不剥就会被自己的说明文字判红（这个坑已经踩到第五次）。 */
+  const strip10 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const clockCode10 = strip10(clock10);
+  const widgetCode10 = strip10(widget10);
+
+  /* ① 纯函数类：不许碰 android / org.json / RemoteViews / Context。 */
+  if (/^import\s+android\./m.test(clockCode10)) fail('v2.10.0 WidgetClock 不该 import android.*（裸 javac 跑不了）');
+  if (/^import\s+org\.json\./m.test(clockCode10)) fail('v2.10.0 WidgetClock 不该 import org.json.*');
+  if (/RemoteViews/.test(clockCode10)) fail('v2.10.0 WidgetClock 不该碰 RemoteViews');
+  ['int stateOf(', 'String subText(', 'String markOf(', 'int colorOf(',
+   'int[] parseSeg(', 'int[] build(', 'String span(', 'String hm('].forEach(function (sig) {
+    if (clockCode10.indexOf(sig) < 0) fail('v2.10.0 WidgetClock 缺 ' + sig.trim());
+  });
+
+  /* ② ClassWidget 走 WidgetClock，且老的重复实现已经删干净。 */
+  ['WidgetClock.build(', 'WidgetClock.subText(', 'WidgetClock.stateOf(',
+   'WidgetClock.markOf(', 'WidgetClock.colorOf('].forEach(function (call) {
+    if (widgetCode10.indexOf(call) < 0) fail('v2.10.0 ClassWidget 没走 ' + call);
+  });
+  if (widgetCode10.indexOf('START_DEFAULT') >= 0)
+    fail('v2.10.0 ClassWidget 还留着硬编码的 START_DEFAULT');
+  /* 「不许有第二份」：除了 import/调用，类里不该再出现这些名字的定义。 */
+  ['private static int minuteOf', 'private static int[] parseSeg',
+   'private static String hm', 'private static String span'].forEach(function (dup) {
+    if (widgetCode10.indexOf(dup) >= 0) fail('v2.10.0 ClassWidget 里还有第二份 ' + dup.replace('private static ', ''));
+  });
+
+  /* ③ 两句「不再撒谎」的文案必须在。 */
+  ['还没设开学日', '已经上完了'].forEach(function (word) {
+    if (widget10.indexOf(word) < 0) fail('v2.10.0 缺「' + word + '」这句（读不到就说读不到）');
+  });
+
+  /* 可见读数：证明这一版真的长这样，不是断言全过就完事。 */
+  console.log('    WidgetClock 纯函数类          =',
+    CLOCK10 && ex10(CLOCK10) ? (clock10.split('\n').length + ' 行 / ' +
+      ['int stateOf(', 'String subText(', 'String markOf(', 'int colorOf(']
+        .filter(s => clockCode10.indexOf(s) >= 0).length + '/4 个核心函数') : '缺');
+  console.log('    ClassWidget 行数              =', widget10.split('\n').length,
+    '（走 WidgetClock ' +
+    ['build', 'subText', 'stateOf', 'markOf', 'colorOf']
+      .filter(n => widgetCode10.indexOf('WidgetClock.' + n + '(') >= 0).length + '/5 处）');
+  console.log('    硬编码开学日已删              =',
+    widgetCode10.indexOf('START_DEFAULT') < 0);
+
+  /* ④ 布局不许被顺手改坏：四行还在、行样式还在、provider 元数据还在。 */
+  const lay10 = read('android/res/layout/widget_today.xml');
+  ['wtitle', 'wsub', 'wrow1', 'wrow2', 'wrow3', 'wrow4', '@drawable/widget_bg'].forEach(function (id) {
+    if (lay10.indexOf(id) < 0) fail('v2.10.0 widget_today.xml 缺 ' + id);
+  });
+  const info10 = read('android/res/xml/widget_today_info.xml');
+  if (info10.indexOf('@layout/widget_today') < 0) fail('v2.10.0 widget_today_info.xml 没指向 widget_today');
+  const man10 = read('android/AndroidManifest.xml');
+  if (man10.indexOf('.ClassWidget') < 0) fail('v2.10.0 Manifest 里 ClassWidget 不见了');
+}
+
+{
+  /* ⑤ 真跑一遍 WidgetClock（javac + java），不是靠读源码猜。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_widget.js')], { encoding: 'utf8' });
+  console.log('  桌面小组件离线测试            =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('桌面小组件离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
+}
+
+/* -------------------------------------------------------------------------
+ * v2.11.0：桌面小组件与 App 的「改课表指令」对齐
+ *
+ * v2.10.0 时组件里只认「加课」一条指令，注释写的是「宁可少显示，也不显示错的」。
+ * 但用户在 App 里停了课 / 调了课 / 放了假之后，组件照旧显示原课表 ——
+ * 那不是「少显示」，那是显示一份已经不存在的课表。
+ *
+ * 这一版新增 WidgetOps.java，把 web/lesson-cmd.js 的 apply() 四种变换
+ * （add / stop / move / holiday）逐条搬到 Java 侧，ClassWidget 改走它。
+ * 断言分三层：
+ *  - 纯函数类不许碰 android / org.json（否则裸 javac 跑不了，也就没法写单测）
+ *  - 四种 type 一个都不能少，名字必须与 web 端一字不差（两边对齐靠的就是这个）
+ *  - ClassWidget 里「只认加课」的老分支必须已经删掉（留着就是两套口径）
+ * ------------------------------------------------------------------------- */
+console.log('\nv2.11.0 checkpoints（桌面小组件与改课表指令对齐这一轮）:');
+{
+  const { readFileSync: rf11, existsSync: ex11 } = require('fs');
+  const OPS11 = path.join(root, 'android/src/com/xxmu/helper/WidgetOps.java');
+  const WIDGET11 = path.join(root, 'android/src/com/xxmu/helper/ClassWidget.java');
+  if (!ex11(OPS11)) fail('v2.11.0 缺 android/src/com/xxmu/helper/WidgetOps.java');
+  const ops11 = ex11(OPS11) ? rf11(OPS11, 'utf8') : '';
+  const widget11 = ex11(WIDGET11) ? rf11(WIDGET11, 'utf8') : '';
+  const strip11 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const opsCode11 = strip11(ops11);
+  const widgetCode11 = strip11(widget11);
+
+  /* ① 纯函数类：不碰 android / org.json，才能被 tools/test_widgetops.js 真跑。 */
+  if (/^import\s+android\./m.test(opsCode11)) fail('v2.11.0 WidgetOps 不该 import android.*（裸 javac 跑不了）');
+  if (/^import\s+org\.json\./m.test(opsCode11)) fail('v2.11.0 WidgetOps 不该 import org.json.*');
+  if (/\bRemoteViews\b/.test(opsCode11)) fail('v2.11.0 WidgetOps 不该碰 RemoteViews');
+  if (/\bContext\b/.test(opsCode11)) fail('v2.11.0 WidgetOps 不该碰 Context');
+
+  /* ② 四种 type 与 web/lesson-cmd.js 一字不差。 */
+  ['"add"', '"stop"', '"move"', '"holiday"'].forEach(function (t) {
+    if (opsCode11.indexOf(t) < 0) fail('v2.11.0 WidgetOps 不认识 ' + t + '（与 web 端对不上）');
+  });
+  ['List<Course> apply(', 'boolean match(', 'boolean intersect(', 'int[] ints('].forEach(function (sig) {
+    if (opsCode11.indexOf(sig) < 0) fail('v2.11.0 WidgetOps 缺 ' + sig);
+  });
+
+  /* ③ ClassWidget 走 WidgetOps，老分支删净。 */
+  if (widget11.indexOf('WidgetOps.apply(') < 0) fail('v2.11.0 ClassWidget 没走 WidgetOps.apply');
+  if (widget11.indexOf('WidgetOps.has(') < 0) fail('v2.11.0 ClassWidget 筛周次没走 WidgetOps.has');
+  if (widgetCode11.indexOf('"add".equals(op.optString("type"))') >= 0) {
+    fail('v2.11.0 ClassWidget 还留着「只认加课」的老分支（两套口径会各自漂移）');
+  }
+
+  /* ④ 改完指令要立刻重画组件，不许等下一次 30 分钟轮询。
+   *    判据：MainActivity 的 setPref 里对 xxmu_kb_ops 有 refresh。 */
+  const MAIN11 = path.join(root, 'android/src/com/xxmu/helper/MainActivity.java');
+  const main11 = ex11(MAIN11) ? rf11(MAIN11, 'utf8') : '';
+  if (main11.indexOf('"xxmu_kb_ops".equals(key)') < 0) {
+    fail('v2.11.0 MainActivity.setPref 没在 xxmu_kb_ops 变化时刷新组件');
+  }
+  if (main11.indexOf('ClassWidget.refresh(MainActivity.this)') < 0) {
+    fail('v2.11.0 MainActivity 里找不到 ClassWidget.refresh');
+  }
+
+  console.log('    写指令后立刻重画组件          =',
+    main11.indexOf('"xxmu_kb_ops".equals(key)') > 0);
+  console.log('    WidgetOps 四类指令            =',
+    ['"add"', '"stop"', '"move"', '"holiday"'].filter(t => opsCode11.indexOf(t) >= 0).length + '/4');
+  console.log('    ClassWidget 走 WidgetOps      =', widget11.indexOf('WidgetOps.apply(') > 0);
+  console.log('    老「只认加课」分支已删        =',
+    widgetCode11.indexOf('"add".equals(op.optString("type"))') < 0);
+}
+
+{
+  /* ④ 真跑一遍 WidgetOps（javac + java）。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_widgetops.js')], { encoding: 'utf8' });
+  console.log('  改课表指令离线测试            =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('改课表指令离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
+}
+
+{ /* ── v2.12.0：桌面小组件「最近要交」（作业/考试截止） ───────────────
+   * v2.10/v2.11 的组件注释里一直写着「作业考试不上组件，那是学习页的事」，
+   * v2.12.0 把这个承诺改掉了：组件本来就有 4 行，两节课的日子空 2 行、
+   * 没课的日子整片空 —— 空着不是克制，是浪费。
+   *
+   * 这里查的不是「有没有写这个功能」，而是几条会当众说假话的地方：
+   *   ①计算层必须是纯 Java（不碰 android/org.json/RemoteViews/Context）——
+   *     只有这样 tools/test_widgetdue.js 才能真编真跑它；
+   *   ②状态词表必须与 web/chaoxing.js 的 CX.classify() 一致，且顺序不能反；
+   *   ③读不到截止时间的一条都不许上桌（dueTs <= 0 直接丢）；
+   *   ④组件必须走 WidgetDue，不许自己再写一套挑拣/配色；
+   *   ⑤xxmu_cx_homework 一变要主动重画，不能等 30 分钟轮询。
+   */
+  console.log('\nv2.12.0 checkpoints（桌面小组件「最近要交」这一轮）:');
+
+  const DUE12 = path.join(root, 'android/src/com/xxmu/helper/WidgetDue.java');
+  const ex12 = p => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; } };
+  /* 纪律断言一律对剥过注释的代码判 —— 这个坑前后踩过五次
+   * （RemoteViews / #d93025 / nv-clip-tag 8px / toISOString / START_DEFAULT），
+   * 每次都是因为注释里正在解释这个坑、字面出现了那个词。 */
+  const strip12 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const dueSrc12 = ex12(DUE12);
+  if (!dueSrc12) fail('v2.12.0 缺 android/src/com/xxmu/helper/WidgetDue.java');
+  const dueCode12 = strip12(dueSrc12);
+  const widget12 = ex12(path.join(root, 'android/src/com/xxmu/helper/ClassWidget.java'));
+  const main12 = ex12(path.join(root, 'android/src/com/xxmu/helper/MainActivity.java'));
+
+  /* ① 纯函数类 */
+  if (/^import\s+android\./m.test(dueCode12)) fail('v2.12.0 WidgetDue 不该 import android.*（裸 javac 跑不了）');
+  if (/^import\s+org\.json\./m.test(dueCode12)) fail('v2.12.0 WidgetDue 不该 import org.json.*');
+  if (/\bRemoteViews\b/.test(dueCode12)) fail('v2.12.0 WidgetDue 不该碰 RemoteViews');
+  if (/\bContext\b/.test(dueCode12)) fail('v2.12.0 WidgetDue 不该碰 Context');
+
+  /* ② 词表：三组都必须有，且 DONE 组要先于 OPEN 组判（顺序体现在 stateOf 的三段循环） */
+  ['DONE_WORDS', 'NOTSTART_WORDS', 'OPEN_WORDS'].forEach(n => {
+    if (dueCode12.indexOf(n) < 0) fail('v2.12.0 WidgetDue 缺词表 ' + n);
+  });
+  const iDone12 = dueCode12.indexOf('DONE_WORDS[i]');
+  const iOpen12 = dueCode12.indexOf('OPEN_WORDS[i]');
+  if (iDone12 < 0 || iOpen12 < 0 || iDone12 > iOpen12) {
+    fail('v2.12.0 stateOf 的判定顺序不对（必须先 done，再 notstart，最后 open）');
+  }
+  /* 「待批阅」必须归完成、「待互评」必须归未完成 —— 这两个词是最容易搞反的一对 */
+  const doneBlock12 = dueCode12.slice(dueCode12.indexOf('DONE_WORDS ='), dueCode12.indexOf('NOTSTART_WORDS ='));
+  const openBlock12 = dueCode12.slice(dueCode12.indexOf('OPEN_WORDS ='), dueCode12.indexOf('private WidgetDue()'));
+  if (!/\u5f85\u6279\u9605/.test(doneBlock12)) fail('v2.12.0「待批阅」应在 DONE_WORDS（我的活干完了）');
+  if (/\u5f85\u4e92\u8bc4/.test(doneBlock12)) fail('v2.12.0「待互评」不该在 DONE_WORDS（那是我的活）');
+  if (!/\u5f85\u4e92\u8bc4/.test(openBlock12)) fail('v2.12.0「待互评」应在 OPEN_WORDS');
+
+  /* ③ 读不到时间的一条都不上桌 */
+  if (dueCode12.indexOf('it.dueTs <= 0') < 0) fail('v2.12.0 pick/count 没有 dueTs <= 0 的过滤（会挂一条永远不动的 -- ）');
+  if (dueCode12.indexOf('it.dueTs <= nowSec') < 0) fail('v2.12.0 pick/count 没有已过截止的过滤');
+
+  /* ④ 组件必须走 WidgetDue，不许自己写第二套 */
+  ['WidgetDue.pick(', 'WidgetDue.count(', 'WidgetDue.line(', 'WidgetDue.colorOf('].forEach(s => {
+    if (widget12.indexOf(s) < 0) fail('v2.12.0 ClassWidget 缺少调用 ' + s);
+  });
+  if (widget12.indexOf('xxmu_cx_homework') < 0) fail('v2.12.0 ClassWidget 没从 xxmu_cx_homework 读作业');
+  /* 「今天没课，去玩吧」在有作业时是假话 —— 组件里必须先数件数再决定说不说 */
+  if (widget12.indexOf('今天没课，去玩吧') >= 0 && widget12.indexOf('今天没课 · ') < 0) {
+    fail('v2.12.0 组件仍无条件说「今天没课，去玩吧」（有作业时这是假话）');
+  }
+
+  /* ⑤ pref 变化要主动重画 */
+  if (main12.indexOf('"xxmu_cx_homework".equals(key)') < 0) {
+    fail('v2.12.0 MainActivity.setPref 没在 xxmu_cx_homework 变化时刷新组件');
+  }
+
+  console.log('    WidgetDue 纯函数类            =', dueCode12.split('\n').length + ' 行');
+  console.log('    三组状态词表                  =',
+    ['DONE_WORDS', 'NOTSTART_WORDS', 'OPEN_WORDS'].filter(n => dueCode12.indexOf(n) >= 0).length + '/3');
+  console.log('    读不到时间不上桌              =', dueCode12.indexOf('it.dueTs <= 0') >= 0);
+  console.log('    ClassWidget 走 WidgetDue      =',
+    ['WidgetDue.pick(', 'WidgetDue.count(', 'WidgetDue.line(', 'WidgetDue.colorOf(']
+      .filter(s => widget12.indexOf(s) >= 0).length + '/4');
+  console.log('    作业同步后立刻重画组件        =', main12.indexOf('"xxmu_cx_homework".equals(key)') > 0);
+}
+
+{
+  /* 真跑一遍 WidgetDue（javac + java）。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_widgetdue.js')], { encoding: 'utf8' });
+  console.log('  桌面最近要交离线测试          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('桌面最近要交离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
+}
+
+/* ── v2.13.0：课表导出成日历文件（.ics） ─────────────────────────────
+ * 「数据能带走」这一档 v2.5.0 只做到了 JSON 备份 —— 那是给自己 App 用的。
+ * 学生真正会想要的是：把课表塞进手机自带日历，上课前手机会震一下。
+ *
+ * 这里查的不是「有没有写这个功能」，而是几条会让导出的日历变垃圾的地方：
+ *   ①时间必须是浮动时间：不许 TZID（导入端不认识 Asia/Shanghai 会整份拒收），
+ *     不许 toISOString（那是 UTC，整体挪 8 小时）；
+ *   ②读不出时间的课不许上日历，更不许拿 00:00 顶上；
+ *   ③多周必须合并成 RRULE，否则 75 门课 × 10 周 = 上千条日程；
+ *   ④mimeOf 必须认 .ics，否则点了会问「用什么打开」。
+ */
+{
+  console.log('\nv2.13.0 checkpoints（课表导出成日历这一轮）:');
+
+  const ICS13 = path.join(root, 'web', 'ics.js');
+  const ex13 = p => { try { return fs.readFileSync(p, 'utf8'); } catch (e) { return ''; } };
+  /* 纪律断言一律对剥过注释的代码判 —— 这个坑前后踩过五次
+   * （RemoteViews / #d93025 / nv-clip-tag 8px / toISOString / START_DEFAULT），
+   * 每次都是因为注释里正在解释这个坑、字面出现了那个词。 */
+  const strip13 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const icsSrc = ex13(ICS13);
+  if (!icsSrc) fail('v2.13.0 缺 web/ics.js');
+  const icsCode = strip13(icsSrc);
+  const idxHtml13 = ex13(path.join(root, 'web', 'index.html'));
+  const main13 = ex13(path.join(root, 'android/src/com/xxmu/helper/MainActivity.java'));
+
+  /* ① 时间必须是浮动时间 */
+  if (icsCode.indexOf('TZID') >= 0) {
+    fail('v2.13.0 ics.js 里出现 TZID —— 导入端不认识时整份日历会被拒收，必须用浮动时间');
+  }
+  if (/toISOString/.test(icsCode)) {
+    fail('v2.13.0 ics.js 用了 toISOString（UTC），导出的课会整体挪 8 小时');
+  }
+  if (icsCode.indexOf("'DTSTART:'") < 0 && icsCode.indexOf('DTSTART:') < 0) {
+    fail('v2.13.0 ics.js 没写 DTSTART');
+  }
+  if (icsCode.indexOf("'DTEND:'") < 0 && icsCode.indexOf('DTEND:') < 0) {
+    fail('v2.13.0 ics.js 没写 DTEND（没有结束时间的日程会被当成全天）');
+  }
+
+  /* ② 读不出就不生成 */
+  if (!/return\s+null/.test(icsCode)) {
+    fail('v2.13.0 ics.js 的解析函数没有 null 出口（读不出时会拿假值顶上）');
+  }
+  if (icsCode.indexOf('skipped') < 0) fail('v2.13.0 ics.js 没统计「有多少条没导」');
+  if (icsCode.indexOf('"00:00"') >= 0) fail('v2.13.0 ics.js 里出现字面 00:00 兜底');
+
+  /* ③ 多周合并成 RRULE */
+  if (icsCode.indexOf('RRULE:FREQ=WEEKLY') < 0) {
+    fail('v2.13.0 ics.js 没用 RRULE:FREQ=WEEKLY（多周会生成上千条日程）');
+  }
+  if (icsCode.indexOf('COUNT=') < 0) fail('v2.13.0 ics.js 的 RRULE 没有 COUNT');
+  if (icsCode.indexOf('BYDAY=') < 0) fail('v2.13.0 ics.js 的 RRULE 没有 BYDAY');
+  if (icsCode.indexOf('runsOf') < 0) fail('v2.13.0 ics.js 没有把周次压成连续周段');
+
+  /* ④ 折行必须按字节不是按字符 */
+  if (icsCode.indexOf('Buffer') >= 0) {
+    fail('v2.13.0 ics.js 在浏览器里用了 Buffer（WebView 没有）');
+  }
+  /* 续行开头那个空格也算 1 字节，所以代码里切的是 74 —— 查「有个 74 的字节上限」而不是查字面 75。 */
+  if (!/bytes\s*\+\s*w\s*>\s*74/.test(icsCode)) {
+    fail('v2.13.0 ics.js 没按 75 字节折行（RFC 5545 上限，续行前导空格占 1 字节所以切 74）');
+  }
+
+  /* ⑤ 面板与接线 */
+  ['rowCalendar', 'openPanel', 'fileName', 'saveFile'].forEach(s => {
+    if (icsCode.indexOf(s) < 0) fail('v2.13.0 ics.js 缺 ' + s);
+  });
+  if (idxHtml13.indexOf('id="rowCalendar"') < 0) fail('v2.13.0 web/index.html 没有 #rowCalendar 这一行');
+  if (idxHtml13.indexOf('src="ics.js"') < 0) fail('v2.13.0 web/index.html 没有引入 ics.js');
+  if (idxHtml13.indexOf('src="ics.js"') < idxHtml13.indexOf('src="app.js"')) {
+    fail('v2.13.0 ics.js 必须排在 app.js 之后（openPanel 要调 parkTools）');
+  }
+
+  /* ⑥ mimeOf 必须认 .ics */
+  if (main13.indexOf('text/calendar') < 0) {
+    fail('v2.13.0 MainActivity.mimeOf 没认 .ics（点了会问「用什么打开」而不是直接进日历）');
+  }
+  if (main13.indexOf('"text/calendar"') < 0) fail('v2.13.0 mimeOf 的 .ics 分支没写死 MIME 串');
+
+  console.log('    ics.js 行数                    =', icsCode.split('\n').length + ' 行');
+  console.log('    浮动时间（无 TZID 无 UTC）      =',
+    icsCode.indexOf('TZID') < 0 && !/toISOString/.test(icsCode));
+  console.log('    多周合并 RRULE                 =', icsCode.indexOf('RRULE:FREQ=WEEKLY') >= 0);
+  console.log('    读不出就不生成                 =', /return\s+null/.test(icsCode));
+  console.log('    index.html 有 #rowCalendar     =', idxHtml13.indexOf('id="rowCalendar"') >= 0);
+  console.log('    mimeOf 认 .ics                 =', main13.indexOf('text/calendar') >= 0);
+}
+
+{
+  /* 真跑一遍 ics.js（node 直接 require，不切字符串）。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_ics.js')], { encoding: 'utf8' });
+  console.log('  日历导出离线测试              =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('日历导出离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
+}
+
+{
+  /* ── v2.14.0：我的待办接进提醒系统 ──────────────────────────────
+   *
+   * 这一轮补的不是新数据，是一条断了很久的线：我的待办从 v1.1.60 就有
+   * due 字段，但 reminder.js 的 buildAll() 只合「课程」和「学习通作业」，
+   * 从来没读过 MYTODO —— 记了「周三前交实验报告」，到那天手机一声不吭。
+   *
+   * 查这些不是查「有没有写功能」，是查四处会当众说假话的地方：
+   *   ① 待办只写日子没有钟点，说「还有 11 小时 32 分」是假精度 → 文案必须是
+   *      「今天到期 / 明天到期 / N 天后到期」，按日历天归零再比（不是除以 24 小时）。
+   *   ② 提醒时刻定在早上 8 点（还来得及改计划的时段），不是 00:00。
+   *   ③ due 取当天 23:59 而不是 00:00，否则「今天之内做完」凌晨就过期。
+   *   ④ normKind 不认 todo 的话，新提醒会被当成「上课」显示「15 分钟后上课」。
+   */
+  console.log('\nv2.14.0 checkpoints（我的待办接进提醒）：');
+  const rem14 = fs.readFileSync(path.join(root, 'web', 'reminder.js'), 'utf8');
+  const idx14 = fs.readFileSync(path.join(root, 'web', 'index.html'), 'utf8');
+  const rc14 = fs.readFileSync(path.join(root, 'android', 'src', 'com', 'xxmu', 'helper', 'ReminderReceiver.java'), 'utf8');
+  const ma14 = fs.readFileSync(path.join(root, 'android', 'src', 'com', 'xxmu', 'helper', 'MainActivity.java'), 'utf8');
+  const strip14 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const rem14c = strip14(rem14);
+  const rc14c = strip14(rc14);
+  const ma14c = strip14(ma14);
+
+  function need14(cond, label) { if (!cond) fail(label); }
+  need14(rem14c.indexOf("const KEY_TODO = 'xxmu_remind_todo'") >= 0, 'v2.14.0 reminder.js 有 KEY_TODO');
+  need14(rem14c.indexOf("const KEY_TODO_LEAD = 'xxmu_remind_todo_lead'") >= 0, 'v2.14.0 reminder.js 有 KEY_TODO_LEAD');
+  need14(/const TODO_LEADS = \[0, 1, 2\]/.test(rem14c), 'v2.14.0 提前量三档 = [0,1,2] 天（不是小时）');
+  need14(rem14c.indexOf('function buildTodo(') >= 0, 'v2.14.0 reminder.js 有 buildTodo()');
+  need14(/todoOn\(\) \? buildTodo\(\)/.test(rem14c), 'v2.14.0 buildAll 合了第三路');
+  need14(/day0 \+ 8 \* 3600000/.test(rem14c), 'v2.14.0 提醒时刻写死早上 8 点');
+  need14(/day0 \+ 24 \* 3600000 - 60000/.test(rem14c), 'v2.14.0 due 取当天 23:59 不是 00:00');
+  need14(/typeof MYTODO === 'undefined'/.test(rem14c), 'v2.14.0 buildTodo 对 MYTODO 缺失安全返回');
+  need14(idx14.indexOf('id="remindTodoRow"') >= 0, 'v2.14.0 index.html 有 #remindTodoRow');
+  need14(idx14.indexOf('id="remindTodoStat"') >= 0, 'v2.14.0 index.html 有 #remindTodoStat');
+  need14(rc14c.indexOf('KIND_TODO = "todo"') >= 0, 'v2.14.0 ReminderReceiver 有 KIND_TODO = "todo"');
+  need14(/if \(KIND_TODO\.equals\(k\)\) return KIND_TODO;/.test(rc14c),
+    'v2.14.0 normKind 认 todo（不认会被当成「上课」说「15 分钟后上课」）');
+  need14(rc14c.indexOf('static String todoLeftText(') >= 0, 'v2.14.0 有 todoLeftText()');
+  need14(rc14.indexOf('今天到期') >= 0 && rc14.indexOf('明天到期') >= 0 && rc14.indexOf('天后到期') >= 0,
+    'v2.14.0 待办文案三档：今天到期 / 明天到期 / N 天后到期');
+  need14(/HOUR_OF_DAY, 0/.test(rc14c),
+    'v2.14.0 按日历天归零再比（除以 24 小时会把晚上 23:00 的明天说成今天）');
+  need14(ma14c.indexOf('ReminderReceiver.KIND_TODO.equals(k)') >= 0,
+    'v2.14.0 previewTaskReminder 里待办走单独分支（预览才真的说「明天到期」）');
+
+  console.log('    buildTodo 存在                 =', rem14c.indexOf('function buildTodo(') >= 0);
+  console.log('    提醒时刻写死 8 点              =', /day0 \+ 8 \* 3600000/.test(rem14c));
+  console.log('    due 取当天 23:59               =', /day0 \+ 24 \* 3600000 - 60000/.test(rem14c));
+  console.log('    Java 认 todo                   =', /if \(KIND_TODO\.equals\(k\)\) return KIND_TODO;/.test(rc14c));
+  console.log('    待办文案三档                   =', rc14.indexOf('今天到期') >= 0 && rc14.indexOf('明天到期') >= 0);
+}
+
+{
+  /* 真跑一遍 test_todoremind.js：它切真 buildTodo() 进 vm 跑，
+   * 覆盖「提前 1 天是 11-24 早上 8 点」「今天就是那天要立刻补」
+   * 「过 23:59 就丢掉」「混着坏数据不许拖垮整批」这些只有算过才知道的事。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_todoremind.js')], { encoding: 'utf8' });
+  console.log('  待办到期提醒离线测试          =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('待办到期提醒离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
+}
+
+{
+  /* ── v2.15.0：补齐四处「写了没人读」+ 一个真 BUG ──────────────────
+   * 来源：用户让组建 AI team 做只读调研，两个 teammate 各交回铁证，我逐条
+   * 验证后砍掉两个假缺口（bad_weeks 已有等价实现、exam_upcoming 无人消费），
+   * 留下四处。纪律断言一律对剥过注释的源码判 —— 注释里正解释这些坑。 */
+  const need15 = (cond, label) => { if (!cond) fail(label); };
+  const strip15 = s => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  const f15 = strip15(fs.readFileSync(path.join(root, 'web', 'focus.js'), 'utf8'));
+  const a15 = strip15(fs.readFileSync(path.join(root, 'web', 'about.js'), 'utf8'));
+  const idx15 = fs.readFileSync(path.join(root, 'web', 'index.html'), 'utf8');
+  const css15 = fs.readFileSync(path.join(root, 'web', 'app.css'), 'utf8');
+  const og15 = fs.readFileSync(path.join(root, 'web', 'nova-organs.css'), 'utf8');
+  console.log('\nv2.15.0 checkpoints（补齐没人读的缺口）：');
+
+  /* 1. 重置按钮遮蔽 bug。 */
+  need15(!/const\s+reset\s*=\s*\$\('focusReset'\)/.test(f15), 'v2.15.0 重置按钮不再用遮蔽名 reset');
+  need15(/resetBtn\.onclick\s*=\s*\(\)\s*=>\s*reset\(\)/.test(f15), 'v2.15.0 回调显式调用模块级 reset()');
+  /* 2. LAST_ERR 显示。 */
+  need15(/const\s+stateErr\s*=\s*LAST_ERR/.test(f15), 'v2.15.0 paint 立刻取 LAST_ERR');
+  need15(/statEl\.classList\.toggle\('warn',\s*!!stateErr\)/.test(f15), 'v2.15.0 统计行按错误上 warn 色');
+  need15(/errEl\.textContent\s*=\s*stateErr\s*\|\|\s*''/.test(f15), 'v2.15.0 错误文字写进独立行');
+  need15(/readErr:\s*\(\)\s*=>\s*LAST_ERR/.test(f15), 'v2.15.0 导出 readErr');
+  need15(idx15.indexOf('id="focusErr"') >= 0, 'v2.15.0 index.html 有 #focusErr');
+  need15(/\.focus-err\s*\{/.test(css15) && /html\[data-skin="nova"\]\s*\.focus-err\s*\{/.test(og15), 'v2.15.0 双皮肤都有 .focus-err 样式');
+  /* 3. peakOf 接线。 */
+  need15(/peakOf\(state\.log,\s*HIST_DAYS\)/.test(f15), 'v2.15.0 paintHisto 真调用 peakOf');
+  need15(/shortDate\(pk\.key\)/.test(f15), 'v2.15.0 高光日显示 M月D日');
+  /* 4. autoDiag 进复制诊断。 */
+  need15(/SOURCES\.autoDiag\(\)/.test(a15), 'v2.15.0 diagText 调 SOURCES.autoDiag()');
+  need15(/autoLine/.test(a15), 'v2.15.0 诊断返回数组有 autoLine');
+  need15(a15.indexOf('自动刷新：还没有记录') >= 0, 'v2.15.0 无日志时明说还没有记录');
+
+  console.log('    重置按钮遮蔽 bug 已修         =', !/const\s+reset\s*=\s*\$\('focusReset'\)/.test(f15));
+  console.log('    peakOf 真接线                  =', /peakOf\(state\.log,\s*HIST_DAYS\)/.test(f15));
+  console.log('    autoDiag 进复制诊断            =', /SOURCES\.autoDiag\(\)/.test(a15));
+}
+
+{
+  /* 真跑 test_gaps.js：shortDate 纯函数 + diagText 的 autoLine 段都是切真源码进 vm。 */
+  const r = require('child_process').spawnSync(process.execPath,
+    [path.join(root, 'tools', 'test_gaps.js')], { encoding: 'utf8' });
+  console.log('  补齐没人读的缺口离线测试      =', r.status === 0 ? 'PASS' : 'FAIL');
+  if (r.status !== 0) fail('补齐没人读的缺口离线测试未过：' +
+    ((r.stdout || '') + (r.stderr || '')).trim().split('\n').slice(-8).join(' | '));
 }
 
 console.log('\n' + (bad === 0 ? '[PASS] 静态体检全部通过' : '[FAIL] ' + bad + ' 项未过'));

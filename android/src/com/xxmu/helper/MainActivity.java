@@ -117,6 +117,104 @@ public class MainActivity extends Activity {
         }
     }
 
+    /* ---------------------------------------------------------- 导出（v2.5.0）
+     *
+     * 档 D「数据能带走」里真正落盘的那一步。
+     *
+     * 为什么必须走原生：页面是 file:// 上下文，a[download] 的属性在那里被
+     * WebView 直接忽略，Blob + URL.createObjectURL 只会得到一个 blob:
+     * 临时地址，Android WebView 从不把它写成文件。真正把字节写进文件系统
+     * 只有 Java 这一条路。
+     *
+     * 两个分支，按系统版本走：
+     *   · API 29+（Android 10 起）：MediaStore.Downloads，RELATIVE_PATH 直接
+     *     指定「下载/河医大助手」，**不需要任何存储权限**，用户在系统「文件」
+     *     或「下载」里点得到。IS_PENDING 先置 1、写完再置 0 —— 否则别的应用
+     *     可能读到一个写了一半的文件。
+     *   · API 24~28：没有 RELATIVE_PATH，写公共下载目录要 WRITE_EXTERNAL_STORAGE。
+     *     本工程从来没声明过存储权限，也不为一次导出让所有人常驻一条权限，
+     *     所以退回 App 自己的外部目录（getExternalFilesDir）。这条路在 Android 9
+     *     及以下用文件管理器能一层层点进去。
+     *   · MediaStore 失败（个别机型下载目录被禁用）时也落回第二条，不让整件事
+     *     因为一个分支不行就失败。
+     *
+     * 返回值语义（与 Host 其它桥一致，绝不静默失败）：
+     *   · "OK:<人话位置>"  写成功，后面那句界面可以直接显示给用户
+     *   · "ERR:<人话原因>" 失败
+     */
+    private String exportTextFile(String name, String content) {
+        /* 文件名只挡路径分隔符与控制字符，中文保留 —— 「河医大助手备份.json」
+         * 比一堆乱码更可能在文件管理器里被认出来。 */
+        String safe = name == null ? "" : name.replaceAll("[\\\\/:*?\"<>|\\p{Cntrl}]", "").trim();
+        if (safe.length() == 0) safe = "xxmu-export.txt";
+        if (safe.length() > 96) safe = safe.substring(safe.length() - 96);
+        byte[] bytes;
+        try {
+            bytes = (content == null ? "" : content).getBytes("UTF-8");
+        } catch (Throwable e) {
+            return "ERR:文本转 UTF-8 失败";
+        }
+
+        String msErr = "";
+        if (android.os.Build.VERSION.SDK_INT >= 29) {
+            Uri out = null;
+            try {
+                android.content.ContentValues cv = new android.content.ContentValues();
+                cv.put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, safe);
+                cv.put(android.provider.MediaStore.MediaColumns.MIME_TYPE, mimeOf(safe));
+                cv.put(android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
+                        android.os.Environment.DIRECTORY_DOWNLOADS + "/河医大助手");
+                cv.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 1);
+                out = getContentResolver().insert(
+                        android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv);
+                if (out == null) throw new java.io.IOException("系统没给出可写的位置");
+                java.io.OutputStream os = getContentResolver().openOutputStream(out);
+                if (os == null) throw new java.io.IOException("openOutputStream 返回 null");
+                try {
+                    os.write(bytes);
+                    os.flush();
+                } finally {
+                    try { os.close(); } catch (Throwable ig) { }
+                }
+                android.content.ContentValues done = new android.content.ContentValues();
+                done.put(android.provider.MediaStore.MediaColumns.IS_PENDING, 0);
+                getContentResolver().update(out, done, null, null);
+                return "OK:下载/河医大助手/" + safe;
+            } catch (Throwable e) {
+                /* 半截文件要清掉，否则用户在下载目录里能看到一个空的同名文件 */
+                if (out != null) {
+                    try { getContentResolver().delete(out, null, null); } catch (Throwable ig) { }
+                }
+                msErr = e.getClass().getSimpleName()
+                        + (e.getMessage() == null ? "" : ("：" + e.getMessage()));
+            }
+        }
+
+        File dir = getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS);
+        if (dir == null) dir = new File(getFilesDir(), "export");
+        if (!dir.exists() && !dir.mkdirs()) return "ERR:建不了导出目录";
+        File f = new File(dir, safe);
+        if (!writeFile(f, content)) return "ERR:写文件失败（可能是磁盘满了）";
+        if (msErr.length() > 0) {
+            /* 说清楚「系统下载目录没写成、这是退路」，别让人以为文件就该在那儿 */
+            return "OK:" + f.getAbsolutePath() + "（系统下载目录没写成：" + msErr + "）";
+        }
+        return "OK:" + f.getAbsolutePath();
+    }
+
+    private static String mimeOf(String name) {
+        String n = name == null ? "" : name.toLowerCase();
+        if (n.endsWith(".json")) return "application/json";
+        if (n.endsWith(".txt")) return "text/plain";
+        if (n.endsWith(".csv")) return "text/csv";
+        if (n.endsWith(".md")) return "text/markdown";
+        /* v2.13.0：日历文件。text/calendar 是 RFC 5545 注册的类型，
+         * 系统「下载」目录与文件管理器靠它决定「用哪个 App 打开」——
+         * 写错成 octet-stream 的话，点了会问「用什么打开」而不是直接进日历。 */
+        if (n.endsWith(".ics")) return "text/calendar";
+        return "application/octet-stream";
+    }
+
     // ---------------------------------------------------------------- Host 桥
 
     public class Host {
@@ -403,6 +501,21 @@ public class MainActivity extends Activity {
         public void setPref(String key, String value) {
             getSharedPreferences(PREFS, MODE_PRIVATE).edit()
                     .putString(key, value == null ? "" : value).apply();
+            /* v2.11.0：这三个键一变，桌面小组件看到的课表就变了 ——
+             * xxmu_kb_ops 是「改课表指令」叠加层（停课/调课/放假/加课），
+             * xxmu_start 是开学日（决定周次），xxmu_weeks 是总周数。
+             * 以前只有 saveCachedSchedule 会 refresh，于是用户在 App 里停了课，
+             * 桌面上那节课要等到下一次 30 分钟轮询才消失。这里补一次主动重画。
+             * 其余几千个 pref 键（皮肤、主题、各种游标）不触发，避免无谓重绘。 */
+            if ("xxmu_kb_ops".equals(key) || "xxmu_start".equals(key) || "xxmu_weeks".equals(key)) {
+                try { ClassWidget.refresh(MainActivity.this); } catch (Throwable ignored) { }
+            }
+            /* v2.12.0：作业考试截止也上小组件了（xxmu_cx_homework 是 chaoxing.js 同步成功后
+             * 自己写进去的整份 JSON）。同一条理由：用户刚点完「重新抓一次」，桌面上那条
+             * 截止时间不该还停在旧值上，也不该等到下一次 30 分钟轮询。 */
+            if ("xxmu_cx_homework".equals(key)) {
+                try { ClassWidget.refresh(MainActivity.this); } catch (Throwable ignored) { }
+            }
         }
 
         /* ---- v1.1.39 主题：两个桥，都只做「读一个状态 / 改一次 UI」，不碰网络不碰文件 ---- */
@@ -668,6 +781,24 @@ public class MainActivity extends Activity {
                 return s.length() > 60000 ? s.substring(0, 60000) : s;
             } catch (Throwable ignored) { return ""; }
         }
+
+        /**
+         * v2.5.0：把一段文本存成用户自己能找到的文件（档 D「数据能带走」）。
+         *
+         * 为什么必须走原生：页面是 file:// 上下文，a[download] 的属性在这里
+         * 被 WebView 忽略，Blob + URL.createObjectURL 只会得到一个
+         * blob: 前缀的临时地址，Android WebView 从不把它落盘。
+         * 真正把字节写进文件系统只有 Java 这一条路。
+         *
+         * @param name    文件名，比如 xxmu-backup-20261121.json
+         * @param content UTF-8 文本
+         * @return "" 表示写成功；否则是 "ERR:" 开头的一句人话
+         */
+        @JavascriptInterface
+        public String exportText(String name, String content) {
+            return MainActivity.this.exportTextFile(name, content);
+        }
+
         /* ===== 异步 HTTP 桥（v0.9.4 修复） =====
          *
          * 教训：v0.9.3 把 httpFetchAsync / httpFetchPoll / fetchScheduleHtmlAsync
@@ -1255,6 +1386,37 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void openSmsDraft(String name, String room, int mins) {
             ReminderReceiver.openSmsDraft(MainActivity.this, name, room, mins);
+        }
+
+        /** v2.2.0：作业/考试提醒的「试一下」。
+         *
+         * 为什么不复用 previewReminder：那一版的签名里没有 kind，默认按「上课」
+         * 出文案，拿来预览作业会显示「15 分钟后上课」—— 试出来的是错的，
+         * 比不给试还糟。多开一个方法，参数按语义分开，两边都不含糊。 */
+        @JavascriptInterface
+        public void previewTaskReminder(String kind, String name, String course) {
+            String k = ReminderReceiver.normKind(kind);
+            /* v2.14.0：待办预览的示例与 due 都不一样 —— 待办文案说的是
+             * 「明天到期」，所以预览必须真的给一个「明天 23:59」的 due，
+             * 否则会走 due=0 那条兜底，试出来是「约 12 小时后到期」，
+             * 和真机上看到的不一样，等于白试。 */
+            if (ReminderReceiver.KIND_TODO.equals(k)) {
+                java.util.Calendar c = java.util.Calendar.getInstance();
+                c.add(java.util.Calendar.DAY_OF_MONTH, 1);
+                c.set(java.util.Calendar.HOUR_OF_DAY, 23);
+                c.set(java.util.Calendar.MINUTE, 59);
+                c.set(java.util.Calendar.SECOND, 0);
+                ReminderReceiver.show(MainActivity.this,
+                        (name == null || name.length() == 0) ? "买实验报告本（示例）" : name,
+                        "", 0, ReminderReceiver.MODE_ALARM, k, c.getTimeInMillis());
+                return;
+            }
+            ReminderReceiver.show(MainActivity.this,
+                    (name == null || name.length() == 0)
+                            ? ("hw".equals(k) ? "实验报告（示例）" : "期中考试（示例）") : name,
+                    course == null ? "" : course,
+                    0, ReminderReceiver.MODE_ALARM, k,
+                    System.currentTimeMillis() + 12L * 3600L * 1000L);
         }
 
         /**
@@ -2423,6 +2585,25 @@ public class MainActivity extends Activity {
 
         web.loadUrl("file:///android_asset/index.html");
         setContentView(web);
+
+        /* v2.2.0：从「作业截止 / 考试开考」通知点进来时，落到学习页。
+         *
+         * 为什么不用 evaluateJavascript 直接切：那一刻页面还没加载完，
+         * evaluate 会丢（或者被后来的 switchTab 覆盖回去）。改成把目标页
+         * 写进 pref，由 app.js 启动时自己读一次再清掉 —— pref 是同步的、
+         * 谁先跑都不影响，也不会因为 Activity 重建而丢。
+         *
+         * 只在真的带了 extra 时才写，普通冷启动不会平白多一次存储写。 */
+        try {
+            String tab = getIntent() == null ? null : getIntent().getStringExtra("xxmu_tab");
+            if (tab != null && tab.length() > 0) {
+                getSharedPreferences(PREFS, MODE_PRIVATE).edit()
+                        .putString("xxmu_launch_tab", tab).apply();
+                /* 清掉 extra，避免旋转/重建时反复把人拽回学习页 */
+                getIntent().removeExtra("xxmu_tab");
+            }
+        } catch (Throwable ignored) {
+        }
     }
 
     /**
@@ -2516,8 +2697,7 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onResume() {
-        super.onResume();
-        /* 从别的 App（完美校园、支付宝）切回来时告诉页面一声。
+        super.onResume();        /* 从别的 App（完美校园、支付宝）切回来时告诉页面一声。
          * WebView 里 visibilitychange 不一定触发（真机切后台 WebView 常保持「可见」状态），
          * 所以由 Java 侧补一条回调，页面自己决定要不要刷新（宿舍空调度数就是靠这个）。
          * 用 evaluateJavascript 而不是 loadUrl("javascript:")——后者会把返回值当导航。 */

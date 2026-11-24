@@ -201,7 +201,11 @@ html[data-skin="nova"] #grid .c{
   box-shadow:0 1px 2px rgba(0,0,0,.40) !important;
   font:11px/1.25 var(--n-sans) !important;
   transition:background .2s ease,box-shadow .2s ease !important;
-  padding:4px 3px 3px 5px !important}
+  /* v2.7.0：左右内边距 5/3 → 3/1。390px 下一天一列 (390-34-12-14)/7 ≈ 47px，
+     卡片扣掉 2px gap 与 8px 内边距后内容只有 37px，11px 汉字一行 3 个，
+     「系统解剖学」被切成「系统/解剖/学」。「.c::before」在 NOVA 层是 content:none，
+     所以左边也不用留竖条位。收到 3/1 后内容 41px，一行 3~4 字。 */
+  padding:3px 1px 3px 3px !important}
 html[data-skin="nova"] #grid .c::before{content:none !important;display:none !important}
 /* 「今天」：金币描边 + 金光晕（暖色 + 高饱和 + 发光，三重抢戏）→ 一道中性白环。
    明度已经能说明「这是今天」，不需要色相。 */
@@ -303,6 +307,14 @@ html[data-skin="nova"] .btn.ghost{
 html[data-skin="nova"] .btn.soft{background:var(--n-surface-3) !important;
   color:var(--n-ink-2) !important;box-shadow:var(--n-elev-1) !important;
   border:1px solid var(--n-line) !important}
+/* v2.7.0：课表底部那两颗按钮。上面那条 .btn.soft 把全站的 soft 按钮统一压成
+   中性灰，这是对的（soft 的意思是「次要」）；但课表底部只有两颗动作按钮，
+   「次要」在这里没有别的更重要的事可让位 —— 一片灰=没有主次，只剩淡。
+   只给这一处补回主色，不动全局 .btn.soft。 */
+html[data-skin="nova"] .kb-bar-acts .btn.soft{
+  background:var(--n-accent) !important;color:#FFFFFF !important;
+  border-color:transparent !important;
+  box-shadow:0 1px 0 rgba(16,24,40,.10),0 3px 8px -2px rgba(16,24,40,.12) !important}
 html[data-skin="nova"] .btn:active{transform:translateY(1px) !important;
   background:var(--n-accent-lo) !important;
   box-shadow:0 1px 0 rgba(16,24,40,.12) !important}
@@ -480,6 +492,11 @@ html[data-skin="nova"][data-theme="dark"] .btn.ghost{
   border-color:rgba(158,140,255,.45) !important}
 html[data-skin="nova"][data-theme="dark"] .btn.soft{
   background:rgba(199,140,255,.20) !important;color:#D3B4FF !important}
+/* v2.7.0：见浅色档同名规则的理由 */
+html[data-skin="nova"][data-theme="dark"] .kb-bar-acts .btn.soft{
+  background:linear-gradient(160deg,var(--n-cyan),#6D57D8) !important;
+  color:#120C22 !important;box-shadow:0 3px 0 #4A3A9E !important;
+  border-color:transparent !important}
 html[data-skin="nova"][data-theme="dark"] .th-opt,
 html[data-skin="nova"][data-theme="dark"] .skin-opt{
   background:rgba(255,255,255,.07) !important;border-color:rgba(183,155,255,.22) !important;
@@ -761,6 +778,13 @@ html[data-skin="nova"] .gate-err{
   border-radius:var(--n-r-sm) !important;
   padding:10px 12px !important;text-align:left !important;
 }
+/* v2.9.1：`.gate-err` 是一句「出错时往这儿写字」的占位，全库 9 处（激活门 +
+ * 管理台 8 处）。经典皮肤只给它颜色和 min-height，空着时什么都看不见；但 NOVA
+ * 这套给它配了粉底 + 粉边 + 内边距，于是**空占位也会画出一个空盒子** ——
+ * 管理台里三处（口令卡下、概览下、停用表单下）各浮着一个粉色空条，看着像
+ * 界面坏了。没有字就不该占位、更不该有边框，所以空的时候直接不渲染。
+ * 用 :empty 而不是改 JS：JS 那边一直在 setMsg() 里写 ''，不该为了样式改逻辑。 */
+html[data-skin="nova"] .gate-err:empty{display:none !important}
 html[data-skin="nova"] .gate-foot{
   border-top:1px solid var(--n-line-weak) !important;color:var(--n-ink-3) !important;
 }
@@ -1374,3 +1398,374 @@ html[data-skin="nova"][data-theme="dark"] .kb-bar.bad .kb-bar-s{color:var(--n-co
   html[data-skin="nova"] #top .week-row::after,
   html[data-skin="nova"] #grid::before{animation:none !important}
 }
+
+/* ---------------- v2.0.0：学习页「今日一行」的 nova 档 ----------------
+ * 经典档那一条是牛皮纸便签（硬投影 + 不等圆角）。到了 NOVA 就得换成
+ * 一块舱面读数条：白瓷底、一道弱描边、左侧一条 2px 主色竖痕当刻度，
+ * 圆点换成主色/珊瑚两态的信号灯。它跟 .card 同族但**比卡矮一半**——
+ * 这一行不是卡，是「抬头就能看到的那条读数」。 ---- */
+html[data-skin="nova"] .today-line{
+  margin:0 0 10px !important;padding:11px 13px 10px !important;
+  background:var(--n-surface) !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-left:2px solid var(--n-accent) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important;
+  transform:none !important}
+html[data-skin="nova"] .today-line::before,
+html[data-skin="nova"] .today-line::after{content:none !important}
+html[data-skin="nova"] .tl-top{gap:8px !important;min-height:22px !important}
+html[data-skin="nova"] .tl-dot{
+  width:6px !important;height:6px !important;border-radius:50% !important;
+  background:var(--n-ink-3) !important;
+  box-shadow:0 0 0 3px rgba(16,24,40,.05) !important}
+html[data-skin="nova"] .today-line[data-tone="next"] .tl-dot{
+  background:var(--n-accent) !important;
+  box-shadow:0 0 0 3px var(--n-accent-weak) !important}
+html[data-skin="nova"] #todayMain{
+  color:var(--n-ink) !important;
+  font:700 13.5px var(--n-sans) !important;
+  letter-spacing:0 !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"] .tl-copy{
+  padding:4px 10px !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-radius:999px !important;
+  background:var(--n-surface-3) !important;
+  color:var(--n-ink-2) !important;
+  font:600 11.5px var(--n-sans) !important;
+  white-space:nowrap !important}
+html[data-skin="nova"] .tl-copy:active{background:var(--n-surface-2) !important}
+html[data-skin="nova"] .tl-copy.dim{
+  color:var(--n-ink-3) !important;background:transparent !important;
+  border-color:var(--n-line-weak) !important}
+html[data-skin="nova"] .tl-sub{
+  margin-top:5px !important;color:var(--n-ink-2) !important;
+  font:500 11.5px var(--n-sans) !important;
+  font-variant-numeric:tabular-nums !important}
+
+/* 紫夜舱（深色）：白瓷换成玻璃片，主色竖痕提亮，圆点用荧光青 */
+html[data-skin="nova"][data-theme="dark"] .today-line{
+  background:rgba(255,255,255,.05) !important;
+  border:1px solid rgba(183,155,255,.18) !important;
+  border-left:2px solid var(--n-cyan) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07) !important}
+html[data-skin="nova"][data-theme="dark"] #todayMain{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .tl-sub{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .today-line[data-tone="next"] .tl-dot{
+  background:var(--n-cyan) !important;
+  box-shadow:0 0 0 3px rgba(158,140,255,.16) !important}
+html[data-skin="nova"][data-theme="dark"] .tl-copy{
+  background:rgba(255,255,255,.07) !important;
+  border-color:rgba(183,155,255,.22) !important;
+  color:var(--n-ink-2) !important}
+
+/* ---------------- v2.3.0：课表页「现在」一屏的 nova 档 ----------------
+ * 经典档是一条带左竖痕的读数条。NOVA 这里把它做成 HUD 的“当前任务”块：
+ * 白瓷面上一条主色竖痕当刻度、下面用虚线隔出「空教室」一行（那是另一个
+ * 数据源，不该和课程混在同一视觉层里）。深色档竖痕换荧光青，与紫夜舱的
+ * 其他读数一致。 ---- */
+html[data-skin="nova"] .now-line{
+  margin:0 0 12px !important;padding:12px 13px 11px !important;
+  background:var(--n-surface) !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-left:2px solid var(--n-accent) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important;
+  transform:none !important}
+html[data-skin="nova"] .now-line[data-tone="next"]{border-left-color:var(--n-ink-3) !important}
+html[data-skin="nova"] .now-line[data-tone="warn"]{border-left-color:var(--n-warn, #b5862f) !important}
+html[data-skin="nova"] .nl-top{gap:8px !important;min-height:22px !important}
+html[data-skin="nova"] .nl-dot{
+  width:6px !important;height:6px !important;border-radius:50% !important;
+  background:var(--n-accent) !important;
+  box-shadow:0 0 0 3px var(--n-accent-weak) !important}
+html[data-skin="nova"] .now-line[data-tone="next"] .nl-dot{
+  background:var(--n-ink-3) !important;
+  box-shadow:0 0 0 3px rgba(16,24,40,.05) !important}
+html[data-skin="nova"] .now-line[data-tone="warn"] .nl-dot{
+  background:var(--n-ink-3) !important;
+  box-shadow:0 0 0 3px rgba(16,24,40,.05) !important}
+html[data-skin="nova"] #nowMain{
+  color:var(--n-ink) !important;
+  font:700 14px var(--n-sans) !important;
+  letter-spacing:0 !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"] .nl-sub{
+  margin-top:4px !important;color:var(--n-ink-2) !important;
+  font:500 11.5px var(--n-sans) !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"] .nl-rooms{
+  margin-top:8px !important;padding-top:8px !important;
+  border-top:1px dashed var(--n-line-weak) !important}
+html[data-skin="nova"] .nl-rooms-t{
+  color:var(--n-ink-3) !important;
+  font:500 11px var(--n-sans) !important}
+html[data-skin="nova"] .nl-free{
+  padding:4px 10px !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-radius:999px !important;
+  background:var(--n-surface-3) !important;
+  color:var(--n-ink-2) !important;
+  font:600 11px var(--n-sans) !important;
+  white-space:nowrap !important}
+html[data-skin="nova"] .nl-free:active{background:var(--n-surface-2) !important}
+html[data-skin="nova"][data-theme="dark"] .now-line{
+  background:rgba(255,255,255,.05) !important;
+  border:1px solid rgba(183,155,255,.18) !important;
+  border-left:2px solid var(--n-cyan) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07) !important}
+html[data-skin="nova"][data-theme="dark"] .now-line[data-tone="next"]{
+  border-left-color:rgba(183,155,255,.45) !important}
+html[data-skin="nova"][data-theme="dark"] #nowMain{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .nl-sub{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .nl-rooms-t{color:var(--n-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .nl-free{
+  background:rgba(255,255,255,.07) !important;
+  border-color:rgba(183,155,255,.22) !important;
+  color:var(--n-ink-2) !important}
+
+
+/* ---------------- v2.5.0：备份与导出的 nova 档 ----------------
+ * 面板里两个按钮：主按钮是白瓷底 + 主色字，次按钮是玻璃片。
+ * 结果行沿用 .fr-hint 的 nova 口径（--n-ink-3），失败才换 --n-coral
+ * ——深色档 --n-coral 是珊瑚粉，比纯红更像这套皮肤里的「警告」。 */
+html[data-skin="nova"] .ex-acts{gap:10px !important;margin-top:14px !important}
+html[data-skin="nova"] .ex-acts .btn{
+  border-radius:var(--n-r-sm) !important;
+  font:600 13px var(--n-sans) !important;
+  padding:11px 12px !important}
+html[data-skin="nova"] .ex-acts .btn.ghost{
+  background:rgba(255,255,255,.06) !important;
+  border:1px solid var(--n-line-weak) !important;
+  color:var(--n-ink-2) !important}
+html[data-skin="nova"] .ex-out{
+  margin-top:12px !important;
+  color:var(--n-ink-2) !important;
+  font:500 11.5px var(--n-sans) !important;
+  line-height:1.6 !important;
+  word-break:break-all !important}
+html[data-skin="nova"] .ex-bad{color:var(--n-coral) !important}
+html[data-skin="nova"] .ex-stat{
+  margin:12px 0 2px !important;
+  padding:11px 12px !important;
+  background:var(--n-surface-2) !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important}
+html[data-skin="nova"] .ex-cap{
+  color:var(--n-ink-3) !important;
+  font:500 11px var(--n-sans) !important;
+  letter-spacing:.3px !important}
+html[data-skin="nova"] .ex-sum{
+  margin-top:4px !important;
+  color:var(--n-ink) !important;
+  font:600 13px var(--n-sans) !important;
+  line-height:1.6 !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"][data-theme="dark"] .ex-acts .btn.ghost{
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.16) !important}
+html[data-skin="nova"][data-theme="dark"] .ex-stat{
+  background:rgba(255,255,255,.05) !important;
+  border-color:rgba(255,255,255,.12) !important;
+  box-shadow:none !important}
+html[data-skin="nova"][data-theme="dark"] .ex-bad{color:var(--n-coral) !important}
+
+/* ---------------- v2.6.0：从教务读成绩的 nova 档 ----------------
+ * 同一种「读数条」语言：试过的路径是一条条白瓷片，左边一条竖痕表示这次
+ * 是成是败（成功＝主色实线，失败＝弱线虚线），不用红绿 —— NOVA 里颜色
+ * 是给「现在这口气」用的，不是给「记录」用的。 ---- */
+html[data-skin="nova"] .gp-acts{gap:10px !important;margin-top:14px !important}
+html[data-skin="nova"] .gp-acts .btn{
+  border-radius:var(--n-r-sm) !important;
+  font:600 13px var(--n-sans) !important;
+  padding:11px 12px !important}
+html[data-skin="nova"] .gp-acts .btn.ghost{
+  background:rgba(255,255,255,.06) !important;
+  border:1px solid var(--n-line-weak) !important;
+  color:var(--n-ink-2) !important}
+html[data-skin="nova"] .gp-out,
+html[data-skin="nova"] .gp-res{margin-top:14px !important}
+html[data-skin="nova"] .gp-cap{
+  color:var(--n-ink-3) !important;
+  font:500 11px var(--n-sans) !important;
+  letter-spacing:.3px !important}
+html[data-skin="nova"] .gp-row{
+  padding:8px 10px !important;
+  gap:3px !important;
+  background:var(--n-surface) !important;
+  border:1px dashed var(--n-line-weak) !important;
+  border-left:2px solid var(--n-ink-3) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important}
+html[data-skin="nova"] .gp-row.ok{
+  border-style:solid !important;
+  border-left-color:var(--n-accent) !important}
+html[data-skin="nova"] .gp-path{
+  color:var(--n-ink) !important;
+  font:600 11px var(--n-mono,var(--n-sans)) !important;
+  word-break:break-all !important}
+html[data-skin="nova"] .gp-why{
+  color:var(--n-ink-3) !important;
+  font:500 11.5px var(--n-sans) !important;
+  line-height:1.6 !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"] .gp-sum{
+  padding:10px 12px !important;
+  gap:3px !important;
+  background:var(--n-surface) !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-left:2px solid var(--n-accent) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important}
+html[data-skin="nova"] .gp-sum b{
+  color:var(--n-ink) !important;
+  font:700 14px var(--n-sans) !important}
+html[data-skin="nova"] .gp-sum span{
+  color:var(--n-ink-3) !important;
+  font:500 11.5px var(--n-sans) !important;
+  line-height:1.6 !important;
+  word-break:break-all !important}
+html[data-skin="nova"] .gp-res .btn{
+  width:100% !important;
+  margin-top:14px !important;
+  border-radius:var(--n-r-sm) !important;
+  font:600 13px var(--n-sans) !important;
+  padding:12px !important}
+html[data-skin="nova"][data-theme="dark"] .gp-acts .btn.ghost{
+  background:rgba(255,255,255,.08) !important;
+  border-color:rgba(255,255,255,.16) !important}
+html[data-skin="nova"][data-theme="dark"] .gp-row{
+  background:rgba(255,255,255,.05) !important;
+  border-color:rgba(255,255,255,.12) !important;
+  box-shadow:none !important}
+html[data-skin="nova"][data-theme="dark"] .gp-row.ok{border-left-color:var(--n-cyan) !important}
+html[data-skin="nova"][data-theme="dark"] .gp-sum{
+  background:rgba(255,255,255,.05) !important;
+  border-color:rgba(255,255,255,.12) !important;
+  border-left-color:var(--n-cyan) !important;
+  box-shadow:none !important}
+
+/* ---------------- v2.4.0：专注记录柱状图的 nova 档 ----------------
+ * 经典档是铅笔柱，NOVA 这里做成一条 HUD 迷你频谱：柱子用主色、按高度分四档
+ * 透明度，0 分钟那天退成一条极淡的基线条（而不是消失——消失会被读成「没数据」）。
+ * 深色档柱子走 --n-cyan —— 注意该令牌在深色档被重定义成 #9E8CFF（见 :420
+ * 「紫色升为主光」），所以深色档实际是紫罗兰，不是浅色档那种青绿。这是皮肤
+ * 既有口径，不是写错：同一条令牌在这里就该跟着片子换色相。 ---- */
+html[data-skin="nova"] .focus-histo{
+  height:42px !important;gap:4px !important;
+  margin:14px 2px 0 !important}
+html[data-skin="nova"] .fh-bar{
+  background:var(--n-accent) !important;
+  border-radius:2px !important;
+  opacity:.92 !important}
+html[data-skin="nova"] .fh-l1{opacity:.3 !important}
+html[data-skin="nova"] .fh-l2{opacity:.48 !important}
+html[data-skin="nova"] .fh-l3{opacity:.7 !important}
+html[data-skin="nova"] .fh-l4{opacity:1 !important}
+html[data-skin="nova"] .fh-zero{
+  height:2px !important;
+  background:var(--n-line-weak) !important;
+  opacity:1 !important}
+html[data-skin="nova"] .focus-hint{
+  margin-top:8px !important;
+  color:var(--n-ink-3) !important;
+  font:500 11px var(--n-sans) !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"][data-theme="dark"] .fh-bar{background:var(--n-cyan) !important}
+html[data-skin="nova"][data-theme="dark"] .fh-zero{background:rgba(255,255,255,.14) !important}
+html[data-skin="nova"][data-theme="dark"] .focus-hint{color:var(--n-ink-3) !important}
+
+
+/* ---------------- v2.0.0：目标绩点的 nova 档 ----------------
+ * 它在成绩面板里，是「算一笔账」的地方，所以做成一块虚线框的读表：
+ * 输入框是下沉槽（浅色比卡面低一档），结论行给主色。 ---- */
+html[data-skin="nova"] .gpa-target{
+  margin-top:14px !important;padding:12px 13px !important;
+  background:var(--n-surface-2) !important;
+  border:1px dashed rgba(16,24,40,.14) !important;
+  border-radius:var(--n-r-sm) !important}
+html[data-skin="nova"] .gt-head b{color:var(--n-ink) !important;
+  font:700 12px var(--n-sans) !important;letter-spacing:0 !important}
+html[data-skin="nova"] .gt-stat{color:var(--n-ink-3) !important;
+  font:600 11px var(--n-mono) !important;
+  font-variant-numeric:tabular-nums !important}
+html[data-skin="nova"] .gt-form label{color:var(--n-ink-2) !important;
+  font:600 11.5px var(--n-sans) !important}
+html[data-skin="nova"] .gt-form input{
+  padding:7px 9px !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-radius:var(--n-r-xs) !important;
+  background:var(--n-surface) !important;
+  color:var(--n-ink) !important;
+  font:600 12.5px var(--n-mono) !important;
+  font-variant-numeric:tabular-nums !important;
+  box-shadow:inset 0 1px 2px rgba(16,24,40,.05) !important}
+html[data-skin="nova"] .gt-line{color:var(--n-ink-2) !important;
+  font:500 11.5px var(--n-sans) !important}
+html[data-skin="nova"] .gt-line[data-ok="1"]{color:var(--n-accent-ink) !important;
+  font-weight:700 !important}
+html[data-skin="nova"][data-theme="dark"] .gpa-target{
+  background:rgba(255,255,255,.04) !important;
+  border-color:rgba(183,155,255,.20) !important}
+html[data-skin="nova"][data-theme="dark"] .gt-head b{color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .gt-stat{color:var(--n-ink-3) !important}
+html[data-skin="nova"][data-theme="dark"] .gt-form input{
+  background:rgba(0,0,0,.26) !important;
+  border-color:rgba(183,155,255,.20) !important;
+  color:var(--n-ink) !important}
+html[data-skin="nova"][data-theme="dark"] .gt-line{color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .gt-line[data-ok="1"]{
+  color:var(--n-grass) !important}
+
+/* ---------------- v2.1.0：出水看护的 nova 档 ----------------
+ * 它回答的是「我现在到底还在不在出水」，属于舱面读数，所以跟「今日一行」
+ * 同一套语言：白瓷薄片、一道弱描边、左侧 2px 主色竖痕。区别在于这里可能
+ * 同时有多行（多台机器 / 多出水口），所以行与行之间只用一条 hairline 隔开，
+ * 不做第二层卡片 —— 一屏两块卡会让人以为它们是两件事。
+ * 正在出水那一行给主色 + 呼吸点：这是唯一需要「一直看」的状态。 ---- */
+html[data-skin="nova"] .water-live{
+  margin:0 0 12px !important;padding:10px 12px !important;
+  background:var(--n-surface) !important;
+  border:1px solid var(--n-line-weak) !important;
+  border-left:2px solid var(--n-accent) !important;
+  border-radius:var(--n-r-sm) !important;
+  box-shadow:var(--n-elev-1) !important}
+html[data-skin="nova"] .water-live .live-row{
+  color:var(--n-ink-2) !important;
+  font:500 12px var(--n-sans) !important;
+  font-variant-numeric:tabular-nums !important;
+  gap:8px !important;line-height:1.6 !important}
+html[data-skin="nova"] .water-live .live-row + .live-row{
+  margin-top:7px !important;padding-top:7px !important;
+  border-top:1px solid var(--n-line-weak) !important}
+html[data-skin="nova"] .water-live .live-dot{
+  color:var(--n-ink-3) !important;width:10px !important;
+  font:600 11px var(--n-mono) !important}
+html[data-skin="nova"] .water-live .live-row.live{
+  color:var(--n-accent) !important;font-weight:600 !important}
+html[data-skin="nova"] .water-live .live-row.live .live-dot{
+  color:var(--n-accent) !important}
+html[data-skin="nova"] .water-live .live-row.ok{
+  color:var(--n-grass) !important;font-weight:600 !important}
+html[data-skin="nova"] .water-live .live-row.ok .live-dot{color:var(--n-grass) !important}
+html[data-skin="nova"] .water-live .live-row.warn{
+  color:var(--n-amber, #C8892B) !important;font-weight:600 !important}
+html[data-skin="nova"] .water-live .live-row.warn .live-dot{
+  color:var(--n-amber, #C8892B) !important}
+
+/* 紫夜舱：白瓷换玻璃片，竖痕提亮成荧光青，状态色跟着深色档那套走 */
+html[data-skin="nova"][data-theme="dark"] .water-live{
+  background:rgba(255,255,255,.05) !important;
+  border:1px solid rgba(183,155,255,.18) !important;
+  border-left:2px solid var(--n-cyan) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.07) !important}
+html[data-skin="nova"][data-theme="dark"] .water-live .live-row{
+  color:var(--n-ink-2) !important}
+html[data-skin="nova"][data-theme="dark"] .water-live .live-row + .live-row{
+  border-top-color:rgba(183,155,255,.16) !important}
+html[data-skin="nova"][data-theme="dark"] .water-live .live-row.live,
+html[data-skin="nova"][data-theme="dark"] .water-live .live-row.live .live-dot{
+  color:var(--n-cyan) !important}
+

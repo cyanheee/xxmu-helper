@@ -160,6 +160,13 @@ const GRADES = (() => {
     btnAll.onclick = () => { revealAll(list); paint(); };
     btnCover.onclick = () => { resetCover(); paint(); };
     acts.appendChild(btnAll); acts.appendChild(btnCover);
+    /* v2.6.0 档 C：直接从教务读一次。放在「全部翻开 / 重新盖上」同一排 ——
+     * 这三个动作是连着做的：读进来 → 翻开看 → 重新盖上。 */
+    if (typeof GRADEPULL !== 'undefined' && GRADEPULL.openPanel) {
+      const btnPull = mk('button', 'btn ghost', '从教务读成绩');
+      btnPull.onclick = () => { GRADEPULL.openPanel(); };
+      acts.appendChild(btnPull);
+    }
     body.appendChild(acts);
 
     const box = mk('div', 'grade-box');

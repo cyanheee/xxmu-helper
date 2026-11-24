@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="nova">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>XXMU NOVA · 万象舱（全新软件原型）</title>
+<link rel="stylesheet" href="nova-preview.css">
+<style>
+  /* 长图核对模式：仅供无头浏览器出 390px 实拍，正式 App 不加载 */
+  html[data-full="1"],html[data-full="1"] body{height:auto;overflow:visible}
+  html[data-full="1"] #cabin{height:auto;overflow:visible;padding-bottom:16px}
+  /* relative 仍在文档流里，但保留定位上下文，dial-bead 才不会飞到页顶 */
+  html[data-full="1"] .dial{position:relative;transform:none}
+  html[data-full="1"] #toast{display:none !important}
+  html[data-full="1"] .channel{display:none !important}   /* 默认频道样张不混入其它组 */
+  html[data-full="1"][data-shot="channel"] .channel{display:block !important}
+  html[data-full="1"][data-shot="channel"] [data-groups]:not(.channel){display:none !important}
+  html[data-full="1"][data-shot="channel"] .channel:not([data-groups~="campus"]){display:none !important}
+  html[data-full="1"][data-shot="tape"] #tapeWorld{display:flex !important;position:absolute;height:1400px;backdrop-filter:none}
+  html[data-full="1"][data-shot="tape"] #cabin{display:none !important}
+  html[data-full="1"][data-shot="tape"] #flystone{display:none !important}
+  /* 不覆盖 belt-track 的 --shift：长图也要把当前周居中 */
+  html[data-full="1"] .vp-cells i{transition:none !important}
+  html[data-full="1"] .moss{opacity:.9}
+  html[data-full="1"] #flystone{position:absolute;top:76px;right:18px;opacity:1;z-index:1}
+  html[data-full="1"][data-shot="channel"] #flystone,
+  html[data-full="1"][data-shot="tape"] #flystone{display:none !important}
+  html[data-full="1"] *{animation-play-state:paused !important}
+</style>
+</head>
+<body>
+
+<div id="cabin">
+
+  <!-- ── 状态读数条：段码，不是品牌大标题 ───────────────────── -->
+  <div id="statusbar">
+    <span class="sb-id">XXMU<b>·</b>NOVA OS</span>
+    <span class="sb-w" id="sbW">W11 / 21</span>
+    <span class="sb-loc"><i></i>LOCAL</span>
+    <button id="themeBtn" aria-label="切换深浅">◐</button>
+  </div>
+
+  <!-- ① 周次传送带：蒸汽朋克机械，滚轮与皮带外露，拖拽/点击切周 -->
+  <section class="belt" data-organ="belt" data-groups="kb" aria-label="周次传送带，21 周切换">
+    <div class="belt-label"><span>WEEK CONVEYOR</span><u>21 WEEKS</u></div>
+    <div class="belt-rail" id="beltRail">
+      <div class="pulley pL" aria-hidden="true"><i></i></div>
+      <div class="pulley pR" aria-hidden="true"><i></i></div>
+      <div class="belt-track" id="beltTrack"></div>
+      <div class="belt-ticks" aria-hidden="true"></div>
+      <div class="belt-needle" aria-hidden="true"></div>
+    </div>
+    <div class="belt-foot"><span>← 拖 / 点切周 →</span><span id="weekName">第 11 周 · 周一</span></div>
+  </section>
+
+  <!-- ② 主舷窗：切角 HUD 玻璃 + 蒸汽波落日 + GBA 舱格课表 -->
+  <section class="viewport" data-organ="viewport" data-groups="kb learn" aria-label="课表舷窗">
+    <div class="vp-frame" id="vpFrame">
+      <i class="vp-corner tl"></i><i class="vp-corner tr"></i>
+      <i class="vp-corner bl"></i><i class="vp-corner br"></i>
+      <div class="vp-sun" aria-hidden="true"></div>
+      <div class="vp-grid" aria-hidden="true"></div>
+      <div class="vp-scan" aria-hidden="true"></div>
+      <div class="vp-head">
+        <span><i class="led"></i>TIMETABLE / 7×5</span>
+        <span class="vp-clock">上下课时间 08:00—11:35</span>
+      </div>
+      <div class="vp-days"><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span><span>日</span></div>
+      <div class="vp-cells" id="vpCells"></div>
+      <div class="vp-meter">
+        <span>PROGRESS</span><u><i id="vpFill" style="width:62%"></i></u><b id="vpPct">62%</b>
+      </div>
+      <div class="vp-foot"><span>本周课表 · 21 周可切</span><span>点格放大 · 长按快捷</span></div>
+      <i class="moss a" aria-hidden="true"></i><i class="moss b" aria-hidden="true"></i>
+    </div>
+  </section>
+
+  <!-- ③ 两扇「穿过去的门」：磁带门 + 热水票 -->
+  <div class="gates" data-groups="kb learn campus">
+
+    <button class="tape" data-organ="tape" id="tapeGate" aria-label="磁带门，进入作业与考试">
+      <span class="tape-shell">
+        <span class="tape-top"><em>SIDE A</em><u>XXMU · MIXTAPE 01</u></span>
+        <span class="tape-win">
+          <i class="reel r1"><b></b></i>
+          <span class="tape-strip">作业 / 考试<em>3 待交 · 最近截止 11-10</em></span>
+          <i class="reel r2"><b></b></i>
+        </span>
+        <span class="tape-bot"><em>▶ PLAY</em><u>点击放大 · 时空穿越</u><em>⏸ B 面</em></span>
+        <span class="tape-screw s1"></span><span class="tape-screw s2"></span>
+        <span class="tape-screw s3"></span><span class="tape-screw s4"></span>
+      </span>
+    </button>
+
+    <button class="ticket" data-organ="ticket" id="ticketGate" aria-label="热水票，免验证接热水">
+      <span class="tk-perf"></span>
+      <span class="tk-head">HOT WATER<em>♨</em></span>
+      <span class="tk-mid"><b>免验证<br>接热水</b><u>已绑定设备<br>No. 305</u></span>
+      <span class="tk-foot">撕角出水 <i>→</i></span>
+      <span class="tk-tear"></span>
+      <span class="tk-stamp">ONLY WATER</span>
+    </button>
+  </div>
+
+  <!-- ④ 校园 WIKI：杂志剪报跨页（拼贴只领这一个器官） -->
+  <section class="clipping" data-organ="clipping" data-groups="kb campus wiki me" aria-label="校园 WIKI 剪报">
+    <div class="clip-tag">FILE 04 · CAMPUS WIKI</div>
+    <div class="clip-title">校园剪报<em>资料来自官网</em></div>
+    <div class="clip-grid">
+      <button class="clip-item"><i>01</i><b>校历</b><u>学期与假期</u></button>
+      <button class="clip-item"><i>02</i><b>招生办</b><u>官方入口</u></button>
+      <button class="clip-item"><i>03</i><b>附属医院</b><u>名录与地址</u></button>
+      <button class="clip-item"><i>04</i><b>校训</b><u>明德 · 博学</u></button>
+    </div>
+  </section>
+
+  <!-- ⑤ 校园图片 + 留言板：拍立得显影（待冲洗 = 待审核） -->
+  <section class="polaroid" data-organ="polaroid" data-groups="kb learn campus wiki me" aria-label="校园图片与留言板">
+    <div class="pl-head"><span>PHOTO WALL</span><u>图片需管理员审核</u></div>
+    <div class="pl-strip">
+      <figure class="pl-card pending"><div class="pl-img"><span>待冲洗</span></div><figcaption>待审核 · 03</figcaption></figure>
+      <figure class="pl-card"><div class="pl-img g1"><span>图书馆 · 秋</span></div><figcaption>已上墙 · 11-02</figcaption></figure>
+      <figure class="pl-card note"><div class="pl-img"><span>留言板<small>这门课讲得好清楚<br>回复 +1</small></span></div><figcaption>便签 · 12 条</figcaption></figure>
+    </div>
+  </section>
+
+  <!-- 频道专属舱格：拨盘切频道时按风格错峰换组，不是只换高亮 -->
+  <section class="channel" data-groups="campus" data-channel-caption="校园 · 硬件 stations">
+    <div class="ch-title">STATIONS / 校园<em>本机 · 只读</em></div>
+    <div class="ch-body">
+      <button class="ch-tile t-water">♨<b>饮水机</b><u>扫码绑定一次<br>之后免验证</u></button>
+      <button class="ch-tile t-clock">◷<b>上下课</b><u>08:00 / 10:05<br>14:30 三段</u></button>
+      <button class="ch-tile t-week">21<b>周历</b><u>21 周可切<br>课表带时间</u></button>
+    </div>
+  </section>
+
+  <section class="channel" data-groups="me" data-channel-caption="我的 · 本机档案">
+    <div class="ch-title">DEVICE / 我的<em>数据只留本机</em></div>
+    <div class="ch-body">
+      <button class="ch-tile t-dev">◍<b>本机</b><u>不含密码<br>不上传课表</u></button>
+      <button class="ch-tile t-skin">◐<b>外观</b><u>万象舱 / 经典<br>深浅独立</u></button>
+      <button class="ch-tile t-ver">v1<b>版本</b><u>NOVA PROTO<br>待点头落地</u></button>
+    </div>
+  </section>
+
+  <section class="channel" data-groups="learn" data-channel-caption="学习 · 磁带 A/B 面速览">
+    <div class="ch-title">STUDY / 学习<em>只读 · 不代提交</em></div>
+    <div class="ch-body">
+      <button class="ch-tile t-a">A<b>作业</b><u>3 待交<br>最近 11-10</u></button>
+      <button class="ch-tile t-b">B<b>考试</b><u>3 场<br>完成情况</u></button>
+      <button class="ch-tile t-term">✓<b>截止</b><u>按时间排序<br>不改原数据</u></button>
+    </div>
+  </section>
+
+  <!-- ⑥ 波段拨盘：复古调频 + 段码 + 滑动指示珠（不是普通 Tab） -->
+  <nav class="dial" data-organ="dial" id="dial" aria-label="频道拨盘">
+    <div class="dial-scale" aria-hidden="true"></div>
+    <div class="dial-bead" id="dialBead" aria-hidden="true"></div>
+    <div class="dial-row" id="dialRow">
+      <button data-ch="kb" class="on"><i>▦</i>课表</button>
+      <button data-ch="learn"><i>◉</i>学习</button>
+      <button data-ch="campus"><i>⌂</i>校园</button>
+      <button data-ch="wiki"><i>▤</i>资料</button>
+      <button data-ch="me"><i>◍</i>我的</button>
+    </div>
+    <div class="dial-read"><span id="dialRead">CH 01 · TIMETABLE</span><u>XXMU / NOVA</u></div>
+  </nav>
+
+  <div class="endcap">— 万象舱 · 保留全部功能 · 全新设计 —</div>
+</div>
+
+<i id="flystone" aria-hidden="true"></i>
+<div id="toast">—</div>
+
+<!-- 磁带门放大后的世界：A 面作业 / B 面考试，卷轴开转 -->
+<div id="tapeWorld">
+  <div class="tw-bg"></div>
+  <div class="tw-card" id="twCard">
+    <button id="twClose" aria-label="关闭">✕</button>
+    <div class="tw-kicker">MIXTAPE 01 · XXMU</div>
+    <div class="tw-reels"><i class="r1"></i><i class="r2"></i></div>
+    <div class="tw-side"><button class="on" data-side="a">A 面 · 作业</button><button data-side="b">B 面 · 考试</button></div>
+    <div class="tw-list" id="twList"></div>
+    <div class="tw-foot">截止时间与完成情况 · 只读展示</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var $ = function(id){return document.getElementById(id)};
+  var q = new URLSearchParams(location.search);
+  if(q.get('theme')==='dark') document.documentElement.setAttribute('data-theme','dark');
+  if(q.get('full')==='1') document.documentElement.setAttribute('data-full','1');
+  if(q.get('shot')) document.documentElement.setAttribute('data-shot',q.get('shot'));
+  var state = {week:11, theme:document.documentElement.getAttribute('data-theme')||'light', ch:'kb', side:'a'};
+  var WEEK_DAY = ['周一','周二','周三','周四','周五','周六','周日'];
+
+  /* ---------- ① 传送带：21 周，点击 / 拖拽吸附 ---------- */
+  var track=$('beltTrack'),rail=$('beltRail');
+  for(var w=1;w<=21;w++){
+    var b=document.createElement('button');
+    b.className='wk';b.setAttribute('data-w',w);b.textContent=(w<10?'0':'')+w;
+    track.appendChild(b);
+  }
+  function setWeek(w,push){
+    w=Math.max(1,Math.min(21,w));state.week=w;
+    $('sbW').textContent='W'+w+' / 21';
+    $('weekName').textContent='第 '+w+' 周 · '+WEEK_DAY[(w-1)%7];
+    [].forEach.call(track.children,function(b){
+      var on=+b.getAttribute('data-w')===w;b.classList.toggle('on',on);
+      if(on) b.setAttribute('aria-current','true'); else b.removeAttribute('aria-current');
+    });
+    var pct=Math.round((w/21)*100);
+    $('vpFill').style.width=pct+'%';$('vpPct').textContent=pct+'%';
+    if(push){
+      var f=$('vpFrame');
+      f.animate([{transform:'translateX('+(w>(state._last||11)?14:-14)+'px)',opacity:.55},
+                 {transform:'none',opacity:1}],{duration:220,easing:'cubic-bezier(.4,0,.2,1)'});
+    }
+    state._last=w;
+    if(!$('beltTrack').dataset.locked){
+      var active=track.querySelector('.on');
+      if(active) track.style.setProperty('--shift',(195-active.offsetLeft-active.offsetWidth/2)+'px');
+    }
+  }
+  track.addEventListener('click',function(e){
+    var b=e.target.closest('.wk');if(!b)return;
+    setWeek(+b.getAttribute('data-w'),true);toast('WEEK '+b.getAttribute('data-w'));
+  });
+  var dragX=null,dragShift=0;
+  rail.addEventListener('touchstart',function(e){dragX=e.touches[0].clientX;dragShift=parseFloat(track.style.getPropertyValue('--shift'))||0},{passive:true});
+  rail.addEventListener('touchmove',function(e){
+    if(dragX===null)return;
+    track.dataset.locked='1';
+    track.style.setProperty('--shift',(dragShift+(e.touches[0].clientX-dragX))+'px');
+  },{passive:true});
+  rail.addEventListener('touchend',function(e){
+    if(dragX===null)return;
+    var dx=(e.changedTouches[0].clientX-dragX);dragX=null;
+    delete track.dataset.locked;
+    if(Math.abs(dx)>24){
+      setWeek(state.week+(dx<0?Math.min(3,Math.round(Math.abs(dx)/70)):-Math.min(3,Math.round(Math.abs(dx)/70))),true);
+    } else setWeek(state.week,false);
+  },{passive:true});
+
+  /* ---------- ② 课表舱格：7×5，硬切状态机，无平滑过渡 ---------- */
+  var COURSE=[
+    ['解剖','08:00'],['生理','10:05'],['生化','14:30'],['',''],['英语','08:00'],['',''] ,['',''],
+    ['',''] ,['组胚','08:00'],['病理','10:05'],['药理','14:30'],['',''] ,['',''] ,['',''],
+    ['体育','08:00'],['',''] ,['诊断','10:05'],['',''] ,['免疫','14:30'],['',''] ,['',''],
+    ['',''] ,['生理','08:00'],['',''] ,['解剖','10:05'],['',''] ,['',''] ,['',''],
+    ['',''] ,['',''] ,['生化','08:00'],['',''] ,['药理','10:05'],['',''] ,['','']
+  ];
+  var cells=$('vpCells');
+  COURSE.forEach(function(c,i){
+    var el=document.createElement('i');
+    if(c[0]){
+      el.className='on'+((i%7)===1?' today':'');
+      el.innerHTML='<b>'+c[0]+'</b><u>'+c[1]+'</u>';
+    } else el.className='empty';
+    cells.appendChild(el);
+  });
+  cells.addEventListener('click',function(e){
+    var c=e.target.closest('i');if(!c||!c.classList.contains('on'))return;
+    cells.querySelectorAll('i.zoom').forEach(function(x){x.classList.remove('zoom')});
+    c.classList.add('zoom');setTimeout(function(){c.classList.remove('zoom')},420);
+    toast(c.querySelector('b').textContent+' · '+c.querySelector('u').textContent);
+  });
+
+  /* ---------- ③ 磁带门：触点为原点放大铺满（时空穿越） ---------- */
+  var tw=$('tapeWorld'),twCard=$('twCard');
+  var TRACKS={
+    a:[['系统解剖学作业','11-10 截止','未完成'],['生理学实验报告','11-13 截止','未完成'],
+       ['英语单词 50 个','11-08 截止','已完成'],['生物化学笔记','11-15 截止','未完成']],
+    b:[['生理学·期末','11-21 08:00','未开始'],['诊断学·随堂','11-18 14:30','未开始'],
+       ['医学英语·口试','11-24 10:05','未开始']]
+  };
+  function renderSide(){
+    var list=$('twList');list.innerHTML='';
+    TRACKS[state.side].forEach(function(t,i){
+      var row=document.createElement('div');row.className='tw-row';
+      row.innerHTML='<i>'+(i+1<10?'0':'')+(i+1)+'</i><span><b>'+t[0]+'</b><u>'+t[1]+'</u></span><em class="'+(t[2]==='已完成'?'done':'')+'">'+t[2]+'</em>';
+      list.appendChild(row);
+    });
+    tw.querySelectorAll('.tw-side button').forEach(function(b){b.classList.toggle('on',b.getAttribute('data-side')===state.side)});
+  }
+  function openTape(x,y){
+    twCard.style.setProperty('--ox',((x||110)/window.innerWidth*100)+'%');
+    twCard.style.setProperty('--oy',((y||600)/window.innerHeight*100)+'%');
+    state.side='a';renderSide();tw.classList.add('on');
+  }
+  $('tapeGate').addEventListener('click',function(e){openTape(e.clientX||110,e.clientY||600)});
+  $('twClose').addEventListener('click',function(){tw.classList.remove('on')});
+  tw.addEventListener('click',function(e){if(e.target===tw||e.target.classList.contains('tw-bg'))tw.classList.remove('on')});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape')tw.classList.remove('on')});
+  tw.querySelectorAll('.tw-side button').forEach(function(b){
+    b.addEventListener('click',function(){state.side=b.getAttribute('data-side');renderSide();
+      twCard.animate([{filter:'hue-rotate(0deg)'},{filter:'hue-rotate(45deg)'},{filter:'hue-rotate(0deg)'}],{duration:420});});
+  });
+
+  /* ---------- ④ 热水票：撕角出水（不涉资金） ---------- */
+  $('ticketGate').addEventListener('click',function(){
+    var t=this;t.classList.remove('torn');void t.offsetWidth;t.classList.add('torn');
+    toast('已出水 · 免验证接热水');
+    setTimeout(function(){t.classList.remove('torn')},900);
+  });
+
+  /* ---------- ⑤ 波段拨盘：指示珠滑动 ---------- */
+  var CH={kb:['CH 01 · TIMETABLE','课表'],learn:['CH 02 · STUDY','学习'],
+          campus:['CH 03 · CAMPUS','校园'],wiki:['CH 04 · ARCHIVE','资料'],me:['CH 05 · DEVICE','我的']};
+  var row=$('dialRow');
+  function setCh(ch){
+    state.ch=ch;
+    var bs=[].slice.call(row.children),idx=bs.findIndex(function(b){return b.getAttribute('data-ch')===ch});
+    bs.forEach(function(b,i){b.classList.toggle('on',i===idx)});
+    $('dialBead').style.setProperty('--x',((idx+.5)/bs.length*100)+'%');
+    $('dialRead').textContent=CH[ch][0];
+    /* 画面动态切换：每个频道按自己的器官组合重排 + stagger 入场 */
+    document.querySelectorAll('[data-groups]').forEach(function(el){
+      var show=el.getAttribute('data-groups').split(' ').indexOf(ch)>=0;
+      el.classList.toggle('group-hidden',!show);
+      if(show){
+        el.animate([{opacity:.25,transform:'translateY(10px) scale(.985)'},
+                    {opacity:1,transform:'none'}],
+                   {duration:260,delay:Math.min(120,[].indexOf.call(el.parentElement.children,el)*26),
+                    easing:'cubic-bezier(.4,0,.2,1)'});
+      }
+    });
+    toast('CHANNEL '+CH[ch][1]);
+  }
+  row.addEventListener('click',function(e){var b=e.target.closest('button');if(b)setCh(b.getAttribute('data-ch'))});
+
+  /* ---------- ⑥ 深浅切换（正交，不动器官） ---------- */
+  $('themeBtn').addEventListener('click',function(){
+    state.theme=state.theme==='light'?'dark':'light';
+    document.documentElement.setAttribute('data-theme',state.theme);
+    toast(state.theme==='dark'?'NIGHT CABIN':'DAY CABIN');
+  });
+
+  /* 剪报 / 拍立得：点按反馈，不换页（原型） */
+  document.querySelectorAll('.clip-item,.pl-card').forEach(function(el){
+    el.addEventListener('click',function(){toast(el.textContent.replace(/\s+/g,' ').trim().slice(0,14))});
+  });
+
+  var _t;
+  function toast(t){var e=$('toast');e.textContent='▶ '+t;e.classList.add('on');
+    clearTimeout(_t);_t=setTimeout(function(){e.classList.remove('on')},1100)}
+
+  setWeek(11,false);
+  renderSide();
+  if(q.get('shot')==='channel') setCh('campus');
+  else if(q.get('shot')==='tape') openTape(110,600);
+  else setCh('kb');
+
+  /* 布局探针：?probe=1 时输出所有超出 390px 视口的元素，给 headless --dump-dom 读 */
+  if(q.get('probe')==='1'){
+    var bad=[], W=390;
+    function isClipped(el){
+      var p=el.parentElement;
+      while(p && p!==document.body){
+        var s=getComputedStyle(p);
+        if(s.overflowX==='hidden'||s.overflowX==='clip') return true;
+        p=p.parentElement;
+      }
+      return false;
+    }
+    document.querySelectorAll('body *').forEach(function(el){
+      var r=el.getBoundingClientRect();
+      if(r.width>W+1 || r.right>W+1 || r.left<-1){
+        if(isClipped(el)) return;  /* parent crops it: not a real bleed */
+        bad.push({tag:el.tagName.toLowerCase(),id:el.id||'',cls:(el.className||'').toString().slice(0,40),
+          left:Math.round(r.left),right:Math.round(r.right),w:Math.round(r.width)});
+      }
+    });
+    var pre=document.createElement('pre');pre.id='probeOut';
+    pre.textContent='NOVA_PROBE '+JSON.stringify({docW:document.documentElement.scrollWidth,
+      bodyW:document.body.scrollWidth,winW:window.innerWidth,
+      docH:document.documentElement.scrollHeight,bodyH:document.body.scrollHeight,
+      count:bad.length,items:bad.slice(0,40)});
+    document.body.insertBefore(pre,document.body.firstChild);
+  }
+})();
+</script>
+</body>
+</html>

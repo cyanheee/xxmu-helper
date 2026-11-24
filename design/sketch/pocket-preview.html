@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light" data-skin="console">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>河医大助手 · POCKET 掌机操作原型</title>
+<link rel="stylesheet" href="../../web/app.css">
+<link rel="stylesheet" href="console-preview.css">
+<style>
+/* ===== POCKET 操作原型：把页面重构成一台掌机 =====
+   上=屏幕(一屏一模块) 下=物理按键区。操作逻辑全部换成掌机语义。 */
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;max-width:none;overflow:hidden}
+body{background:#7C715C !important;padding:14px 10px;font-family:ui-monospace,Menlo,Consolas,"Microsoft YaHei",monospace}
+.pv{display:none}   /* 静态长页隐藏，改由掌机壳接管 */
+
+#pocket{
+  max-width:390px;margin:0 auto;height:calc(100vh - 28px);min-height:640px;
+  display:flex;flex-direction:column;
+  border:3px solid #6B5A42;border-radius:22px 22px 34px 34px / 22px 22px 44px 44px;
+  background:linear-gradient(160deg,#CFC2AA,#A99B81 55%,#8E8068);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.35),inset 0 0 0 6px rgba(90,72,48,.22),0 10px 0 #5D4E3A,0 18px 30px rgba(30,22,12,.5);
+  padding:12px 12px 10px;position:relative;
+}
+#pocket::before,#pocket::after{content:'';position:absolute;top:8px;bottom:8px;width:4px;
+  background:linear-gradient(90deg,rgba(60,46,30,.4),rgba(255,255,255,.3),rgba(60,46,30,.25));border-radius:3px}
+#pocket::before{left:5px}#pocket::after{right:5px}
+
+/* ---- 屏幕外框 ---- */
+#bezel{
+  flex:0 0 auto;background:#26383F;border:3px solid #5C4A32;border-radius:10px 10px 16px 16px;
+  padding:10px 10px 8px;
+  box-shadow:inset 0 3px 8px rgba(0,0,0,.6),0 2px 0 rgba(255,255,255,.35);
+}
+#status{display:flex;justify-content:space-between;align-items:center;
+  color:#8FA8A8;font-size:9px;letter-spacing:1.4px;margin-bottom:6px;padding:0 4px}
+#status .led{display:inline-block;width:6px;height:6px;border-radius:50%;background:#F0B95C;
+  box-shadow:0 0 6px #F0B95C;margin-right:5px;vertical-align:1px}
+#status b{color:#DCE8E6;font-weight:600}
+#screen{
+  position:relative;height:clamp(300px,46vh,420px);overflow:hidden;
+  background:#0C181D;border:2px solid #0A1216;border-radius:5px;
+  box-shadow:inset 0 0 0 1px rgba(240,185,92,.18),inset 0 0 30px rgba(0,0,0,.8);
+  color:#D8E8E4;
+}
+#screen::before{content:'';position:absolute;inset:0;z-index:9;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.30) 0 1px,transparent 1px 4px),
+    radial-gradient(ellipse 70% 40% at 50% 100%,rgba(240,185,92,.12),transparent 70%);}
+#screen::after{content:'';position:absolute;inset:0;z-index:10;pointer-events:none;
+  background:linear-gradient(115deg,rgba(255,255,255,.07) 0 18%,transparent 18% 100%);}
+#glass{position:absolute;inset:0;overflow-y:auto;scrollbar-width:none;padding:14px 14px 18px;z-index:2}
+#glass::-webkit-scrollbar{display:none}
+
+/* 屏幕内容：1U 槽位节奏，全部改成点阵/数码管语言 */
+.slot{margin:0 0 12px;padding:8px 10px 10px;background:rgba(26,46,54,.72);
+  border:1px solid rgba(240,185,92,.30);border-left:3px solid #C79A4B;border-radius:2px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06)}
+.slot-h{display:flex;justify-content:space-between;color:#F0B95C;font-size:9px;letter-spacing:2px;
+  text-transform:uppercase;border-bottom:1px dashed rgba(240,185,92,.35);padding-bottom:5px;margin-bottom:7px}
+.slot-h i{font-style:normal;color:#8FA8A8;letter-spacing:1px}
+.big{font:700 34px/1 ui-monospace,Menlo,Consolas,monospace;color:#F0B95C;letter-spacing:-1px;
+  text-shadow:0 0 12px rgba(240,185,92,.55);font-variant-numeric:tabular-nums}
+.unit{font-size:10px;color:#8FA8A8;letter-spacing:1px}
+.kv{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px dotted rgba(143,168,168,.22)}
+.kv span:last-child{color:#F0B95C;font-variant-numeric:tabular-nums}
+.grid-mini{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-top:8px}
+.grid-mini i{display:block;height:22px;background:#15262C;border:1px solid rgba(143,168,168,.18);border-radius:0}
+.grid-mini i.on{background:#2A4149;border-color:#C79A4B;box-shadow:inset 0 0 0 2px rgba(240,185,92,.18)}
+.grid-mini i.today{background:#3A2E10;border-color:#F0B95C}
+.bar{height:6px;background:#15262C;border:1px solid rgba(240,185,92,.25);margin-top:8px;position:relative}
+.bar>u{display:block;height:100%;background:repeating-linear-gradient(90deg,#F0B95C 0 5px,transparent 5px 7px)}
+.tiny{color:#8FA8A8;font-size:10px;letter-spacing:1px;line-height:1.7}
+.tag{display:inline-block;padding:1px 5px;border:1px solid #9A8CD8;color:#C9BCF0;font-size:9px;letter-spacing:1px}
+.chiprow{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+.chiprow b{font:600 10px ui-monospace,monospace;letter-spacing:1px;padding:3px 7px;
+  border:1px solid rgba(143,168,168,.4);color:#8FA8A8;border-radius:1px}
+.chiprow b.sel{background:#F0B95C;color:#23180C;border-color:#F0B95C}
+
+/* ---- 按键区 ---- */
+#deck{flex:1;display:flex;align-items:center;justify-content:space-between;gap:6px;padding:12px 6px 2px;position:relative}
+#deck .label{position:absolute;top:2px;left:0;right:0;text-align:center;
+  font-size:8px;letter-spacing:3px;color:#6B5A42;text-transform:uppercase}
+/* 肩键 */
+.shoulder{position:absolute;top:-8px;width:58px;height:12px;border:2px solid #6B5A42;border-radius:6px 6px 2px 2px;
+  background:linear-gradient(180deg,#E4D8BE,#B5A68A);cursor:pointer;font:8px/8px ui-monospace;text-align:center;color:#5C4A32}
+.shoulder.l{left:8px}.shoulder.r{right:8px}
+.shoulder:active{transform:translateY(2px)}
+
+/* 十字键：纯 CSS 十字符 */
+#dpad{width:96px;height:96px;position:relative;flex:0 0 auto}
+#dpad .cross{position:absolute;left:32px;top:0;width:32px;height:96px;background:#2A3338;border-radius:3px;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.18),0 3px 0 #131A1D}
+#dpad .cross.h{left:0;top:32px;width:96px;height:32px}
+#dpad .core{position:absolute;left:38px;top:38px;width:20px;height:20px;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#4A565B,#20282C);border:1px solid #131A1D;z-index:2}
+#dpad button{position:absolute;width:30px;height:30px;border:0;background:transparent;cursor:pointer;z-index:3;
+  font:12px/30px ui-monospace;text-align:center;color:rgba(255,255,255,.55);padding:0}
+#dpad button:active{color:#F0B95C;text-shadow:0 0 8px #F0B95C}
+#dpad .up{left:33px;top:1px}#dpad .dn{left:33px;bottom:1px}
+#dpad .lf{left:1px;top:33px}#dpad .rt{right:1px;top:33px}
+/* A/B 圆键 */
+#ab{width:104px;height:96px;position:relative;flex:0 0 auto}
+#ab button{position:absolute;width:42px;height:42px;border-radius:50%;border:2px solid #6B4A30;
+  background:radial-gradient(circle at 34% 28%,#F8CE7E,#C8953D 70%,#8E623F);
+  color:#2A1C0A;font:800 14px/40px ui-monospace;text-align:center;cursor:pointer;
+  box-shadow:inset 0 2px 0 rgba(255,255,255,.5),0 4px 0 #6B4A30,0 6px 8px rgba(40,28,14,.4)}
+#ab button:active{transform:translateY(3px);box-shadow:inset 0 2px 5px rgba(90,60,20,.5),0 1px 0 #6B4A30}
+#ab .b{left:4px;top:34px}#ab .a{right:4px;top:6px}
+/* START / SELECT 小扁键 */
+#sys{position:absolute;left:50%;bottom:8px;transform:translateX(-50%);display:flex;gap:10px}
+#sys button{border:1px solid #6B5A42;border-radius:9px;background:linear-gradient(180deg,#D8CBB0,#A99B81);
+  font:7px/1 ui-monospace;letter-spacing:1px;color:#4A3C2A;padding:5px 9px;cursor:pointer;
+  box-shadow:0 2px 0 #6B5A42}
+#sys button:active{transform:translateY(2px);box-shadow:none}
+/* 电源拨杆 */
+#power{position:absolute;right:10px;bottom:9px;font:7px ui-monospace;letter-spacing:1px;color:#5C4A32;
+  display:flex;align-items:center;gap:4px}
+#power i{display:inline-block;width:22px;height:10px;border:1px solid #6B5A42;border-radius:2px;
+  background:linear-gradient(90deg,#F0B95C 0 55%,#8E8068 55%);cursor:pointer}
+
+/* 屏幕滚动时的开机闪 */
+#boot{position:absolute;inset:0;z-index:20;background:#0C181D;color:#F0B95C;
+  font:11px/1.9 ui-monospace,monospace;letter-spacing:1px;padding:20px;
+  display:flex;flex-direction:column;justify-content:center;transition:opacity .45s}
+#boot.off{opacity:0;pointer-events:none}
+#boot b{color:#9A8CD8}
+#toast{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);z-index:15;
+  background:rgba(12,24,29,.92);border:1px solid #C79A4B;color:#F0B95C;
+  font:10px ui-monospace;letter-spacing:1px;padding:5px 12px;border-radius:2px;opacity:0;transition:opacity .2s}
+#toast.on{opacity:1}
+@media (prefers-reduced-motion:reduce){#boot{transition:none}}
+</style>
+</head>
+<body>
+
+<!-- 静态长页保留但不显示：保留 CSS 继承用 -->
+<div class="pv"></div>
+
+<div id="pocket">
+  <div id="bezel">
+    <div id="status">
+      <span><i class="led"></i><b id="pMode">KB · 课表</b></span>
+      <span id="pWeek">W11 · MON</span>
+      <span id="pTheme">LIGHT ▮▮▯</span>
+    </div>
+    <div id="screen">
+      <div id="glass"></div>
+      <div id="toast">—</div>
+      <div id="boot">
+        XXMU POCKET BIOS v1.1.55<br>
+        CPU 32BIT · SRAM 256K<br>
+        SCREEN 240×160 · 4COL<br>
+        <b>LOADING MODULES…</b><br>
+        <span id="bootline">▮</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="deck">
+    <div class="label">XXMU · POCKET · MODEL 1155</div>
+    <div class="shoulder l" data-key="L">L SHOULDER</div>
+    <div class="shoulder r" data-key="R">R SHOULDER</div>
+
+    <div id="dpad">
+      <div class="cross"></div><div class="cross h"></div><div class="core"></div>
+      <button class="up" data-key="UP">▲</button>
+      <button class="dn" data-key="DOWN">▼</button>
+      <button class="lf" data-key="LEFT">◀</button>
+      <button class="rt" data-key="RIGHT">▶</button>
+    </div>
+
+    <div id="ab">
+      <button class="b" data-key="B">B</button>
+      <button class="a" data-key="A">A</button>
+    </div>
+
+    <div id="sys">
+      <button data-key="SELECT">SELECT</button>
+      <button data-key="START">START</button>
+    </div>
+    <div id="power"><span>POWER</span><i data-key="POWER"></i></div>
+  </div>
+</div>
+
+<script>
+/* 五个模块 = 五个 1U 槽位；L/R 翻页，左右切周/筛选，A 确认，B 返回 */
+var MODULES = [
+  { id:'KB', name:'课表', render:function(s){
+      var g = '<div class="grid-mini">';
+      for (var i=0;i<21;i++) g += '<i class="'+(i===8?'today':(i%5===2?'on':''))+'"></i>';
+      g += '</div>';
+      return slot('TIMETABLE','W'+s.week+' · 7×3', '<div class="big">'+pad(s.week)+'</div><div class="unit">WEEK / 20</div>'+g+
+        '<div class="tiny">▲▼ 滚动槽内 · ◀▶ 切周 · A 查看课程</div>') +
+        slot('TODAY','02 / MON', kv('系统解剖学','A203 · 08:00')+kv('生理学','B101 · 10:00')+kv('生物化学','C305 · 14:00')) +
+        slot('STATUS','SIGNAL', '<div class="bar"><u style="width:78%"></u></div><div class="tiny">SYNC 10:24 · CRC OK · 3 CLASS</div>');
+  }},
+  { id:'HW', name:'作业', render:function(s){
+      return slot('TASKS','3 PENDING', kv('系统解剖学 · 第三章','剩余 2 天')+kv('生理学实验报告','周五')+kv('英语单词 50','今天')) +
+        slot('FOCUS','POMODORO', '<div class="big">25:00</div><div class="unit">MIN · NOT RUNNING</div><div class="bar"><u style="width:0%"></u></div><div class="tiny">A 开始 · B 重置</div>') +
+        slot('FILTER','SORT', '<div class="chiprow"><b class="sel">全部</b><b>未完成</b><b>已完成</b></div><div class="tiny">◀▶ 移动档位</div>');
+  }},
+  { id:'CAMPUS', name:'校园', render:function(s){
+      return slot('ELEC','DORM 12·305', '<div class="big">12.40</div><div class="unit">kWh · 10:24 UPDATED</div>'+
+        '<div class="bar"><u style="width:62%"></u></div>') +
+        slot('WATER','DISPENSER', kv('已绑定','2 台')+kv('账号','本机')) +
+        slot('LINK','SHORTCUT', kv('空闲教室','全校真实数据 ›')+kv('学习通','课程首页 ›')+kv('教务系统','官方页面 ›'));
+  }},
+  { id:'WIKI', name:'资料', render:function(s){
+      return slot('ARCHIVE','12 ENTRIES', kv('期末重点整理','2026-10-30')+kv('我的笔记','2026-11-02')+kv('实验课随手拍','IMG · 4:3')) +
+        slot('BOARD','MESSAGES', '<div class="tiny">这门课老师讲得好清楚</div><div class="chiprow"><b class="sel">+1</b><b>回复</b></div>') +
+        slot('HELP','MANUAL', '<div class="tiny">L/R 切模块 · SELECT 切明暗 · START 回课表 · POWER 待机</div>');
+  }},
+  { id:'ME', name:'我的', render:function(s){
+      return slot('DEVICE','MODEL 1155', kv('学号','本机')+kv('主题','CONSOLE / '+s.theme.toUpperCase())+kv('数据源','内置')) +
+        slot('SYSTEM','BUILD', '<div class="big">1.1.55</div><div class="unit">ROM · CRC 94D07073</div><div class="bar"><u style="width:100%"></u></div>') +
+        slot('POWER','BATTERY', '<div class="kv"><span>CELL</span><span>▮▮▮▯</span></div><div class="tiny">SELECT 切 LIGHT / DARK</div>');
+  }}
+];
+
+var state = { mod:0, week:11, theme:'light', filter:0, scroll:0 };
+var $ = function(id){ return document.getElementById(id); };
+function pad(n){ return (n<10?'0':'')+n; }
+function slot(title,meta,body){ return '<div class="slot"><div class="slot-h"><span>'+title+'</span><i>'+meta+'</i></div>'+body+'</div>'; }
+function kv(a,b){ return '<div class="kv"><span>'+a+'</span><span>'+b+'</span></div>'; }
+
+function paint(){
+  var m = MODULES[state.mod];
+  $('glass').innerHTML = m.render(state);
+  $('glass').scrollTop = state.scroll;
+  $('pMode').textContent = m.id+' · '+m.name;
+  $('pWeek').textContent = 'W'+state.week+' · MON';
+  $('pTheme').textContent = (state.theme==='dark'?'DARK ▮▮▮':'LIGHT ▮▮▯');
+  document.documentElement.setAttribute('data-theme', state.theme);
+}
+function toast(t){
+  var el=$('toast'); el.textContent='▶ '+t; el.classList.add('on');
+  clearTimeout(el._t); el._t=setTimeout(function(){el.classList.remove('on')},900);
+}
+/* 咔哒音：WebAudio 短脉冲，不加载任何文件 */
+var AC=null;
+function click(){
+  try{
+    AC = AC || new (window.AudioContext||window.webkitAudioContext)();
+    var o=AC.createOscillator(), g=AC.createGain();
+    o.type='square'; o.frequency.value=880;
+    g.gain.setValueAtTime(.045,AC.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,AC.currentTime+.045);
+    o.connect(g); g.connect(AC.destination); o.start(); o.stop(AC.currentTime+.05);
+  }catch(e){}
+}
+function act(k){
+  click();
+  switch(k){
+    case 'L': state.mod=(state.mod+MODULES.length-1)%MODULES.length; state.scroll=0; toast('MODULE '+MODULES[state.mod].id); break;
+    case 'R': state.mod=(state.mod+1)%MODULES.length; state.scroll=0; toast('MODULE '+MODULES[state.mod].id); break;
+    case 'LEFT':
+      if(MODULES[state.mod].id==='KB'){ state.week=Math.max(1,state.week-1); toast('WEEK '+pad(state.week)); }
+      else if(MODULES[state.mod].id==='HW'){ state.filter=(state.filter+2)%3; toast('FILTER '+state.filter); }
+      break;
+    case 'RIGHT':
+      if(MODULES[state.mod].id==='KB'){ state.week=Math.min(20,state.week+1); toast('WEEK '+pad(state.week)); }
+      else if(MODULES[state.mod].id==='HW'){ state.filter=(state.filter+1)%3; toast('FILTER '+state.filter); }
+      break;
+    case 'UP': state.scroll=Math.max(0,state.scroll-70); break;
+    case 'DOWN': state.scroll=state.scroll+70; break;
+    case 'A': toast('OPEN · '+MODULES[state.mod].id); break;
+    case 'B': toast('BACK · HOLD'); break;
+    case 'START': state.mod=0; state.scroll=0; toast('HOME · KB'); break;
+    case 'SELECT': state.theme=(state.theme==='light'?'dark':'light'); toast('THEME '+state.theme.toUpperCase()); break;
+    case 'POWER': toast('STANDBY · TAP ANY KEY'); break;
+  }
+  paint();
+}
+document.addEventListener('click',function(e){
+  var t=e.target.closest('[data-key]'); if(t) act(t.getAttribute('data-key'));
+});
+document.addEventListener('keydown',function(e){
+  var map={ArrowLeft:'LEFT',ArrowRight:'RIGHT',ArrowUp:'UP',ArrowDown:'DOWN',
+    a:'A',b:'B',A:'A',B:'B',l:'L',r:'R',L:'R',Enter:'START',' ':'START',Escape:'B',s:'SELECT',S:'SELECT'};
+  map.L='L';
+  if(map[e.key]){ e.preventDefault(); act(map[e.key]); }
+});
+/* 开机自检 → 揭屏 */
+paint();
+$('bootline').textContent='▮▮▮▮▮▮▮▮ OK';
+setTimeout(function(){ $('boot').classList.add('off'); toast('READY · L/R TO SWITCH'); },900);
+</script>
+</body>
+</html>
